@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import pickle
 import warnings
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -48,27 +47,27 @@ class SurrogateEngine:
         try:
             with open(path, "rb") as f:
                 artifact = pickle.load(f)
-                
+
             model = None
             loaded_hash = ""
-            
+
             # Case 1: Legacy Dict Artifact
             if isinstance(artifact, dict) and "model" in artifact and "schema_hash" in artifact:
                 model = artifact["model"]
                 loaded_hash = artifact["schema_hash"]
-                
+
             # Case 2: EnsembleRegressor Object
             elif hasattr(artifact, "schema_hash") and hasattr(artifact, "predict"):
                 model = artifact
                 loaded_hash = artifact.schema_hash
-                
+
             else:
                 warnings.warn(f"Invalid artifact format for {key} at {path}")
                 return
 
             # Verify Schema
             expected_schema = self.schemas[key]
-            
+
             if not expected_schema.validate(loaded_hash):
                 warnings.warn(
                     f"Schema Mismatch for {key}: "
@@ -76,10 +75,10 @@ class SurrogateEngine:
                     "Ignoring model."
                 )
                 return
-                
+
             self.models[key] = model
             print(f"Loaded surrogate: {key} (v{expected_schema.version})")
-            
+
         except Exception as e:
             warnings.warn(f"Failed to load surrogate {key}: {e}")
 
@@ -91,16 +90,16 @@ class SurrogateEngine:
         """
         delta_eff = 0.0
         delta_loss = 0.0
-        meta = {"surrogates_active": [], "uncertainty": {}}
-        
+        meta: dict[str, Any] = {"surrogates_active": [], "uncertainty": {}}
+
         # 1. Gear (Delta Loss)
         if "gear" in self.models:
             feats = self.extractors["gear"](x)
             feats_in = feats.reshape(1, -1)
-            
+
             # Predict
             res = self.models["gear"].predict(feats_in)
-            
+
             # Handle Ensemble vs Standard
             if isinstance(res, tuple) and len(res) == 2:
                 pred, std = res
@@ -109,7 +108,7 @@ class SurrogateEngine:
             else:
                 d_loss = float(res[0])
                 metrics = {"val": d_loss, "std": 0.0}
-            
+
             delta_loss += d_loss
             meta["surrogates_active"].append("gear")
             meta["delta_loss_gear"] = d_loss
@@ -119,9 +118,9 @@ class SurrogateEngine:
         if "scavenge" in self.models:
             feats = self.extractors["scavenge"](x)
             feats_in = feats.reshape(1, -1)
-            
+
             res = self.models["scavenge"].predict(feats_in)
-            
+
             if isinstance(res, tuple) and len(res) == 2:
                 pred, std = res
                 d_eff = float(pred[0])
@@ -129,17 +128,18 @@ class SurrogateEngine:
             else:
                 d_eff = float(res[0])
                 metrics = {"val": d_eff, "std": 0.0}
-            
+
             delta_eff += d_eff
             meta["surrogates_active"].append("scavenge")
             meta["delta_eff_scavenge"] = d_eff
             meta["uncertainty"]["scavenge"] = metrics["std"]
-            
+
         return delta_eff, delta_loss, meta
 
 
 # Singleton
 _ENGINE = None
+
 
 def get_surrogate_engine() -> SurrogateEngine:
     global _ENGINE
