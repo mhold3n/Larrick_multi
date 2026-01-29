@@ -6,7 +6,6 @@ Centralizes knowledge of where models live and which versions are active.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 
 class ModelRegistry:
