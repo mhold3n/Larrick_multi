@@ -23,9 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Exit code (0 = success).
     """
-    parser = argparse.ArgumentParser(
-        description="Evaluate a single candidate solution"
-    )
+    parser = argparse.ArgumentParser(description="Evaluate a single candidate solution")
     parser.add_argument("--rpm", type=float, default=3000.0, help="Engine speed (rpm)")
     parser.add_argument("--torque", type=float, default=200.0, help="Torque demand (Nm)")
     parser.add_argument("--fidelity", type=int, default=0, choices=[0, 1, 2], help="Model fidelity")
@@ -76,4 +74,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

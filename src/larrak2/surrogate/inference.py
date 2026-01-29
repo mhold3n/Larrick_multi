@@ -13,10 +13,10 @@ from typing import Any
 import numpy as np
 
 from larrak2.surrogate.features import (
-    get_gear_schema_v1,
-    get_scavenge_schema_v1,
     extract_gear_features_v1,
     extract_scavenge_features_v1,
+    get_gear_schema_v1,
+    get_scavenge_schema_v1,
 )
 from larrak2.surrogate.registry import get_model_path
 

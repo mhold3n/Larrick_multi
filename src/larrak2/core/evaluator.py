@@ -61,26 +61,25 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     # - F[0]: negative efficiency (we want to maximize efficiency → minimize -efficiency)
     # - F[1]: gear loss (minimize)
     # - F[2]: max planet radius (minimize packaging size) [NEW]
-    
+
     # Fidelity 2: Apply surrogate corrections
     eff_corrected = thermo_result.efficiency
     loss_corrected = gear_result.loss_total
-    
-    surrogate_meta = {}
-    
-    if ctx.fidelity >= 2:
 
+    surrogate_meta = {}
+
+    if ctx.fidelity >= 2:
         # Load surrogate engine (lazy singleton)
         from larrak2.surrogate.inference import get_surrogate_engine
-        
+
         engine = get_surrogate_engine()
-        
+
         # Predict corrections (returns 0 if models missing)
         delta_eff, delta_loss, meta = engine.predict_corrections(x)
-        
+
         eff_corrected += delta_eff
         loss_corrected += delta_loss
-        
+
         surrogate_meta = {
             "surrogate_used": True,
             "delta_eff": delta_eff,

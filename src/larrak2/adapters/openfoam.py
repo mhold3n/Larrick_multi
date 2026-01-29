@@ -9,7 +9,6 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Optional
 
 
 class OpenFoamRunner:
@@ -23,10 +22,10 @@ class OpenFoamRunner:
         """Clone template and update dictionaries."""
         if run_dir.exists():
             shutil.rmtree(run_dir)
-        
+
         # Clone
         shutil.copytree(self.template_dir, run_dir)
-        
+
         # Update dictionaries
         # We assume specific file locations for parameters
         # e.g. constant/pistonMeshDict
@@ -37,28 +36,28 @@ class OpenFoamRunner:
         """Update mesh generation parameters."""
         # This is highly specific to the case structure.
         # We implement a simple sed-like replacement for now.
-        
+
         target = run_dir / "constant" / "pistonMeshDict"
         if not target.exists():
             return
-            
+
         content = target.read_text()
-        
+
         # Replace keys like {{compression_ratio}}
         # Params expected: compression_ratio, expansion_ratio, etc.
         for k, v in params.items():
             placeholder = f"{{{{{k}}}}}"  # {{key}}
             if placeholder in content:
                 content = content.replace(placeholder, str(v))
-                
+
         target.write_text(content)
 
     def run(self, run_dir: Path, log_name: str = "solver.log") -> bool:
         """Execute solver in run_dir."""
         log_path = run_dir / log_name
-        
+
         print(f"Running {self.solver_cmd} in {run_dir}...")
-        
+
         try:
             with open(log_path, "w") as log_file:
                 subprocess.run(
@@ -67,7 +66,7 @@ class OpenFoamRunner:
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     check=True,
-                    timeout=300 # 5 min timeout
+                    timeout=300,  # 5 min timeout
                 )
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
@@ -79,21 +78,21 @@ class OpenFoamRunner:
         log_path = run_dir / log_name
         if not log_path.exists():
             return {}
-            
+
         text = log_path.read_text()
-        
+
         # Placeholder Regex
         # "Scavenging Efficiency = 0.85"
         metrics = {}
-        
+
         eff_match = re.search(r"Scavenging Efficiency\s*=\s*([0-9\.]+)", text)
         if eff_match:
             metrics["scavenging_efficiency"] = float(eff_match.group(1))
-            
+
         mass_match = re.search(r"Trapped Mass\s*=\s*([0-9\.eE\-\+]+)", text)
         if mass_match:
             metrics["trapped_mass"] = float(mass_match.group(1))
-            
+
         return metrics
 
     def execute(self, run_dir: Path, params: dict[str, float]) -> dict[str, float]:

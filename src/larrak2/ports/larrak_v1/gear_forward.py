@@ -85,9 +85,7 @@ def compute_curvature(theta: np.ndarray, r_theta: np.ndarray) -> dict[str, np.nd
     )
 
     # Osculating radius: ρ = 1/κ
-    rho = np.divide(
-        1.0, kappa, out=np.full_like(kappa, np.inf), where=kappa != 0
-    )
+    rho = np.divide(1.0, kappa, out=np.full_like(kappa, np.inf), where=kappa != 0)
 
     return {
         "kappa": kappa,
@@ -336,17 +334,13 @@ def v1_eval_gear_forward(
     r_ring = 80.0  # mm
 
     # Litvin synthesis
-    synth = litvin_synthesize(
-        theta, r_planet, target_ratio=r_ring / params.base_radius
-    )
+    synth = litvin_synthesize(theta, r_planet, target_ratio=r_ring / params.base_radius)
     psi = synth["psi"]
     R_psi = synth["R_psi"]
     rho_c = synth["rho_c"]
 
     # Gear geometry
-    geom = compute_gear_geometry(
-        theta, r_planet, psi, R_psi, target_average_radius=r_ring
-    )
+    geom = compute_gear_geometry(theta, r_planet, psi, R_psi, target_average_radius=r_ring)
 
     # Ratio tracking error
     ratio_actual = r_ring / np.maximum(r_planet, 1e-6)
@@ -355,9 +349,7 @@ def v1_eval_gear_forward(
     ratio_error_max = float(np.max(ratio_error))
 
     # Mesh friction loss (enhanced)
-    loss_total, loss_profile = compute_mesh_loss(
-        theta, r_planet, rho_c, ctx.rpm, ctx.torque
-    )
+    loss_total, loss_profile = compute_mesh_loss(theta, r_planet, rho_c, ctx.rpm, ctx.torque)
 
     # Geometry metrics
     max_planet_radius = float(np.max(r_planet))

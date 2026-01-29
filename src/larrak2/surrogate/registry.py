@@ -12,19 +12,19 @@ from typing import Optional
 class ModelRegistry:
     def __init__(self, root_dir: str | Path = "models/surrogate_v1"):
         self.root_dir = Path(root_dir)
-        
-    def get_path(self, model_key: str) -> Optional[Path]:
+
+    def get_path(self, model_key: str) -> Path | None:
         """Get path for a named model."""
         # Convention: key "gear" -> "model_gear.pkl"
         # or separate dirs?
         # Let's use separate files in root
-        
+
         candidates = [
             self.root_dir / f"model_{model_key}.pkl",
             self.root_dir / f"{model_key}.pkl",
-            self.root_dir / model_key / "model.pkl"
+            self.root_dir / model_key / "model.pkl",
         ]
-        
+
         for p in candidates:
             if p.exists():
                 return p
@@ -40,5 +40,6 @@ class ModelRegistry:
 # Global instance
 _REGISTRY = ModelRegistry()
 
-def get_model_path(key: str) -> Optional[Path]:
+
+def get_model_path(key: str) -> Path | None:
     return _REGISTRY.get_path(key)

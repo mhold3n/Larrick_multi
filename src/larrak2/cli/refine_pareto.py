@@ -25,14 +25,19 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Exit code.
     """
-    parser = argparse.ArgumentParser(
-        description="Refine Pareto front candidates"
-    )
+    parser = argparse.ArgumentParser(description="Refine Pareto front candidates")
     parser.add_argument("--input", type=str, default=".", help="Input directory with pareto_*.npy")
-    parser.add_argument("--output", type=str, default=None, help="Output directory (default: input)")
+    parser.add_argument(
+        "--output", type=str, default=None, help="Output directory (default: input)"
+    )
     parser.add_argument("--top-k", type=int, default=5, help="Number of candidates to refine")
-    parser.add_argument("--mode", type=str, default="weighted_sum",
-                        choices=["weighted_sum", "eps_constraint"], help="Refinement mode")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="weighted_sum",
+        choices=["weighted_sum", "eps_constraint"],
+        help="Refinement mode",
+    )
     parser.add_argument("--rpm", type=float, default=3000.0, help="Engine speed (rpm)")
     parser.add_argument("--torque", type=float, default=200.0, help="Torque demand (Nm)")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
@@ -53,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Loaded {X.shape[0]} Pareto solutions")
 
     # Select top-K by first objective
-    indices = np.argsort(F[:, 0])[:args.top_k]
+    indices = np.argsort(F[:, 0])[: args.top_k]
 
     ctx = EvalContext(rpm=args.rpm, torque=args.torque, fidelity=0, seed=42)
     mode = RefinementMode(args.mode)
@@ -67,20 +72,22 @@ def main(argv: list[str] | None = None) -> int:
         x0 = X[idx]
 
         if args.verbose:
-            print(f"Refining candidate {i+1}/{len(indices)} (original F={F[idx]})")
+            print(f"Refining candidate {i + 1}/{len(indices)} (original F={F[idx]})")
 
         result = refine_candidate(x0, ctx, mode=mode)
 
         refined_X.append(result.x_refined)
         refined_F.append(result.F_refined)
         refined_G.append(result.G_refined)
-        results_diag.append({
-            "original_idx": int(idx),
-            "original_F": F[idx].tolist(),
-            "refined_F": result.F_refined.tolist(),
-            "success": result.success,
-            "message": result.message,
-        })
+        results_diag.append(
+            {
+                "original_idx": int(idx),
+                "original_F": F[idx].tolist(),
+                "refined_F": result.F_refined.tolist(),
+                "success": result.success,
+                "message": result.message,
+            }
+        )
 
         if args.verbose:
             print(f"  -> refined F={result.F_refined}, success={result.success}")
@@ -91,11 +98,15 @@ def main(argv: list[str] | None = None) -> int:
     np.save(output_dir / "refined_G.npy", np.array(refined_G))
 
     with open(output_dir / "refinement_summary.json", "w") as f:
-        json.dump({
-            "mode": args.mode,
-            "n_refined": len(refined_X),
-            "results": results_diag,
-        }, f, indent=2)
+        json.dump(
+            {
+                "mode": args.mode,
+                "n_refined": len(refined_X),
+                "results": results_diag,
+            },
+            f,
+            indent=2,
+        )
 
     if args.verbose:
         print(f"\nRefined {len(refined_X)} candidates")
@@ -106,4 +117,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

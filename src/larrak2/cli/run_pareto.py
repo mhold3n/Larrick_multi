@@ -30,16 +30,18 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Exit code (0 = success).
     """
-    parser = argparse.ArgumentParser(
-        description="Run multi-objective Pareto optimization"
-    )
+    parser = argparse.ArgumentParser(description="Run multi-objective Pareto optimization")
     parser.add_argument("--pop", type=int, default=64, help="Population size")
     parser.add_argument("--gen", type=int, default=100, help="Number of generations")
     parser.add_argument("--rpm", type=float, default=3000.0, help="Engine speed (rpm)")
     parser.add_argument("--torque", type=float, default=200.0, help="Torque demand (Nm)")
-    parser.add_argument("--fidelity", type=int, default=0, choices=[0, 1, 2], help="Model fidelity (0=toy, 1=v1)")
+    parser.add_argument(
+        "--fidelity", type=int, default=0, choices=[0, 1, 2], help="Model fidelity (0=toy, 1=v1)"
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--output", "--outdir", type=str, default=".", dest="output", help="Output directory")
+    parser.add_argument(
+        "--output", "--outdir", type=str, default=".", dest="output", help="Output directory"
+    )
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args(argv)
@@ -103,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         G = np.zeros((n_pareto, problem.N_CONSTR), dtype=np.float64)
         for i, x in enumerate(X):
             from ..core.evaluator import evaluate_candidate
+
             res = evaluate_candidate(x, ctx)
             G[i] = res.G
 
@@ -136,7 +139,9 @@ def main(argv: list[str] | None = None) -> int:
         "F_min": f_min,
         "F_max": f_max,
         "n_feasible": int(np.sum(np.all(G <= 0, axis=1))) if len(G) > 0 else 0,
-        "feasible_fraction": float(np.sum(np.all(G <= 0, axis=1)) / n_pareto) if n_pareto > 0 else 0.0,
+        "feasible_fraction": float(np.sum(np.all(G <= 0, axis=1)) / n_pareto)
+        if n_pareto > 0
+        else 0.0,
         "best_efficiency": best_efficiency,
         "best_loss": best_loss,
     }
@@ -155,4 +160,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

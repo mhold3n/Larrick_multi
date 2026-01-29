@@ -10,7 +10,7 @@ FRONTEND_DIR = REPO_ROOT / "frontend"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 DOCS_DIR = REPO_ROOT / "docs"
 
-# Ensure output directory exists? 
+# Ensure output directory exists?
 # Usually better to let the application create it, but helpful to encourage existence.
 # if not OUTPUT_DIR.exists():
 #     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

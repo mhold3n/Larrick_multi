@@ -124,6 +124,7 @@ def _weighted_sum_refine(
             result = evaluate_candidate(x, ctx)
             # Return -G for scipy (constraint >= 0 expected)
             return -result.G
+
         # Use dict-based constraints for SLSQP
 
         res = minimize(

@@ -19,9 +19,9 @@ from typing import Any
 
 import numpy as np
 
+from ...core.constants import N_THETA, P_ATM
 from ...core.encoding import ThermoParams
 from ...core.types import EvalContext
-from ...core.constants import N_THETA, P_ATM
 
 # Constants
 DEFAULT_WIEBE_M = 2.0  # Wiebe shape factor
@@ -135,7 +135,11 @@ def compute_phase_driven_volume(
 
         else:
             # Compression phase: BDC → TDC
-            s = (theta - (360.0 - compression_duration)) / compression_duration if compression_duration > 0 else 1.0
+            s = (
+                (theta - (360.0 - compression_duration)) / compression_duration
+                if compression_duration > 0
+                else 1.0
+            )
             f = 0.5 * (1.0 - np.cos(np.pi * s))  # 0→1 as we compress
             V[i] = v_clearance + (1.0 - f) * v_displaced  # 1-f because we're going TDC-ward
             # df/ds = π/2 * sin(π*s), ds/dθ = 1/compression_duration
@@ -164,7 +168,7 @@ def compute_firstlaw_cycle(
 ) -> dict[str, np.ndarray]:
     """Compute p-V-T cycle using first-law integration."""
     n = len(theta_deg)
-    
+
     # Initialize
     p = np.zeros(n)
     T = np.zeros(n)
@@ -188,7 +192,7 @@ def compute_firstlaw_cycle(
         dQ[i] = dx_b * q_total
 
         # Volume change this step
-        dV = (V[i] - V[i - 1])
+        dV = V[i] - V[i - 1]
 
         # Work done by gas this step
         dW = p[i - 1] * dV
@@ -306,7 +310,7 @@ def v1_eval_thermo_forward(
     power_out = ctx.torque * omega  # watts
     cycles_per_sec = ctx.rpm / 60.0
     work_per_cycle = power_out / cycles_per_sec if cycles_per_sec > 0 else 100.0
-    
+
     target_efficiency = 0.30
     q_total_power = work_per_cycle / target_efficiency
 
@@ -341,7 +345,7 @@ def v1_eval_thermo_forward(
     # Explicit Constraint Assembly
     # Mapping conventions: G[k] <= 0 is feasible
     constraints = {}
-    
+
     # C1: Efficiency >= 0
     # g = val_limit - val (if val must be >= limit) -> limit - val <= 0
     constraints["g_eff_min"] = 0.0 - efficiency
@@ -353,7 +357,7 @@ def v1_eval_thermo_forward(
     # C3: Max pressure <= P_LIMIT (normalized)
     p_limit_pa = P_LIMIT_BAR * 1e5
     constraints["g_p_max"] = (p_max - p_limit_pa) / p_limit_pa
-    
+
     # Pack into array in fixed order
     G_list = [
         constraints["g_eff_min"],

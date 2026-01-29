@@ -5,13 +5,12 @@ Manages the valid transition of candidates between fidelity stages.
 
 from __future__ import annotations
 
-
 import numpy as np
 
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 from larrak2.promote.archive import ArchiveBundle, ArchiveRecord
-from larrak2.promote.selectors import select_strict_nsga3, select_hybrid
+from larrak2.promote.selectors import select_hybrid, select_strict_nsga3
 
 
 class PromotionManager:
