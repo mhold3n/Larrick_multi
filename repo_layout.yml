@@ -1,0 +1,48 @@
+# repo_layout.yml
+# Source of truth for Larrick_multi repository layout
+
+allowed_top_level:
+  # Source code
+  - Larrick_multi
+  - larrak2
+  - scripts
+  - frontend
+  - packages
+
+  # Outputs and Artifacts
+  - outputs
+
+  # Documentation & Tests
+  - docs
+  - tests
+
+  # Config & Dotfiles (explicit allowlist for clarity, though script might ignore dotfiles if configured)
+  - .agent
+  - .benchmarks
+  - .cursor
+  - .devcontainer
+  - .git
+  - .github
+  - .hypothesis
+  - .mypy_cache
+  - .pytest_cache
+  - .ruff_cache
+  - .vscode
+  - .vscode-extensions
+  - .DS_Store
+
+  # Specific allowed files at root will be handled by ignoring files or explicit inclusion if the script supports it.
+  # The Python script primarily checks directories.
+
+singletons:
+  output_dir: outputs
+  frontend_dir: frontend
+
+banned_dir_name_patterns:
+  - '^front[-_ ]?end\d*$'
+  - '^ui\d*$'
+  - '^client\d*$'
+  - '^out(put)?\d*$'
+  - '^logs?\d*$'
+  - '^artifacts?\d*$'
+  - '^results?\d*$'

@@ -1,0 +1,10 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: check-repo-layout
+        name: Check Repo Layout
+        entry: python3 scripts/check_repo_layout.py
+        language: system
+        pass_filenames: false
+        always_run: true

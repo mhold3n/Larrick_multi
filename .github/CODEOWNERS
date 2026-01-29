@@ -1,0 +1,4 @@
+# .github/CODEOWNERS
+/repo_layout.yml  @maxholden
+/frontend/        @maxholden
+/outputs/         @maxholden

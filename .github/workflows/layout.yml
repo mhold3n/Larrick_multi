@@ -1,0 +1,18 @@
+# .github/workflows/layout.yml
+name: Repo Layout
+on: [pull_request, push]
+jobs:
+    layout:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+            - run: pip install pyyaml
+            - run: |
+                  git fetch origin main:origin_main || true
+                  # Determine changed files or just run checking script on current state
+                  # The script falls back to checking all files if no git usage or no args.
+                  # Here we just want to run it.
+                  python scripts/check_repo_layout.py
