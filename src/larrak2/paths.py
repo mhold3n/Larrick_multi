@@ -1,8 +1,8 @@
 from pathlib import Path
 
 # Calculate repository root relative to this file
-# src/larrak2/paths.py -> src/larrak2 -> src -> larrak2 -> ROOT
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# src/larrak2/paths.py -> src/larrak2 -> src -> ROOT
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Canonical directories
 OUTPUT_DIR = REPO_ROOT / "outputs"

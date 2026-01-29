@@ -3,10 +3,13 @@
 
 allowed_top_level:
   # Source code
-  - larrak2
+  - src
   - scripts
   - frontend
   - packages
+  - models
+  - data
+  - data_temp
 
   # Outputs and Artifacts
   - outputs
