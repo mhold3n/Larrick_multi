@@ -1,0 +1,25 @@
+{
+  "config": {
+    "pop": 100,
+    "gen": 50,
+    "promote": 20,
+    "rpm": 3000.0,
+    "torque": 200.0,
+    "seed": 1,
+    "outdir": "results_staged_diagnostic"
+  },
+  "stage1_metrics": {
+    "n_evals": 5000,
+    "n_archive_total": 100
+  },
+  "promotion_metrics": {
+    "n_requested": 20,
+    "n_selected": 20,
+    "n_evaluated": 20,
+    "time_s": 0.07851600646972656
+  },
+  "stage2_metrics": {
+    "n_pareto_fid2": 20,
+    "fid2_eff_max": 0.34120646373269886
+  }
+}

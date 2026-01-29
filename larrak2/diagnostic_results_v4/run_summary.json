@@ -1,0 +1,35 @@
+{
+  "config": {
+    "pop": 64,
+    "gen": 50,
+    "rpm": 3000.0,
+    "torque": 200.0,
+    "fidelity": 1,
+    "seed": 123
+  },
+  "results": {
+    "total_time_s": 11.890778045053594,
+    "n_evals": 3200,
+    "n_pareto": 16,
+    "pareto_feasible": 16,
+    "pareto_feasible_fraction": 1.0,
+    "avg_eval_time_ms": 3.3954208047362044,
+    "std_eval_time_ms": 0.050274204748948656
+  },
+  "objectives": {
+    "best_efficiency": 0.34483156862315256,
+    "worst_efficiency": 0.2196322094608576,
+    "best_loss": 7.512207173275419,
+    "worst_loss": 71.51713696508715
+  },
+  "final_generation": {
+    "generation": 50,
+    "n_feasible": 64,
+    "feasible_fraction": 1.0,
+    "mean_max_violation": -0.016201988427505698,
+    "median_max_violation": -0.0020562188198690614,
+    "f0_mean": -0.32224017975214503,
+    "f1_mean": 24.89599247408796,
+    "n_pareto": 16
+  }
+}
