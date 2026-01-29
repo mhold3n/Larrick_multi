@@ -1,0 +1,27 @@
+allowed_top_level_dirs:
+  - .github
+  - data
+  - data_temp
+  - models
+  - scripts
+  - src
+  - tests
+required_top_level_dirs:
+  - .github
+  - data
+  - models
+  - scripts
+  - src
+  - tests
+allowed_top_level_files:
+  - README.md
+  - pyproject.toml
+  - sensitivity_analysis.json
+  - summary.json
+  - pareto_F.npy
+  - pareto_G.npy
+  - pareto_X.npy
+  - repo_layout.yml
+allowed_top_level_file_patterns: []
+ignore_top_level_dirs:
+  - .git

@@ -1,0 +1,35 @@
+name: Repo Layout
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  layout:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install pyyaml
+
+      - name: Compute changed files
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed.txt
+
+      - name: Run layout check on PR diff
+        if: github.event_name == 'pull_request'
+        run: |
+          python scripts/check_repo_layout.py --changed-file /tmp/changed.txt
+
+      - name: Run layout check
+        if: github.event_name != 'pull_request'
+        run: |
+          python scripts/check_repo_layout.py
