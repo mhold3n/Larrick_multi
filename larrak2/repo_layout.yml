@@ -1,0 +1,21 @@
+allowed_top_level_dirs:
+  - .github
+  - data
+  - data_temp
+  - models
+  - scripts
+  - src
+  - tests
+
+allowed_top_level_files:
+  - README.md
+  - pyproject.toml
+  - sensitivity_analysis.json
+  - summary.json
+  - pareto_*.npy
+
+ignored_top_level:
+  - .git
+  - .venv
+  - .pytest_cache
+  - __pycache__
