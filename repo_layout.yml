@@ -3,7 +3,6 @@
 
 allowed_top_level:
   # Source code
-  - Larrick_multi
   - larrak2
   - scripts
   - frontend
