@@ -1,3 +1,11 @@
+
+# Output directories
+larrak2/out/
+larrak2/diagnostic_*/
+larrak2/results_*/
+!larrak2/out/.gitkeep
+
+# System
 __pycache__/
 *.pyc
 .mypy_cache/
