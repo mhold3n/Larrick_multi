@@ -18,9 +18,9 @@ import numpy as np
 from scipy.interpolate import PchipInterpolator
 
 from ...core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
-from ...gear.loss_model import total_loss
 from ...core.encoding import GearParams
 from ...core.types import EvalContext
+from ...gear.loss_model import total_loss
 from ...gear.pitchcurve import fourier_pitch_curve
 
 # Constants from v1 (hardcoded to avoid imports)
