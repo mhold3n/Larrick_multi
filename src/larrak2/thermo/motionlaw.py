@@ -19,6 +19,7 @@ import numpy as np
 
 from ..core.encoding import ThermoParams
 from ..core.types import EvalContext
+from ..core.constants import RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
 
 # Number of discretization points
 N_POINTS = 360
@@ -164,6 +165,22 @@ def _generate_ratio_profile(
     return np.maximum(ratio, 0.1)
 
 
+def _ratio_profile_stats(profile: np.ndarray) -> dict[str, float | bool]:
+    """Compute basic continuity/quality metrics for ratio profile."""
+    profile = np.asarray(profile)
+    finite = np.all(np.isfinite(profile))
+    min_val = float(np.min(profile)) if profile.size else 0.0
+    max_val = float(np.max(profile)) if profile.size else 0.0
+    slope = np.gradient(profile) if profile.size > 1 else np.array([0.0])
+    max_slope = float(np.max(np.abs(slope)))
+    return {
+        "finite": bool(finite),
+        "min": min_val,
+        "max": max_val,
+        "max_slope": max_slope,
+    }
+
+
 def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
     """Evaluate thermodynamic cycle.
 
@@ -183,11 +200,12 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
         from ..ports.larrak_v1.thermo_forward import v1_eval_thermo_forward
 
         v1_result = v1_eval_thermo_forward(params, ctx)
+        stats = _ratio_profile_stats(v1_result.requested_ratio_profile)
         return ThermoResult(
             efficiency=v1_result.efficiency,
             requested_ratio_profile=v1_result.requested_ratio_profile,
             G=v1_result.G,
-            diag=v1_result.diag,
+            diag={**v1_result.diag, "ratio_profile_stats": stats},
         )
 
     # Discretization
@@ -251,6 +269,7 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
 
     # Generate ratio profile
     requested_ratio_profile = _generate_ratio_profile(params, theta)
+    ratio_stats = _ratio_profile_stats(requested_ratio_profile)
 
     # Constraints (G <= 0 feasible)
     constraints = []
@@ -270,9 +289,15 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
     g_jerk = max_jerk_actual - MAX_JERK
     constraints.append(g_jerk)
 
+    # C4: Max slope of ratio profile (gear capability proxy)
+    slope_limit = RATIO_SLOPE_LIMIT_FID1 if ctx.fidelity >= 1 else RATIO_SLOPE_LIMIT_FID0
+    g_slope = ratio_stats["max_slope"] - slope_limit
+    constraints.append(g_slope)
+
     G = np.array(constraints, dtype=np.float64)
 
     # Diagnostics
+    ratio_stats = _ratio_profile_stats(requested_ratio_profile)
     diag = {
         "theta": theta,
         "p": p,
@@ -281,6 +306,8 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
         "dqdtheta": dqdtheta,
         "w_indicated": w_indicated,
         "q_in": q_in,
+        "requested_ratio_profile": requested_ratio_profile,
+        "ratio_profile_stats": ratio_stats,
     }
 
     return ThermoResult(

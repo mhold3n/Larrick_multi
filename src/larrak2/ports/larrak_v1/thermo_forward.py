@@ -21,6 +21,8 @@ import numpy as np
 
 from ...core.constants import N_THETA, P_ATM
 from ...core.encoding import ThermoParams
+from ...thermo.motionlaw import _ratio_profile_stats
+from ...core.constants import RATIO_SLOPE_LIMIT_FID1
 from ...core.types import EvalContext
 
 # Constants
@@ -347,22 +349,25 @@ def v1_eval_thermo_forward(
     constraints = {}
 
     # C1: Efficiency >= 0
-    # g = val_limit - val (if val must be >= limit) -> limit - val <= 0
     constraints["g_eff_min"] = 0.0 - efficiency
 
     # C2: Efficiency <= 0.6
-    # g = val - val_limit <= 0
     constraints["g_eff_max"] = efficiency - 0.6
 
     # C3: Max pressure <= P_LIMIT (normalized)
     p_limit_pa = P_LIMIT_BAR * 1e5
     constraints["g_p_max"] = (p_max - p_limit_pa) / p_limit_pa
 
+    # C4: Ratio profile slope <= limit
+    ratio_stats = _ratio_profile_stats(requested_ratio_profile)
+    constraints["g_ratio_slope"] = ratio_stats["max_slope"] - RATIO_SLOPE_LIMIT_FID1
+
     # Pack into array in fixed order
     G_list = [
         constraints["g_eff_min"],
         constraints["g_eff_max"],
         constraints["g_p_max"],
+        constraints["g_ratio_slope"],
     ]
     G = np.array(G_list, dtype=np.float64)
 
@@ -387,6 +392,8 @@ def v1_eval_thermo_forward(
         "expansion_duration": params.expansion_duration,
         "heat_release_center": params.heat_release_center,
         "heat_release_width": params.heat_release_width,
+        "requested_ratio_profile": requested_ratio_profile,
+        "ratio_profile_stats": ratio_stats,
         "v1_port": True,
         "phase_driven": True,
         "constraints": constraints,  # Explicit map

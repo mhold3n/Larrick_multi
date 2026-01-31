@@ -26,8 +26,12 @@ def test_smoke_eval_shapes():
         result = evaluate_candidate(x, ctx)
 
         # Check shapes
-        assert result.F.shape == (2,), f"Expected F shape (2,), got {result.F.shape}"
-        assert result.G.shape == (7,), f"Expected G shape (7,), got {result.G.shape}"
+        assert result.F.shape == (3,), f"Expected F shape (3,), got {result.F.shape}"
+        assert result.G.shape == (10,), f"Expected G shape (10,), got {result.G.shape}"
+
+        # Loss should be non-negative
+        loss_total = result.diag["metrics"]["loss_total"]
+        assert loss_total >= 0.0, f"Loss should be non-negative, got {loss_total}"
 
 
 def test_smoke_eval_finite():

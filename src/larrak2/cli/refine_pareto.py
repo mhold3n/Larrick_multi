@@ -15,6 +15,10 @@ from pathlib import Path
 
 import numpy as np
 
+from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
+from ..core.constraints import get_constraint_names, get_constraint_scales
+from ..core.encoding import ENCODING_VERSION
+
 
 def main(argv: list[str] | None = None) -> int:
     """Refine Pareto front candidates.
@@ -101,6 +105,17 @@ def main(argv: list[str] | None = None) -> int:
         json.dump(
             {
                 "mode": args.mode,
+                "rpm": args.rpm,
+                "torque": args.torque,
+                "fidelity": ctx.fidelity,
+                "seed": ctx.seed,
+                "encoding_version": ENCODING_VERSION,
+                "model_versions": {
+                    "thermo_v1": MODEL_VERSION_THERMO_V1,
+                    "gear_v1": MODEL_VERSION_GEAR_V1,
+                },
+                "constraint_names": get_constraint_names(ctx.fidelity),
+                "constraint_scales": get_constraint_scales(),
                 "n_refined": len(refined_X),
                 "results": results_diag,
             },

@@ -20,6 +20,10 @@ from pathlib import Path
 
 import numpy as np
 
+from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
+from ..core.constraints import get_constraint_names, get_constraint_scales
+from ..core.encoding import ENCODING_VERSION
+
 
 def main(argv: list[str] | None = None) -> int:
     """Run Pareto optimization.
@@ -90,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     # Extract Pareto front (may be None if no feasible solutions)
     X = result.X
     F = result.F
+    G_result = getattr(result, "G", None)
 
     # Handle case where no solutions found
     if X is None or len(X) == 0:
@@ -100,14 +105,17 @@ def main(argv: list[str] | None = None) -> int:
         np.save(output_dir / "pareto_F.npy", np.array([]).reshape(0, problem.n_obj))
         np.save(output_dir / "pareto_G.npy", G)
     else:
-        # Get constraint values for Pareto solutions
+        # Get constraint values for Pareto solutions (reuse result.G if present)
         n_pareto = X.shape[0]
-        G = np.zeros((n_pareto, problem.N_CONSTR), dtype=np.float64)
-        for i, x in enumerate(X):
+        if G_result is not None and getattr(G_result, "shape", (0,))[0] == n_pareto:
+            G = G_result
+        else:
             from ..core.evaluator import evaluate_candidate
 
-            res = evaluate_candidate(x, ctx)
-            G[i] = res.G
+            G = np.zeros((n_pareto, problem.N_CONSTR), dtype=np.float64)
+            for i, x in enumerate(X):
+                res = evaluate_candidate(x, ctx)
+                G[i] = res.G
 
         # Save results
         np.save(output_dir / "pareto_X.npy", X)
@@ -120,11 +128,13 @@ def main(argv: list[str] | None = None) -> int:
         f_max = F.max(axis=0).tolist()
         best_efficiency = float(-F[:, 0].min())
         best_loss = float(F[:, 1].min())
+        best_radius = float(F[:, 2].min())
     else:
-        f_min = [0.0, 0.0]
-        f_max = [0.0, 0.0]
+        f_min = [0.0, 0.0, 0.0]
+        f_max = [0.0, 0.0, 0.0]
         best_efficiency = 0.0
         best_loss = 0.0
+        best_radius = 0.0
 
     summary = {
         "n_pareto": n_pareto,
@@ -136,6 +146,15 @@ def main(argv: list[str] | None = None) -> int:
         "torque": args.torque,
         "fidelity": args.fidelity,
         "seed": args.seed,
+        "encoding_version": ENCODING_VERSION,
+        "model_versions": {
+            "thermo_v1": MODEL_VERSION_THERMO_V1,
+            "gear_v1": MODEL_VERSION_GEAR_V1,
+        },
+        "n_obj": problem.n_obj,
+        "n_constr": problem.N_CONSTR,
+        "constraint_names": get_constraint_names(args.fidelity),
+        "constraint_scales": get_constraint_scales(),
         "F_min": f_min,
         "F_max": f_max,
         "n_feasible": int(np.sum(np.all(G <= 0, axis=1))) if len(G) > 0 else 0,
@@ -144,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         else 0.0,
         "best_efficiency": best_efficiency,
         "best_loss": best_loss,
+        "best_radius": best_radius,
     }
 
     with open(output_dir / "summary.json", "w") as f:

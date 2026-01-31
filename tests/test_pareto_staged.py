@@ -90,7 +90,7 @@ def test_staged_outputs(temp_staged_dir):
     xa, fa, ga = a3.to_arrays()
     assert xa.shape[1] == 12 # N_TOTAL
     assert fa.shape[1] == 3  # N_OBJ
-    assert ga.shape[1] == 7  # N_CONSTR
+    assert ga.shape[1] == 10  # N_CONSTR
     
     # Check files exist
     assert (temp_staged_dir / "stage1").exists()  # Pymoo uses checkpointing? No, we didn't enable it explicitly.

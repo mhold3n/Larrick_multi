@@ -73,6 +73,57 @@ def select_strict_nsga3(
     return np.array(selected_indices, dtype=int)
 
 
+def select_k_best_ref_dirs(
+    F: np.ndarray,
+    k: int,
+    ref_dirs: np.ndarray | None = None,
+) -> np.ndarray:
+    """Deterministic selection of k candidates guided by reference directions.
+
+    Simplified diversity-aware selector used by PromotionManager tests.
+    """
+    n_points, n_obj = F.shape
+    if k >= n_points:
+        return np.arange(n_points)
+
+    # Generate ref dirs if not provided
+    if ref_dirs is None:
+        ref_dirs = get_reference_directions("das-dennis", n_obj, n_partitions=3)
+
+    # Normalize objectives
+    f_min = np.min(F, axis=0)
+    f_max = np.max(F, axis=0)
+    denom = np.where((f_max - f_min) < 1e-9, 1.0, f_max - f_min)
+    F_norm = (F - f_min) / denom
+
+    # Associate each point to closest ref dir (perpendicular distance)
+    refs_norm = ref_dirs / np.linalg.norm(ref_dirs, axis=1, keepdims=True)
+    dot_prod = F_norm @ refs_norm.T
+    p_sq = np.sum(F_norm**2, axis=1)[:, None]
+    perp_dist = np.sqrt(np.maximum(p_sq - dot_prod**2, 0.0))
+    assoc = np.argmin(perp_dist, axis=1)
+
+    # For each ref dir, pick the best (smallest norm) candidate
+    selected = []
+    for rd in range(len(ref_dirs)):
+        candidates = np.where(assoc == rd)[0]
+        if len(candidates) == 0:
+            continue
+        # Choose deterministically by total objective sum then index
+        best_idx = min(candidates, key=lambda i: (np.sum(F_norm[i]), i))
+        selected.append(best_idx)
+        if len(selected) == k:
+            break
+
+    # If still short, fill deterministically by remaining lowest norm
+    if len(selected) < k:
+        remaining = [i for i in range(n_points) if i not in selected]
+        remaining_sorted = sorted(remaining, key=lambda i: (np.sum(F_norm[i]), i))
+        selected.extend(remaining_sorted[: k - len(selected)])
+
+    return np.array(selected[:k], dtype=int)
+
+
 def _survive_ref_dirs(
     F: np.ndarray,
     current_indices: np.ndarray,

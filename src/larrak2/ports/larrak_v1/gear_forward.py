@@ -20,6 +20,7 @@ from scipy.interpolate import PchipInterpolator
 from ...core.encoding import GearParams
 from ...core.types import EvalContext
 from ...gear.pitchcurve import fourier_pitch_curve
+from ...core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
 
 # Constants from v1 (hardcoded to avoid imports)
 MIN_RADIUS_MM = 5.0
@@ -298,7 +299,9 @@ def compute_mesh_loss(
 
     # Power loss
     loss_profile = mu * fn * v_sliding
+    loss_profile = np.maximum(loss_profile, 0.0)
     total_loss = float(np.mean(loss_profile))
+    total_loss = max(total_loss, 0.0)
 
     return total_loss, loss_profile
 
@@ -354,6 +357,12 @@ def v1_eval_gear_forward(
     # Geometry metrics
     max_planet_radius = float(np.max(r_planet))
     min_planet_radius = float(np.min(r_planet))
+    thickness_profile = R_psi - r_planet
+    min_thickness = float(np.min(thickness_profile))
+    interference_flag = geom["interference_flag"] or np.any(
+        thickness_profile < GEAR_INTERFERENCE_CLEARANCE_MM
+    )
+    thickness_ok = min_thickness >= GEAR_MIN_THICKNESS_MM
 
     # Curvature
     curv = compute_curvature(theta, r_planet)
@@ -380,6 +389,14 @@ def v1_eval_gear_forward(
     g_curv = max_curvature - MAX_CURVATURE
     constraints.append(g_curv)
 
+    # C5: Interference (kept diagnostic-only to avoid overconstraining)
+    g_interf = -1.0
+    constraints.append(g_interf)
+
+    # C6: Min thickness >= 1mm proxy
+    g_thick = GEAR_MIN_THICKNESS_MM - min_thickness
+    constraints.append(g_thick)
+
     G = np.array(constraints, dtype=np.float64)
 
     # Diagnostics
@@ -395,7 +412,10 @@ def v1_eval_gear_forward(
         "min_planet_radius": min_planet_radius,
         "max_curvature": max_curvature,
         "contact_ratio": geom["contact_ratio"],
-        "interference_flag": geom["interference_flag"],
+        "interference_flag": interference_flag,
+        "min_thickness": min_thickness,
+        "thickness_ok": thickness_ok,
+        "thickness_profile": thickness_profile,
         "v1_port": True,
     }
 

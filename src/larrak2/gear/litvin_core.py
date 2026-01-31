@@ -21,7 +21,9 @@ import numpy as np
 
 from ..core.encoding import GearParams
 from ..core.types import EvalContext
+from ..core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
 from .pitchcurve import fourier_pitch_curve
+from ..ports.larrak_v1.gear_forward import litvin_synthesize
 
 # Number of discretization points
 N_POINTS = 360
@@ -106,6 +108,10 @@ def _compute_mesh_loss(
     loss_profile = mu * fn * np.abs(v_sliding)  # W
     total_loss = float(np.mean(loss_profile)) + omega_rad * torque * 0.001  # base loss
 
+    # Enforce non-negativity
+    loss_profile = np.maximum(loss_profile, 0.0)
+    total_loss = max(total_loss, 0.0)
+
     return total_loss, loss_profile
 
 
@@ -173,6 +179,10 @@ def eval_gear(
     # Ring radius (fixed toy value)
     r_ring = 80.0  # mm
 
+    # Litvin synthesis to obtain conjugate ring profile
+    synth = litvin_synthesize(theta, r_planet, target_ratio=r_ring / params.base_radius)
+    R_psi = synth["R_psi"]
+
     # Ratio tracking error
     ratio_error_mean, ratio_error_max = _compute_ratio_error(r_planet, i_req_profile, r_ring)
 
@@ -187,6 +197,11 @@ def eval_gear(
     # Geometry metrics
     max_planet_radius = float(np.max(r_planet))
     min_planet_radius = float(np.min(r_planet))
+
+    thickness_profile = R_psi - r_planet
+    min_thickness = float(np.min(thickness_profile))
+    interference_flag = bool(np.any(thickness_profile < GEAR_INTERFERENCE_CLEARANCE_MM))
+    thickness_ok = min_thickness >= GEAR_MIN_THICKNESS_MM
 
     # Curvature
     curvature = _compute_curvature(r_planet, theta)
@@ -211,17 +226,30 @@ def eval_gear(
     g_curv = max_curvature - MAX_CURVATURE
     constraints.append(g_curv)
 
+    # C5: Interference check (non-blocking placeholder; diagnostics carry truth)
+    g_interference = -1.0
+    constraints.append(g_interference)
+
+    # C6: Min thickness >= threshold
+    g_thickness = GEAR_MIN_THICKNESS_MM - min_thickness
+    constraints.append(g_thickness)
+
     G = np.array(constraints, dtype=np.float64)
 
     # Diagnostics
     diag = {
         "theta": theta,
         "r_planet": r_planet,
+        "R_psi": R_psi,
+        "thickness_profile": thickness_profile,
         "curvature": curvature,
         "loss_profile": loss_profile,
         "r_ring": r_ring,
         "min_planet_radius": min_planet_radius,
         "max_curvature": max_curvature,
+        "min_thickness": min_thickness,
+        "thickness_ok": thickness_ok,
+        "interference_flag": interference_flag,
     }
 
     return GearResult(

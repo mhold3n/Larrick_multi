@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 from pymoo.core.problem import Problem
 
+from ..core.constraints import get_constraint_names
 from ..core.encoding import N_TOTAL, bounds
 from ..core.evaluator import evaluate_candidate
 from ..core.types import EvalContext
@@ -22,9 +23,6 @@ class ParetoProblem(Problem):
     # Number of objectives (efficiency, loss, max_planet_radius)
     N_OBJ = 3
 
-    # Number of constraints (3 thermo + 4 gear = 7)
-    N_CONSTR = 7
-
     def __init__(
         self,
         ctx: EvalContext,
@@ -37,6 +35,8 @@ class ParetoProblem(Problem):
             **kwargs: Additional arguments passed to pymoo Problem.
         """
         xl, xu = bounds()
+
+        self.N_CONSTR = len(get_constraint_names(ctx.fidelity))
 
         super().__init__(
             n_var=N_TOTAL,

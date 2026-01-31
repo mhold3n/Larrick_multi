@@ -1,98 +1,115 @@
-"""Constraint utilities.
-
-Helpers for scaling, concatenating, and checking constraint feasibility.
-All constraints follow the convention: G <= 0 is feasible.
-"""
+"""Centralized constraint assembly and scaling."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Iterable, Mapping, Sequence
+
 import numpy as np
 
-
-def scale_constraint(g: float, scale: float = 1.0) -> float:
-    """Scale a constraint value.
-
-    Args:
-        g: Raw constraint value.
-        scale: Scaling factor (default 1.0).
-
-    Returns:
-        Scaled constraint value.
-    """
-    return g / scale
-
-
-def concat_constraints(*constraints: np.ndarray) -> np.ndarray:
-    """Concatenate multiple constraint arrays.
-
-    Args:
-        constraints: Variable number of constraint arrays.
-
-    Returns:
-        Single concatenated constraint array.
-    """
-    if not constraints:
-        return np.array([], dtype=np.float64)
-    return np.concatenate(constraints)
+# Default per-constraint scaling to keep magnitudes comparable.
+DEFAULT_SCALES: dict[str, float] = {
+    "thermo_compression_min": 10.0,  # degrees
+    "thermo_heat_release_width_min": 10.0,  # degrees
+    "thermo_ratio_jerk_max": 1e6,  # jerk cap
+    "thermo_eff_min": 1.0,
+    "thermo_eff_max": 1.0,
+    "thermo_pmax_norm": 1.0,
+    "gear_ratio_error_max": 1.0,
+    "gear_min_radius": 10.0,  # mm
+    "gear_max_radius": 10.0,  # mm
+    "gear_max_curvature": 0.5,  # 1/mm
+    "gear_interference": 1.0,
+    "gear_min_thickness": 5.0,  # placeholder scaling
+}
 
 
-def is_feasible(G: np.ndarray, tol: float = 0.0) -> bool:
-    """Check if all constraints are satisfied.
+THERMO_CONSTRAINTS_FID0 = [
+    "thermo_compression_min",
+    "thermo_heat_release_width_min",
+    "thermo_ratio_jerk_max",
+    "thermo_ratio_slope_max",
+]
 
-    Args:
-        G: Constraint array.
-        tol: Tolerance for feasibility (default 0).
+THERMO_CONSTRAINTS_FID1 = [
+    "thermo_eff_min",
+    "thermo_eff_max",
+    "thermo_pmax_norm",
+    "thermo_ratio_slope_max",
+]
 
-    Returns:
-        True if all G <= tol.
-    """
-    return bool(np.all(G <= tol))
-
-
-def max_violation(G: np.ndarray) -> float:
-    """Compute maximum constraint violation.
-
-    Args:
-        G: Constraint array.
-
-    Returns:
-        Maximum violation (0 if feasible).
-    """
-    if len(G) == 0:
-        return 0.0
-    return float(np.maximum(G, 0).max())
+GEAR_CONSTRAINTS = [
+    "gear_ratio_error_max",
+    "gear_min_radius",
+    "gear_max_radius",
+    "gear_max_curvature",
+    "gear_interference",
+    "gear_min_thickness",
+]
 
 
-def feasibility_ratio(G: np.ndarray, tol: float = 0.0) -> float:
-    """Compute fraction of constraints satisfied.
-
-    Args:
-        G: Constraint array.
-        tol: Tolerance for satisfaction.
-
-    Returns:
-        Ratio in [0, 1] of satisfied constraints.
-    """
-    if len(G) == 0:
-        return 1.0
-    return float(np.mean(G <= tol))
+def get_constraint_names(fidelity: int) -> list[str]:
+    """Return ordered constraint names for a given fidelity."""
+    thermo = THERMO_CONSTRAINTS_FID1 if fidelity >= 1 else THERMO_CONSTRAINTS_FID0
+    return list(thermo) + list(GEAR_CONSTRAINTS)
 
 
-def bound_constraint(value: float, lower: float, upper: float) -> tuple[float, float]:
-    """Create bound constraints for a value.
+def get_constraint_scales() -> dict[str, float]:
+    """Expose default constraint scales for downstream metadata."""
+    return DEFAULT_SCALES.copy()
 
-    Returns (g_lower, g_upper) where:
-        g_lower = lower - value  (<=0 if value >= lower)
-        g_upper = value - upper  (<=0 if value <= upper)
 
-    Args:
-        value: Value to constrain.
-        lower: Lower bound.
-        upper: Upper bound.
+@dataclass
+class ConstraintRecord:
+    name: str
+    raw: float
+    scale: float
+    scaled: float
+
+    @property
+    def feasible(self) -> bool:
+        return self.scaled <= 0.0
+
+
+def combine_constraints(
+    thermo_G: Sequence[float],
+    gear_G: Sequence[float],
+    thermo_names: Sequence[str],
+    gear_names: Sequence[str],
+    scale_overrides: Mapping[str, float] | None = None,
+) -> tuple[np.ndarray, list[dict]]:
+    """Merge thermo + gear constraints with scaling and reason codes.
 
     Returns:
-        Tuple of (g_lower, g_upper) constraints.
+        G_scaled: np.ndarray, concatenated constraints (scaled) with sign convention G<=0 feasible.
+        diag_list: list of dicts with raw/scaled/name.
     """
-    g_lower = lower - value
-    g_upper = value - upper
-    return g_lower, g_upper
+    scale_overrides = scale_overrides or {}
+
+    all_names = list(thermo_names) + list(gear_names)
+    all_raw = list(thermo_G) + list(gear_G)
+
+    if len(all_names) != len(all_raw):
+        raise ValueError(
+            f"Constraint name/value length mismatch: {len(all_names)} names vs {len(all_raw)} values"
+        )
+
+    G_scaled = np.zeros(len(all_raw), dtype=np.float64)
+    diag_list: list[dict] = []
+
+    for i, (name, raw) in enumerate(zip(all_names, all_raw)):
+        scale = float(scale_overrides.get(name, DEFAULT_SCALES.get(name, 1.0)))
+        scale = scale if scale != 0 else 1.0
+        scaled = raw / scale
+        G_scaled[i] = scaled
+        diag_list.append(
+            {
+                "name": name,
+                "raw": float(raw),
+                "scale": scale,
+                "scaled": float(scaled),
+                "feasible": bool(scaled <= 0.0),
+            }
+        )
+
+    return G_scaled, diag_list

@@ -31,21 +31,23 @@ def test_constraint_sign_convention():
     """Test that constraint sign follows G <= 0 feasible convention.
 
     For the toy model:
-    - G_thermo[0]: compression duration constraint (should allow > 30 deg)
-    - G_thermo[1]: heat release width > 5
-    - G_thermo[2]: jerk constraint
-    - G_gear[0]: ratio error <= tolerance
-    - G_gear[1]: min radius >= MIN_RADIUS
-    - G_gear[2]: max radius <= MAX_RADIUS
-    - G_gear[3]: curvature <= MAX_CURVATURE
+    - G_thermo: compression duration, heat release width, jerk, ratio slope
+    - G_gear: ratio error, min radius, max radius, curvature, interference, thickness
     """
     ctx = EvalContext(rpm=3000.0, torque=200.0, fidelity=0, seed=42)
     x = mid_bounds_candidate()
 
     result = evaluate_candidate(x, ctx)
 
-    # Verify constraint array length
-    assert len(result.G) == 7, f"Expected 7 constraints, got {len(result.G)}"
+    # Verify constraint array length and diag consistency
+    assert len(result.G) == 10, f"Expected 10 constraints, got {len(result.G)}"
+    constraints = result.diag.get("constraints", [])
+    assert len(constraints) == 10, "Constraint diagnostics should list all constraints"
+    names = [c["name"] for c in constraints]
+    assert len(set(names)) == 10, "Constraint names should be unique"
+    # Scaled values should match returned G
+    scaled_from_diag = [c["scaled"] for c in constraints]
+    assert np.allclose(result.G, scaled_from_diag), "Scaled constraints mismatch diag"
 
     # Check that constraints are reasonable (not extremely violated)
     max_violation = np.max(result.G)

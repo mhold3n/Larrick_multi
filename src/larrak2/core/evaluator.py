@@ -20,7 +20,16 @@ import time
 
 import numpy as np
 
+from typing import Sequence, Tuple
+
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
+from ..core.constraints import (
+    GEAR_CONSTRAINTS,
+    THERMO_CONSTRAINTS_FID0,
+    THERMO_CONSTRAINTS_FID1,
+    combine_constraints,
+    get_constraint_names,
+)
 from ..gear.litvin_core import eval_gear
 from ..thermo.motionlaw import eval_thermo
 from .encoding import decode_candidate
@@ -98,8 +107,11 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         dtype=np.float64,
     )
 
-    # Constraints (G <= 0 feasible)
-    G = np.concatenate([thermo_result.G, gear_result.G])
+    # Constraints (G <= 0 feasible) with centralized scaling/naming
+    thermo_names = THERMO_CONSTRAINTS_FID1 if ctx.fidelity >= 1 else THERMO_CONSTRAINTS_FID0
+    gear_names = GEAR_CONSTRAINTS
+
+    G, constraint_diag = combine_constraints(thermo_result.G, gear_result.G, thermo_names, gear_names)
 
     # Diagnostics
     t_total = time.perf_counter() - t0
@@ -125,6 +137,29 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             "gear_v1": MODEL_VERSION_GEAR_V1,
             **surrogate_meta,
         },
+        "constraints": constraint_diag,
     }
 
     return EvalResult(F=F, G=G, diag=diag)
+
+
+def evaluate_candidate_batch(
+    X: np.ndarray | Sequence[np.ndarray], ctx: EvalContext
+) -> Tuple[np.ndarray, np.ndarray, list[dict]]:
+    """Evaluate a batch of candidates.
+
+    Args:
+        X: Array-like of shape (n, N_TOTAL) or iterable of 1-D arrays.
+        ctx: Shared evaluation context.
+
+    Returns:
+        F_all: (n, n_obj) objective array
+        G_all: (n, n_constr) constraint array
+        diags: list of diagnostics dicts
+    """
+    X_arr = np.atleast_2d(np.asarray(list(X)) if not isinstance(X, np.ndarray) else X)
+    results = [evaluate_candidate(x, ctx) for x in X_arr]
+    F_all = np.stack([r.F for r in results], axis=0)
+    G_all = np.stack([r.G for r in results], axis=0)
+    diags = [r.diag for r in results]
+    return F_all, G_all, diags

@@ -48,7 +48,7 @@ class TestParetoFidelity1:
         n_pareto = result.X.shape[0]
         assert n_pareto > 0, "Should have at least one Pareto solution"
         assert result.F.shape[0] == n_pareto
-        assert result.F.shape[1] == 2  # 2 objectives
+        assert result.F.shape[1] == 3  # 3 objectives
 
     def test_pareto_fidelity1_finite_results(self):
         """All F and G values should be finite."""
@@ -193,4 +193,5 @@ class TestParetoFidelity1:
             assert "feasible_fraction" in summary
             assert "best_efficiency" in summary
             assert "best_loss" in summary
+            assert "best_radius" in summary
             assert summary["n_pareto"] > 0

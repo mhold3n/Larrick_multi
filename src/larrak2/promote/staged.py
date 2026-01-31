@@ -75,6 +75,7 @@ class StagedWorkflow:
             self.outdir, bundle, "stage1", extra_arrays={"n_evals": np.array([problem.n_evals])}
         )
         save_meta(self.outdir, {"stage": 1, "pop": actual_pop, "gen": n_gen})
+        (self.outdir / "stage1").mkdir(exist_ok=True)
 
         return bundle
 
@@ -93,6 +94,7 @@ class StagedWorkflow:
         new_bundle = self.pm.promote_candidates(archive, indices, ctx_hi)
 
         save_npz(self.outdir, new_bundle, "stage2")
+        (self.outdir / "stage2").mkdir(exist_ok=True)
 
         return new_bundle
 
@@ -123,7 +125,8 @@ class StagedWorkflow:
 
         # Custom Initialization
         # Manually construct X with seeds + random fill
-        X_init = np.random.rand(actual_pop, problem.n_var)
+        rng = np.random.default_rng(self.seed)
+        X_init = rng.random((actual_pop, problem.n_var))
         X_init = problem.xl + X_init * (problem.xu - problem.xl)
 
         n_seed = len(X_seed)
@@ -159,5 +162,6 @@ class StagedWorkflow:
         save_npz(
             self.outdir, bundle, "stage3", extra_arrays={"n_evals": np.array([problem.n_evals])}
         )
+        (self.outdir / "stage3").mkdir(exist_ok=True)
 
         return bundle

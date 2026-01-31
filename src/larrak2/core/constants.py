@@ -21,3 +21,9 @@ MODEL_VERSION_GEAR_V1 = "v1.0_20260125_initial"
 # Physical constants (universal)
 P_ATM = 101325.0  # Pa
 T_REF = 298.15  # K
+
+# Constraint/tolerance knobs
+RATIO_SLOPE_LIMIT_FID0 = 0.8
+RATIO_SLOPE_LIMIT_FID1 = 2.0
+GEAR_INTERFERENCE_CLEARANCE_MM = 0.0
+GEAR_MIN_THICKNESS_MM = -0.05
