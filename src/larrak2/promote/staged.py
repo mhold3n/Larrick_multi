@@ -19,6 +19,7 @@ from pymoo.util.ref_dirs import get_reference_directions
 from larrak2.adapters.pymoo_problem import ParetoProblem
 from larrak2.core.types import EvalContext
 from larrak2.promote.archive import ArchiveBundle, ArchiveRecord, save_meta, save_npz
+from larrak2.core.archive_io import save_archive
 from larrak2.promote.manager import PromotionManager
 
 

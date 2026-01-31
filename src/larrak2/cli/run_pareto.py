@@ -23,6 +23,7 @@ import numpy as np
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import get_constraint_names, get_constraint_scales
 from ..core.encoding import ENCODING_VERSION
+from ..core.archive_io import save_archive
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -166,8 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         "best_radius": best_radius,
     }
 
-    with open(output_dir / "summary.json", "w") as f:
-        json.dump(summary, f, indent=2)
+    save_archive(output_dir, X if X is not None else np.array([]), F if F is not None else np.array([]), G, summary)
 
     if args.verbose:
         print(f"\nCompleted in {t_elapsed:.1f}s")
