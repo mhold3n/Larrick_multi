@@ -113,6 +113,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         thermo_result.G, gear_result.G, thermo_names, gear_names
     )
 
+    # Feasibility based only on hard constraints
+    hard_mask = np.array([c["kind"] == "hard" for c in constraint_diag], dtype=bool)
+    G_hard = G[hard_mask]
+
     # Diagnostics
     t_total = time.perf_counter() - t0
     diag = {
@@ -138,6 +142,7 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             **surrogate_meta,
         },
         "constraints": constraint_diag,
+        "feasible_hard": bool(np.all(G_hard <= 0)) if len(G_hard) else True,
     }
 
     return EvalResult(F=F, G=G, diag=diag)

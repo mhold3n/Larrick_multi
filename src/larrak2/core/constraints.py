@@ -23,6 +23,40 @@ DEFAULT_SCALES: dict[str, float] = {
     "gear_min_thickness": 5.0,  # placeholder scaling
 }
 
+DEFAULT_KIND: dict[str, str] = {
+    # Thermo
+    "thermo_compression_min": "hard",
+    "thermo_heat_release_width_min": "hard",
+    "thermo_ratio_jerk_max": "soft",
+    "thermo_ratio_slope_max": "soft",
+    "thermo_eff_min": "hard",
+    "thermo_eff_max": "hard",
+    "thermo_pmax_norm": "hard",
+    # Gear
+    "gear_ratio_error_max": "soft",
+    "gear_min_radius": "hard",
+    "gear_max_radius": "hard",
+    "gear_max_curvature": "soft",
+    "gear_interference": "soft",
+    "gear_min_thickness": "hard",
+}
+
+DEFAULT_REASON: dict[str, str] = {
+    "thermo_compression_min": "compression duration below minimum",
+    "thermo_heat_release_width_min": "heat release width below minimum",
+    "thermo_ratio_jerk_max": "ratio profile jerk too high",
+    "thermo_ratio_slope_max": "ratio profile slope too high",
+    "thermo_eff_min": "efficiency below zero",
+    "thermo_eff_max": "efficiency above physical bound",
+    "thermo_pmax_norm": "peak pressure exceeds limit",
+    "gear_ratio_error_max": "gear ratio tracking error too high",
+    "gear_min_radius": "planet radius below minimum",
+    "gear_max_radius": "planet radius above maximum",
+    "gear_max_curvature": "curvature exceeds limit",
+    "gear_interference": "ring/planet interference detected",
+    "gear_min_thickness": "tooth thickness below minimum",
+}
+
 
 THERMO_CONSTRAINTS_FID0 = [
     "thermo_compression_min",
@@ -109,6 +143,8 @@ def combine_constraints(
                 "scale": scale,
                 "scaled": float(scaled),
                 "feasible": bool(scaled <= 0.0),
+                "kind": DEFAULT_KIND.get(name, "hard"),
+                "reason": DEFAULT_REASON.get(name, ""),
             }
         )
 
