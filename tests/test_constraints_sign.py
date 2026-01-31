@@ -40,11 +40,11 @@ def test_constraint_sign_convention():
     result = evaluate_candidate(x, ctx)
 
     # Verify constraint array length and diag consistency
-    assert len(result.G) == 10, f"Expected 10 constraints, got {len(result.G)}"
+    assert len(result.G) == 12, f"Expected 12 constraints, got {len(result.G)}"
     constraints = result.diag.get("constraints", [])
-    assert len(constraints) == 10, "Constraint diagnostics should list all constraints"
+    assert len(constraints) == 12, "Constraint diagnostics should list all constraints"
     names = [c["name"] for c in constraints]
-    assert len(set(names)) == 10, "Constraint names should be unique"
+    assert len(set(names)) == 12, "Constraint names should be unique"
     # Scaled values should match returned G
     scaled_from_diag = [c["scaled"] for c in constraints]
     assert np.allclose(result.G, scaled_from_diag), "Scaled constraints mismatch diag"

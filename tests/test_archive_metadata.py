@@ -40,6 +40,6 @@ def test_summary_contains_versions():
         assert summary["encoding_version"] == ENCODING_VERSION
         assert "model_versions" in summary and "thermo_v1" in summary["model_versions"]
         assert summary["n_obj"] == 3
-        assert summary["n_constr"] == 10
-        assert summary["constraint_names"] and len(summary["constraint_names"]) == 10
+        assert summary["n_constr"] == 12
+        assert summary["constraint_names"] and len(summary["constraint_names"]) == 12
         assert "constraint_scales" in summary

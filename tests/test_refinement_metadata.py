@@ -44,5 +44,5 @@ def test_refinement_summary_contains_versions():
 
         assert summary["encoding_version"] == ENCODING_VERSION
         assert "model_versions" in summary
-        assert "constraint_names" in summary and len(summary["constraint_names"]) == 10
+        assert "constraint_names" in summary and len(summary["constraint_names"]) == 12
         assert "constraint_scales" in summary

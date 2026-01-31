@@ -182,6 +182,7 @@ def eval_gear(
     # Litvin synthesis to obtain conjugate ring profile
     synth = litvin_synthesize(theta, r_planet, target_ratio=r_ring / params.base_radius)
     R_psi = synth["R_psi"]
+    psi = synth["psi"]
 
     # Ratio tracking error
     ratio_error_mean, ratio_error_max = _compute_ratio_error(r_planet, i_req_profile, r_ring)
@@ -202,6 +203,8 @@ def eval_gear(
     min_thickness = float(np.min(thickness_profile))
     interference_flag = bool(np.any(thickness_profile < GEAR_INTERFERENCE_CLEARANCE_MM))
     thickness_ok = min_thickness >= GEAR_MIN_THICKNESS_MM
+    contact_ratio = float(np.mean(R_psi) / np.maximum(np.mean(r_planet), 1e-6))
+    self_intersection = bool(np.any(np.diff(psi) <= 0))
 
     # Curvature
     curvature = _compute_curvature(r_planet, theta)
@@ -234,6 +237,14 @@ def eval_gear(
     g_thickness = GEAR_MIN_THICKNESS_MM - min_thickness
     constraints.append(g_thickness)
 
+    # C7: Contact ratio >= 1.0 (soft)
+    g_contact = 1.0 - contact_ratio
+    constraints.append(g_contact)
+
+    # C8: Self-intersection risk (soft)
+    g_self_int = 0.1 if self_intersection else -0.1
+    constraints.append(g_self_int)
+
     G = np.array(constraints, dtype=np.float64)
 
     # Diagnostics
@@ -244,12 +255,15 @@ def eval_gear(
         "thickness_profile": thickness_profile,
         "curvature": curvature,
         "loss_profile": loss_profile,
+        "loss_components": {"mesh_loss": float(loss_total)},  # placeholder
         "r_ring": r_ring,
         "min_planet_radius": min_planet_radius,
         "max_curvature": max_curvature,
         "min_thickness": min_thickness,
         "thickness_ok": thickness_ok,
         "interference_flag": interference_flag,
+        "contact_ratio": contact_ratio,
+        "self_intersection": self_intersection,
     }
 
     return GearResult(

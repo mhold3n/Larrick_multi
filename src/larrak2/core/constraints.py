@@ -21,6 +21,8 @@ DEFAULT_SCALES: dict[str, float] = {
     "gear_max_curvature": 0.5,  # 1/mm
     "gear_interference": 1.0,
     "gear_min_thickness": 5.0,  # placeholder scaling
+    "gear_contact_ratio_min": 1.0,
+    "gear_self_intersection": 1.0,
 }
 
 DEFAULT_KIND: dict[str, str] = {
@@ -39,6 +41,8 @@ DEFAULT_KIND: dict[str, str] = {
     "gear_max_curvature": "soft",
     "gear_interference": "soft",
     "gear_min_thickness": "hard",
+    "gear_contact_ratio_min": "soft",
+    "gear_self_intersection": "soft",
 }
 
 DEFAULT_REASON: dict[str, str] = {
@@ -55,6 +59,8 @@ DEFAULT_REASON: dict[str, str] = {
     "gear_max_curvature": "curvature exceeds limit",
     "gear_interference": "ring/planet interference detected",
     "gear_min_thickness": "tooth thickness below minimum",
+    "gear_contact_ratio_min": "contact ratio below 1.0",
+    "gear_self_intersection": "psi mapping non-monotonic (self-intersection risk)",
 }
 
 
@@ -79,6 +85,8 @@ GEAR_CONSTRAINTS = [
     "gear_max_curvature",
     "gear_interference",
     "gear_min_thickness",
+    "gear_contact_ratio_min",
+    "gear_self_intersection",
 ]
 
 

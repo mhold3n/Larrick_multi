@@ -16,7 +16,7 @@ def test_archive_load_version_match():
         out = Path(tmp)
         X = np.zeros((1, N_TOTAL))
         F = np.zeros((1, 3))
-        G = np.zeros((1, 10))
+        G = np.zeros((1, 12))
         save_archive(
             out,
             X,
@@ -26,7 +26,7 @@ def test_archive_load_version_match():
                 "fidelity": 0,
                 "seed": 1,
                 "n_pareto": 1,
-                "n_constr": 10,
+                "n_constr": 12,
                 "n_obj": 3,
             },
         )
@@ -41,7 +41,7 @@ def test_archive_load_version_mismatch_raises(tmp_path, monkeypatch):
     out = tmp_path
     X = np.zeros((1, N_TOTAL))
     F = np.zeros((1, 3))
-    G = np.zeros((1, 10))
+    G = np.zeros((1, 12))
     save_archive(
         out,
         X,
@@ -51,7 +51,7 @@ def test_archive_load_version_mismatch_raises(tmp_path, monkeypatch):
             "fidelity": 0,
             "seed": 1,
             "n_pareto": 1,
-            "n_constr": 10,
+            "n_constr": 12,
             "n_obj": 3,
         },
     )

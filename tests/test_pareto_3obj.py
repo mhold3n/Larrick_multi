@@ -43,7 +43,7 @@ def test_pareto_problem_config(ctx_v1):
     problem = ParetoProblem(ctx_v1)
     assert problem.N_OBJ == 3
     assert problem.n_obj == 3
-    assert problem.n_constr == 10  # constraints list driven
+    assert problem.n_constr == 12  # constraints list driven
 
 
 def test_3obj_determinism(ctx_v1):

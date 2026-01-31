@@ -362,6 +362,7 @@ def v1_eval_gear_forward(
     interference_flag = geom["interference_flag"] or np.any(
         thickness_profile < GEAR_INTERFERENCE_CLEARANCE_MM
     )
+    self_intersection = bool(np.any(np.diff(psi) <= 0))
     thickness_ok = min_thickness >= GEAR_MIN_THICKNESS_MM
 
     # Curvature
@@ -393,9 +394,17 @@ def v1_eval_gear_forward(
     g_interf = 0.1 if interference_flag else -0.1
     constraints.append(g_interf)
 
-    # C6: Min thickness >= 1mm proxy
+    # C6: Min thickness >= threshold
     g_thick = GEAR_MIN_THICKNESS_MM - min_thickness
     constraints.append(g_thick)
+
+    # C7: Contact ratio >= 1 (soft)
+    g_contact = 1.0 - geom["contact_ratio"]
+    constraints.append(g_contact)
+
+    # C8: Self-intersection (soft)
+    g_self = 0.1 if self_intersection else -0.1
+    constraints.append(g_self)
 
     G = np.array(constraints, dtype=np.float64)
 
@@ -416,6 +425,7 @@ def v1_eval_gear_forward(
         "min_thickness": min_thickness,
         "thickness_ok": thickness_ok,
         "thickness_profile": thickness_profile,
+        "self_intersection": self_intersection,
         "v1_port": True,
     }
 
