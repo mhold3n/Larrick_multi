@@ -226,8 +226,8 @@ def eval_gear(
     g_curv = max_curvature - MAX_CURVATURE
     constraints.append(g_curv)
 
-    # C5: Interference check (non-blocking placeholder; diagnostics carry truth)
-    g_interference = -1.0
+    # C5: Interference check (soft constraint -> small penalty if present)
+    g_interference = 0.1 if interference_flag else -0.1
     constraints.append(g_interference)
 
     # C6: Min thickness >= threshold

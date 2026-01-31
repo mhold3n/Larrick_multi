@@ -389,8 +389,8 @@ def v1_eval_gear_forward(
     g_curv = max_curvature - MAX_CURVATURE
     constraints.append(g_curv)
 
-    # C5: Interference (kept diagnostic-only to avoid overconstraining)
-    g_interf = -1.0
+    # C5: Interference (soft)
+    g_interf = 0.1 if interference_flag else -0.1
     constraints.append(g_interf)
 
     # C6: Min thickness >= 1mm proxy
