@@ -18,6 +18,7 @@ import numpy as np
 from scipy.interpolate import PchipInterpolator
 
 from ...core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
+from ...gear.loss_model import total_loss
 from ...core.encoding import GearParams
 from ...core.types import EvalContext
 from ...gear.pitchcurve import fourier_pitch_curve
@@ -351,8 +352,15 @@ def v1_eval_gear_forward(
     ratio_error_mean = float(np.mean(ratio_error))
     ratio_error_max = float(np.max(ratio_error))
 
-    # Mesh friction loss (enhanced)
-    loss_total, loss_profile = compute_mesh_loss(theta, r_planet, rho_c, ctx.rpm, ctx.torque)
+    # Loss model (mesh + optional windage)
+    loss_total, loss_profile, loss_diag = total_loss(
+        theta,
+        r_planet,
+        rho_c,
+        ctx.rpm,
+        ctx.torque,
+        enable_windage=ctx.fidelity >= 1,
+    )
 
     # Geometry metrics
     max_planet_radius = float(np.max(r_planet))
@@ -417,6 +425,7 @@ def v1_eval_gear_forward(
         "rho_c": rho_c,
         "curvature": curv["kappa"],
         "loss_profile": loss_profile,
+        "loss_components": loss_diag,
         "r_ring": r_ring,
         "min_planet_radius": min_planet_radius,
         "max_curvature": max_curvature,
