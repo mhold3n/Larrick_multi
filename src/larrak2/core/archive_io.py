@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import warnings
 from typing import Any
 
 import numpy as np
@@ -54,7 +55,7 @@ def load_archive(outdir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict
 
     enc = summary.get("encoding_version")
     if enc != ENCODING_VERSION:
-        raise ValueError(f"Encoding version mismatch: archive {enc}, expected {ENCODING_VERSION}")
+        summary = migrate_archive(summary)
 
     X = np.load(outdir / "pareto_X.npy", allow_pickle=False)
     F = np.load(outdir / "pareto_F.npy", allow_pickle=False)
@@ -68,6 +69,18 @@ def load_archive(outdir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict
 
 
 def migrate_archive(summary: dict) -> dict:
-    """Placeholder migration hook."""
-    # Currently no migrations; would translate fields here.
-    return summary
+    """Migration hook for legacy archive summaries."""
+    enc = summary.get("encoding_version")
+    if enc == ENCODING_VERSION:
+        return summary
+
+    # Example migration map; extend as schemas evolve
+    MIGRATION_MAP = {
+        "0.0": lambda s: {**s, "encoding_version": ENCODING_VERSION},
+    }
+
+    if enc in MIGRATION_MAP:
+        warnings.warn(f"Migrating archive encoding {enc} -> {ENCODING_VERSION}", UserWarning)
+        return MIGRATION_MAP[enc](summary)
+
+    raise ValueError(f"Encoding version mismatch: archive {enc}, expected {ENCODING_VERSION}")
