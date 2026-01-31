@@ -57,12 +57,8 @@ def test_determinism_different_context():
     result1 = evaluate_candidate(x, ctx1)
     result2 = evaluate_candidate(x, ctx2)
 
-    # Results should differ (gear loss depends on rpm/torque)
-    # Note: thermo efficiency doesn't depend on rpm/torque in toy model,
-    # but gear loss does
-    assert not np.allclose(result1.F[1], result2.F[1]), (
-        "Different context should give different gear loss"
-    )
+    # Results should differ (loss should increase with rpm/torque)
+    assert result2.F[1] > result1.F[1], "Higher rpm/torque should increase loss"
 
 
 def test_determinism_seed_unused():

@@ -20,6 +20,7 @@ from typing import Any
 import numpy as np
 
 from ..core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
+from .loss_model import total_loss
 from ..core.encoding import GearParams
 from ..core.types import EvalContext
 from ..ports.larrak_v1.gear_forward import litvin_synthesize
@@ -187,12 +188,14 @@ def eval_gear(
     # Ratio tracking error
     ratio_error_mean, ratio_error_max = _compute_ratio_error(r_planet, i_req_profile, r_ring)
 
-    # Mesh friction loss
-    loss_total, loss_profile = _compute_mesh_loss(
+    # Loss model (mesh + optional windage)
+    loss_total, loss_profile, loss_diag = total_loss(
         theta,
         r_planet,
-        ctx.rpm,
-        ctx.torque,
+        synth["rho_c"],
+        omega_rpm=ctx.rpm,
+        torque=ctx.torque,
+        enable_windage=ctx.fidelity >= 1,
     )
 
     # Geometry metrics
@@ -255,7 +258,7 @@ def eval_gear(
         "thickness_profile": thickness_profile,
         "curvature": curvature,
         "loss_profile": loss_profile,
-        "loss_components": {"mesh_loss": float(loss_total)},  # placeholder
+        "loss_components": loss_diag,
         "r_ring": r_ring,
         "min_planet_radius": min_planet_radius,
         "max_curvature": max_curvature,

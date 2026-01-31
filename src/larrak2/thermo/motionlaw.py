@@ -173,11 +173,13 @@ def _ratio_profile_stats(profile: np.ndarray) -> dict[str, float | bool]:
     max_val = float(np.max(profile)) if profile.size else 0.0
     slope = np.gradient(profile) if profile.size > 1 else np.array([0.0])
     max_slope = float(np.max(np.abs(slope)))
+    max_jerk = float(np.max(np.abs(np.gradient(slope)))) if slope.size > 1 else 0.0
     return {
         "finite": bool(finite),
         "min": min_val,
         "max": max_val,
         "max_slope": max_slope,
+        "max_jerk": max_jerk,
     }
 
 
