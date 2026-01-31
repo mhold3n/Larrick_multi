@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
 from .constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
-from .encoding import ENCODING_VERSION, N_TOTAL
 from .constraints import get_constraint_names, get_constraint_scales
-
+from .encoding import ENCODING_VERSION, N_TOTAL
 
 META_FILENAME = "summary.json"
 
@@ -21,7 +20,7 @@ def save_archive(
     X: np.ndarray,
     F: np.ndarray,
     G: np.ndarray,
-    summary: Dict[str, Any],
+    summary: dict[str, Any],
 ) -> None:
     """Save archive arrays plus metadata with guards."""
     outdir.mkdir(parents=True, exist_ok=True)
