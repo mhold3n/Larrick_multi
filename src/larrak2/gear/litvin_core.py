@@ -212,6 +212,13 @@ def eval_gear(
     # Curvature
     curvature = _compute_curvature(r_planet, theta)
     max_curvature = float(np.max(curvature))
+    curvature_smoothness = float(np.sqrt(np.mean(np.gradient(curvature) ** 2)))
+
+    # Sliding speed proxy
+    omega_rad = ctx.rpm * 2 * np.pi / 60
+    sliding_speed = omega_rad * np.abs(np.gradient(r_planet / 1000))
+    sliding_speed_mean = float(np.mean(sliding_speed))
+    sliding_speed_max = float(np.max(sliding_speed))
 
     # Constraints (G <= 0 feasible)
     constraints = []
@@ -262,6 +269,9 @@ def eval_gear(
         "r_ring": r_ring,
         "min_planet_radius": min_planet_radius,
         "max_curvature": max_curvature,
+        "curvature_smoothness_rms": curvature_smoothness,
+        "sliding_speed_mean": sliding_speed_mean,
+        "sliding_speed_max": sliding_speed_max,
         "min_thickness": min_thickness,
         "thickness_ok": thickness_ok,
         "interference_flag": interference_flag,

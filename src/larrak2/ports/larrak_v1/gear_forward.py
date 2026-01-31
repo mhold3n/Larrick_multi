@@ -362,6 +362,10 @@ def v1_eval_gear_forward(
         enable_windage=ctx.fidelity >= 1,
     )
 
+    sliding_speed = ctx.rpm * 2 * np.pi / 60 * np.abs(r_planet / 1000 - np.abs(rho_c) / 1000)
+    sliding_speed_mean = float(np.mean(sliding_speed))
+    sliding_speed_max = float(np.max(sliding_speed))
+
     # Geometry metrics
     max_planet_radius = float(np.max(r_planet))
     min_planet_radius = float(np.min(r_planet))
@@ -435,6 +439,8 @@ def v1_eval_gear_forward(
         "thickness_ok": thickness_ok,
         "thickness_profile": thickness_profile,
         "self_intersection": self_intersection,
+        "sliding_speed_mean": sliding_speed_mean,
+        "sliding_speed_max": sliding_speed_max,
         "v1_port": True,
     }
 
