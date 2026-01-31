@@ -17,10 +17,9 @@ Flow:
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 
 import numpy as np
-
-from typing import Sequence, Tuple
 
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import (
@@ -28,7 +27,6 @@ from ..core.constraints import (
     THERMO_CONSTRAINTS_FID0,
     THERMO_CONSTRAINTS_FID1,
     combine_constraints,
-    get_constraint_names,
 )
 from ..gear.litvin_core import eval_gear
 from ..thermo.motionlaw import eval_thermo
@@ -111,7 +109,9 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     thermo_names = THERMO_CONSTRAINTS_FID1 if ctx.fidelity >= 1 else THERMO_CONSTRAINTS_FID0
     gear_names = GEAR_CONSTRAINTS
 
-    G, constraint_diag = combine_constraints(thermo_result.G, gear_result.G, thermo_names, gear_names)
+    G, constraint_diag = combine_constraints(
+        thermo_result.G, gear_result.G, thermo_names, gear_names
+    )
 
     # Diagnostics
     t_total = time.perf_counter() - t0
@@ -145,7 +145,7 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
 
 def evaluate_candidate_batch(
     X: np.ndarray | Sequence[np.ndarray], ctx: EvalContext
-) -> Tuple[np.ndarray, np.ndarray, list[dict]]:
+) -> tuple[np.ndarray, np.ndarray, list[dict]]:
     """Evaluate a batch of candidates.
 
     Args:

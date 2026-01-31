@@ -17,9 +17,9 @@ from typing import Any
 
 import numpy as np
 
+from ..core.constants import RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
 from ..core.encoding import ThermoParams
 from ..core.types import EvalContext
-from ..core.constants import RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
 
 # Number of discretization points
 N_POINTS = 360

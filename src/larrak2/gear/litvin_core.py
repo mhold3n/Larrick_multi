@@ -19,11 +19,11 @@ from typing import Any
 
 import numpy as np
 
+from ..core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
 from ..core.encoding import GearParams
 from ..core.types import EvalContext
-from ..core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
-from .pitchcurve import fourier_pitch_curve
 from ..ports.larrak_v1.gear_forward import litvin_synthesize
+from .pitchcurve import fourier_pitch_curve
 
 # Number of discretization points
 N_POINTS = 360

@@ -19,11 +19,10 @@ from typing import Any
 
 import numpy as np
 
-from ...core.constants import N_THETA, P_ATM
+from ...core.constants import N_THETA, P_ATM, RATIO_SLOPE_LIMIT_FID1
 from ...core.encoding import ThermoParams
-from ...thermo.motionlaw import _ratio_profile_stats
-from ...core.constants import RATIO_SLOPE_LIMIT_FID1
 from ...core.types import EvalContext
+from ...thermo.motionlaw import _ratio_profile_stats
 
 # Constants
 DEFAULT_WIEBE_M = 2.0  # Wiebe shape factor

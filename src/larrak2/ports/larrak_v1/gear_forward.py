@@ -17,10 +17,10 @@ from typing import Any
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 
+from ...core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
 from ...core.encoding import GearParams
 from ...core.types import EvalContext
 from ...gear.pitchcurve import fourier_pitch_curve
-from ...core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
 
 # Constants from v1 (hardcoded to avoid imports)
 MIN_RADIUS_MM = 5.0
