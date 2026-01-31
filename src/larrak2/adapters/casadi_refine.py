@@ -69,9 +69,8 @@ def refine_candidate(
     result0 = evaluate_candidate(x0, ctx)
 
     if mode == RefinementMode.WEIGHTED_SUM:
-        x_refined, diag = _weighted_sum_refine(
-            x0, ctx, weights or np.ones(len(result0.F)), xl, xu, max_iter, tol
-        )
+        w = weights if weights is not None else np.ones(len(result0.F))
+        x_refined, diag = _weighted_sum_refine(x0, ctx, w, xl, xu, max_iter, tol)
     elif mode == RefinementMode.EPS_CONSTRAINT:
         x_refined, diag = _eps_constraint_refine(
             x0, ctx, eps_constraints or result0.F, xl, xu, max_iter, tol
@@ -116,12 +115,15 @@ def _weighted_sum_refine(
         from scipy.optimize import minimize
 
         def objective(x):
-            result = evaluate_candidate(x, ctx)
+            # Bounds safety
+            x_clamped = np.clip(x, xl, xu)
+            result = evaluate_candidate(x_clamped, ctx)
             # Scalarized objective
             return float(np.dot(weights, result.F))
 
         def constraint_func(x):
-            result = evaluate_candidate(x, ctx)
+            x_clamped = np.clip(x, xl, xu)
+            result = evaluate_candidate(x_clamped, ctx)
             # Return -G for scipy (constraint >= 0 expected)
             return -result.G
 
@@ -133,10 +135,16 @@ def _weighted_sum_refine(
             method="SLSQP",
             bounds=list(zip(xl, xu)),
             constraints={"type": "ineq", "fun": constraint_func},
-            options={"maxiter": max_iter, "ftol": tol},
+            options={"maxiter": max_iter, "ftol": tol, "maxiter": max_iter, "disp": False},
         )
 
-        return res.x, {"scipy_result": str(res.message), "n_iter": res.nit}
+        x_final = np.clip(res.x, xl, xu)
+
+        # Simple backtracking if NaN or violated
+        if (not np.all(np.isfinite(x_final))) or (np.any(x_final < xl) or np.any(x_final > xu)):
+            x_final = np.clip(x0, xl, xu)
+
+        return x_final, {"scipy_result": str(res.message), "n_iter": res.nit}
 
     except ImportError:
         # Fallback: return original
@@ -160,11 +168,13 @@ def _eps_constraint_refine(
         from scipy.optimize import minimize
 
         def objective(x):
-            result = evaluate_candidate(x, ctx)
+            x_clamped = np.clip(x, xl, xu)
+            result = evaluate_candidate(x_clamped, ctx)
             return float(result.F[0])  # Minimize first objective
 
         def constraint_func(x):
-            result = evaluate_candidate(x, ctx)
+            x_clamped = np.clip(x, xl, xu)
+            result = evaluate_candidate(x_clamped, ctx)
             # Original constraints + ε-constraints on objectives 1..n
             eps_g = result.F[1:] - eps[1:]  # F[i] <= eps[i]
             all_g = np.concatenate([-result.G, -eps_g])
@@ -176,10 +186,14 @@ def _eps_constraint_refine(
             method="SLSQP",
             bounds=list(zip(xl, xu)),
             constraints={"type": "ineq", "fun": constraint_func},
-            options={"maxiter": max_iter, "ftol": tol},
+            options={"maxiter": max_iter, "ftol": tol, "disp": False},
         )
 
-        return res.x, {"scipy_result": str(res.message), "n_iter": res.nit}
+        x_final = np.clip(res.x, xl, xu)
+        if not np.all(np.isfinite(x_final)):
+            x_final = np.clip(x0, xl, xu)
+
+        return x_final, {"scipy_result": str(res.message), "n_iter": res.nit}
 
     except ImportError:
         return x0, {"error": "scipy not available"}
