@@ -70,8 +70,7 @@ def refine_candidate(
 
     if mode == RefinementMode.WEIGHTED_SUM:
         w = weights if weights is not None else np.ones(len(result0.F))
-        x_refined, diag = _weighted_sum_refine(
-            x0, ctx, w, xl, xu, max_iter, tol)
+        x_refined, diag = _weighted_sum_refine(x0, ctx, w, xl, xu, max_iter, tol)
     elif mode == RefinementMode.EPS_CONSTRAINT:
         x_refined, diag = _eps_constraint_refine(
             x0, ctx, eps_constraints or result0.F, xl, xu, max_iter, tol

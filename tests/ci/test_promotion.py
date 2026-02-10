@@ -1,6 +1,5 @@
 """Tests for Phase 10: Multi-Fidelity Promotion."""
 
-
 import numpy as np
 import pytest
 
