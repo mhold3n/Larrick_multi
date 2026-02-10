@@ -1,104 +1,133 @@
 # Larrak2 — Multi-Objective Optimization Framework
 
-Larrak2 is a modular optimization framework for thermo-gear systems using multi-objective Pareto optimization.
+**Single Source of Truth for Larrick Development**
 
-## Evaluation Contract
+## 1. Project Overview
 
-The canonical interface between physics and optimizers:
+**Larrak2** is a modular multi-objective optimization framework for thermo-gear systems. It balances fidelity and speed using tiered physics models.
+
+### Fidelity Levels
+
+| Fidelity | Content | Use Case |
+| :--- | :--- | :--- |
+| **0** | Toy ideal-gas + friction | Fast prototyping, unit tests |
+| **1** | Wiebe heat release (Thermo) + Litvin synthesis (Gear) | Realistic forward-eval |
+| **2** | NN Surrogates (OpenFOAM/FEA) | Optimization Loop (High Speed) |
+
+### Core Interface
+
+All physics evaluations conform to:
 
 ```python
 evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult
 ```
 
-- **x**: Flat parameter vector (encode/decode via `core.encoding`)
-- **ctx**: `EvalContext(rpm, torque, fidelity, seed)`
-- **Returns**: `EvalResult(F, G, diag)`
-  - `F`: Objectives (minimize)
-  - `G`: Constraints with convention **G ≤ 0 feasible**
-  - `diag`: Diagnostics dict
+- **Returns**: `F` (Objectives), `G` (Constraints ≤ 0), `diag` (Diagnostics).
 
-## Fidelity Levels
+---
 
-Control physics model complexity via `ctx.fidelity`:
+## 2. Repository Architecture
 
-| Fidelity | Thermo Model | Gear Model | Use Case |
-|----------|--------------|------------|----------|
-| 0 | Toy ideal-gas | Toy friction | Fast prototyping, tests |
-| 1 | **Wiebe heat release** | **Litvin synthesis** | Realistic forward-eval |
-| 2+ | Reserved | Reserved | Future high-fidelity |
+We enforce a strict layout to maintain modularity.
 
-**Fidelity 1** ports forward-evaluation logic from Larrak v1:
+### Directory Structure
 
-- Wiebe function for cumulative burn fraction
-- Litvin synthesis for conjugate gear profiles
-- Enhanced mesh loss using osculating radius
+- **`src/larrak2/`**: Application source code.
+  - `core/`: Types, encoding, evaluator.
+  - `thermo/`: Thermodynamic physics.
+  - `gear/`: Gear synthesis and loss models.
+  - `surrogate/`: Neural Network interfaces.
+  - `adapters/`: Interfaces for solvers (pymoo, OpenFOAM).
+- **`tests/`**: Test suite (see Section 3).
+- **`scripts/`**: Operational tools and data generators.
+- **`data/`**: Large datasets (Git-ignored usually).
+- **`outputs/`**: Run artifacts (Git-ignored).
 
-## Constraint Convention
+### Rules
 
-All constraints follow: **G ≤ 0 → feasible**
+- Do not create root-level folders like `logs`, `results`, `temp`. Use `outputs/` or `data_temp/`.
+- All source code must live in `src/`.
 
-## Installation
+---
+
+## 3. Testing Strategy
+
+We follow a **"Dev -> Robust -> CI"** promotion pipeline.
+
+### Test Groups
+
+1. **Robust (CI)**: `tests/ci/`
+    - **Goal**: Regression testing.
+    - **Rules**: Fast (<1s), Deterministic, Mocks external tools.
+    - **Execution**: Ran automatically by GitHub Actions on every push.
+2. **Dev (Local)**: `tests/dev/`
+    - **Goal**: Proving ground, validation, heavy workloads.
+    - **Rules**: Can be slow/flaky. Manual execution only.
+
+### Workflow
+
+1. **Incubate**: Write new tests in `tests/dev/`. Verify logic.
+2. **Refine**: Mock heavy dependencies. Ensure determinism.
+3. **Promote**: Move to `tests/ci/` when stable.
+4. **Verify**: Commit and push triggers CI.
+
+### Running Tests
+
+- **CI Suite (Default)**: `pytest`
+- **Dev Suite**: `pytest tests/dev`
+
+---
+
+## 4. Development Standards
+
+### Coding Style
+
+- **Formatter**: Ruff (Black-compatible). Auto-format before commit.
+- **Linting**: Ruff (Standard errors enabled).
+- **Typing**: Mypy (Python 3.11+ syntax).
+
+### CI/CD
+
+- **Trigger**: Pushing to `main`.
+- **Workflows**:
+  - `ci.yml`: Runs `pytest` (Standard suite).
+  - `verify_dual_opt.yml`: Verifies High-Fidelity topology (Mocked).
+
+### Git Conventions
+
+- **Commit Messages**: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`.
+- **Branches**: Short-lived feature branches → Merge to `main`.
+
+---
+
+## 5. Constraint & Objective Conventions
+
+- **Objectives (F)**: Always **MINIMIZED**. (Negate maximization targets).
+- **Constraints (G)**: **G ≤ 0 is Feasible**.
+  - $G > 0$: Violation magnitude.
+
+---
+
+## 6. How to Run
+
+### Installation
 
 ```bash
-pip install -e .
-# With dev tools:
 pip install -e ".[dev]"
 ```
 
-## Running Tests
+### Running Optimization
 
 ```bash
-pytest tests/ -v
-```
-
-## Pareto Optimization
-
-### Basic Usage (Toy Physics)
-
-```bash
+# Toy Physics
 python -m larrak2.cli.run_pareto --pop 64 --gen 50
+
+# V1 Physics
+python -m larrak2.cli.run_pareto --fidelity 1 --pop 64 --gen 50
 ```
 
-### With V1 Physics (Fidelity 1)
+---
 
-```bash
-python -m larrak2.cli.run_pareto --fidelity 1 --pop 64 --gen 50 --seed 123 --outdir ./results
-```
+## 7. System Vision
 
-### All Options
-
-```bash
-python -m larrak2.cli.run_pareto \
-    --pop 64 \          # Population size
-    --gen 100 \         # Generations
-    --rpm 3000 \        # Engine speed
-    --torque 200 \      # Torque demand
-    --fidelity 1 \      # Model fidelity (0=toy, 1=v1)
-    --seed 42 \         # Random seed
-    --outdir ./output \ # Output directory
-    --verbose           # Show progress
-```
-
-### Outputs
-
-- `pareto_X.npy` — Decision vectors
-- `pareto_F.npy` — Objective values (`[-efficiency, loss]`)
-- `pareto_G.npy` — Constraint values (7 constraints)
-- `summary.json` — Run metadata including:
-  - `n_pareto`: Number of Pareto solutions
-  - `feasible_fraction`: Fraction satisfying all constraints
-  - `best_efficiency`: Best thermal efficiency achieved
-  - `best_loss`: Minimum mesh friction loss (W)
-
-## Project Structure
-
-```
-src/larrak2/
-├── core/           # Types, encoding, evaluator, utilities
-├── thermo/         # Thermodynamic physics models
-├── gear/           # Gear synthesis and losses
-├── ports/          # Ported code from external sources
-│   └── larrak_v1/  # V1 forward-evaluation (Wiebe, Litvin)
-├── adapters/       # Optimizer adapters (pymoo, deap, casadi)
-└── cli/            # Command-line runners
-```
+For detailed high-level architecture diagrams and future roadmap, see `outline.md`.
