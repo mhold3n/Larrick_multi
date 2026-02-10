@@ -23,6 +23,7 @@ def test_roundtrip_consistency():
         expansion_duration=90.0,
         heat_release_center=15.0,
         heat_release_width=30.0,
+        lambda_af=1.0,
     )
     gear = GearParams(
         base_radius=40.0,
@@ -42,6 +43,7 @@ def test_roundtrip_consistency():
     assert decoded.thermo.expansion_duration == thermo.expansion_duration
     assert decoded.thermo.heat_release_center == thermo.heat_release_center
     assert decoded.thermo.heat_release_width == thermo.heat_release_width
+    assert decoded.thermo.lambda_af == thermo.lambda_af
 
     # Check gear params
     assert decoded.gear.base_radius == gear.base_radius
@@ -106,10 +108,11 @@ def test_thermo_params_to_from_array():
         expansion_duration=85.0,
         heat_release_center=10.0,
         heat_release_width=25.0,
+        lambda_af=1.0,
     )
 
     arr = original.to_array()
-    assert len(arr) == 4
+    assert len(arr) == 5
 
     recovered = ThermoParams.from_array(arr)
     assert recovered.compression_duration == original.compression_duration

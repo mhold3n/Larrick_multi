@@ -191,7 +191,8 @@ class TestParetoFidelity1:
             assert summary["fidelity"] == 1
             assert summary["seed"] == 123
             assert "feasible_fraction" in summary
-            assert "best_efficiency" in summary
-            assert "best_loss" in summary
-            assert "best_radius" in summary
+            assert "best_eta_comb" in summary
+            assert "best_eta_exp" in summary
+            assert "best_eta_gear" in summary
+            assert "best_eta_total" in summary
             assert summary["n_pareto"] > 0

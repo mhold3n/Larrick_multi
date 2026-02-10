@@ -128,7 +128,12 @@ def test_engine_reject_mismatch(temp_model_dir, monkeypatch):
 
 
 def test_evaluator_integration(monkeypatch):
-    """Test evaluator calls engine."""
+    """Test evaluator behavior with OpenFOAM NN active.
+
+    When OpenFOAM NN is used to drive breathing/initialization (fidelity=2),
+    we disable legacy residual surrogates because their semantics don't match
+    the new efficiency decomposition.
+    """
     
     # Mock global engine to return known values
     class MockEngine:
@@ -144,9 +149,5 @@ def test_evaluator_integration(monkeypatch):
     
     # Check diagnostics
     versions = res.diag["versions"]
-    assert versions["version_surrogate"] == "SurrogateEngine_v1"
-    assert "mock" in versions["active_models"]
-    
-    # Check values applied
-    # We can't easily check exact value without knowing base physics, 
-    # but we know it calls the engine.
+    assert versions["surrogate_used"] is False
+    assert "version_surrogate" not in versions

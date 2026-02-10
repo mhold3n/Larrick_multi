@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from larrak2.core.encoding import N_TOTAL
+from larrak2.core.constraints import get_constraint_names
 from larrak2.promote.staged import StagedWorkflow
 from larrak2.promote.archive import load_npz
 
@@ -88,9 +90,9 @@ def test_staged_outputs(temp_staged_dir):
     # Hard to guarantee with tiny run, but check shapes
     
     xa, fa, ga = a3.to_arrays()
-    assert xa.shape[1] == 12 # N_TOTAL
+    assert xa.shape[1] == N_TOTAL
     assert fa.shape[1] == 3  # N_OBJ
-    assert ga.shape[1] == 12  # N_CONSTR
+    assert ga.shape[1] == len(get_constraint_names(fidelity=2))
     
     # Check files exist
     assert (temp_staged_dir / "stage1").exists()  # Pymoo uses checkpointing? No, we didn't enable it explicitly.

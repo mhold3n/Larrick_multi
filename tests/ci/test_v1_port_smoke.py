@@ -27,8 +27,8 @@ class TestV1PortSmoke:
         assert result.F.shape == (3,), f"Expected F.shape=(3,), got {result.F.shape}"
         assert np.all(np.isfinite(result.F)), f"F contains non-finite values: {result.F}"
 
-        # G should be finite (12 constraints)
-        assert result.G.shape == (12,), f"Expected G.shape=(12,), got {result.G.shape}"
+        # G should be finite (13 constraints at fidelity=1 due to system power balance constraint)
+        assert result.G.shape == (13,), f"Expected G.shape=(13,), got {result.G.shape}"
         assert np.all(np.isfinite(result.G)), f"G contains non-finite values: {result.G}"
 
     def test_fidelity_1_diag_contains_v1_flag(self):

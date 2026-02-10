@@ -9,8 +9,9 @@ from pymoo.util.ref_dirs import get_reference_directions
 
 from larrak2.adapters.pymoo_problem import ParetoProblem
 from larrak2.core.evaluator import evaluate_candidate
+from larrak2.core.constraints import get_constraint_names
 from larrak2.core.types import EvalContext
-from larrak2.core.encoding import N_TOTAL
+from larrak2.core.encoding import N_TOTAL, random_candidate
 
 
 @pytest.fixture
@@ -20,19 +21,19 @@ def ctx_v1():
 
 def test_evaluator_returns_3_objectives(ctx_v1):
     """Test that evaluate_candidate returns 3 objectives."""
-    x = np.random.rand(N_TOTAL)
+    x = random_candidate(np.random.default_rng(0))
     result = evaluate_candidate(x, ctx_v1)
     
     assert len(result.F) == 3
-    # Check structure: [-efficiency, loss, radius]
-    eff_neg = result.F[0]
-    loss = result.F[1]
-    radius = result.F[2]
+    # Check structure: [1-eta_comb, 1-eta_exp, 1-eta_gear]
+    f_comb = result.F[0]
+    f_exp = result.F[1]
+    f_gear = result.F[2]
     
     # Basic sanity checks on values
-    assert -1.0 <= eff_neg <= 0.0  # efficiency 0-100%
-    assert loss >= 0.0
-    assert radius > 0.0
+    assert 0.0 <= f_comb <= 1.0
+    assert 0.0 <= f_exp <= 1.0
+    assert 0.0 <= f_gear <= 1.0
     
     # Check diag has version info
     assert "versions" in result.diag
@@ -43,12 +44,12 @@ def test_pareto_problem_config(ctx_v1):
     problem = ParetoProblem(ctx_v1)
     assert problem.N_OBJ == 3
     assert problem.n_obj == 3
-    assert problem.n_constr == 12  # constraints list driven
+    assert problem.n_constr == len(get_constraint_names(ctx_v1.fidelity))
 
 
 def test_3obj_determinism(ctx_v1):
     """Test that 3-objective evaluation is deterministic."""
-    x = np.random.rand(N_TOTAL)
+    x = random_candidate(np.random.default_rng(1))
     
     res1 = evaluate_candidate(x, ctx_v1)
     res2 = evaluate_candidate(x, ctx_v1)

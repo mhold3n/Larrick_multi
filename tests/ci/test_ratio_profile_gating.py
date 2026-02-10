@@ -13,6 +13,7 @@ def _make_candidate(compression, expansion, hr_center, hr_width):
         expansion_duration=expansion,
         heat_release_center=hr_center,
         heat_release_width=hr_width,
+        lambda_af=1.0,
     )
     gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7))
     return encode_candidate(Candidate(thermo=thermo, gear=gear))

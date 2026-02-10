@@ -58,7 +58,9 @@ def test_determinism_different_context():
     result2 = evaluate_candidate(x, ctx2)
 
     # Results should differ (loss should increase with rpm/torque)
-    assert result2.F[1] > result1.F[1], "Higher rpm/torque should increase loss"
+    loss1 = float(result1.diag["metrics"]["loss_total"])
+    loss2 = float(result2.diag["metrics"]["loss_total"])
+    assert loss2 > loss1, "Higher rpm/torque should increase loss"
 
 
 def test_determinism_seed_unused():

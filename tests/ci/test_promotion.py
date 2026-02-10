@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.encoding import N_TOTAL
+from larrak2.core.encoding import N_TOTAL, random_candidate
 from larrak2.core.types import EvalContext
 from larrak2.promote.manager import PromotionManager
 from larrak2.promote.selectors import select_k_best_ref_dirs
@@ -99,11 +99,11 @@ def test_promotion_manager_workflow(temp_archive_dir):
 def test_evaluator_fidelity_2_structure():
     """Test that fidelity=2 returns corrected objectives."""
     ctx = EvalContext(rpm=3000, torque=200, fidelity=2, seed=42)
-    x = np.random.rand(N_TOTAL)
+    x = random_candidate(np.random.default_rng(2))
     
     res = evaluate_candidate(x, ctx)
     
     # Check metadata
     assert "versions" in res.diag
-    assert res.diag["versions"]["surrogate_used"] is True
-    assert "delta_eff" in res.diag["versions"]
+    # With OpenFOAM NN enabled, legacy residual surrogates are disabled by design.
+    assert res.diag["versions"]["surrogate_used"] is False

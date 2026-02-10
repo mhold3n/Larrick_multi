@@ -45,18 +45,22 @@ def test_openfoam_parse(temp_dirs):
     Time = 0.5
     Scavenging Efficiency = 0.92
     Trapped Mass = 1.25e-3
+    Residual Fraction = 0.08
+    Trapped O2 Mass = 2.90e-4
     End
     """)
     
     res = runner.parse_results(run)
     assert res["scavenging_efficiency"] == 0.92
     assert res["trapped_mass"] == 1.25e-3
+    assert res["residual_fraction"] == 0.08
+    assert res["trapped_o2_mass"] == 2.90e-4
 
 
 @patch("subprocess.run")
 def test_openfoam_execution(mock_run, temp_dirs):
     tpl, run = temp_dirs
-    runner = OpenFoamRunner(tpl)
+    runner = OpenFoamRunner(tpl, backend="local")
     
     run.mkdir()
     runner.run(run)
