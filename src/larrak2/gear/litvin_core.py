@@ -20,11 +20,13 @@ from typing import Any
 import numpy as np
 
 from ..core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
+from .energy_ledger import EnergyLedger
 from .loss_model import total_loss
 from ..core.encoding import GearParams
 from ..core.types import EvalContext
 from ..ports.larrak_v1.gear_forward import litvin_synthesize
 from .pitchcurve import fourier_pitch_curve
+from ..surrogate.gear_loss_net import get_gear_surrogate
 
 # Number of discretization points
 N_POINTS = 360
@@ -48,8 +50,10 @@ class GearResult:
     ratio_error_max: float
     max_planet_radius: float
     loss_total: float
+    loss_total: float
     G: np.ndarray
     diag: dict[str, Any] = field(default_factory=dict)
+    ledger: EnergyLedger | None = None
 
 
 def _compute_ratio_error(
@@ -163,13 +167,61 @@ def eval_gear(
         from ..ports.larrak_v1.gear_forward import v1_eval_gear_forward
 
         v1_result = v1_eval_gear_forward(params, i_req_profile, ctx)
+
+        # Start with V1 values
+        loss_total = v1_result.loss_total
+        ledger = v1_result.ledger
+        diag_update = {}
+
+        # Fidelity 2+: Surrogate Loss Override
+        if ctx.fidelity >= 2:
+            try:
+                # Load surrogate (lazy singleton)
+                # For CI/Testing, this function can be patched to return a mock
+                surrogate = get_gear_surrogate("models/gear_surrogate_v1")
+
+                # Predict (Assumes surrogate outputs Energy in Joules per Cycle)
+                preds = surrogate.predict(
+                    rpm=float(ctx.rpm),
+                    torque=float(ctx.torque),
+                    base_radius=float(params.base_radius),
+                    coeffs=list(params.pitch_coeffs),
+                )
+
+                loss_work_J = preds["loss_total"]
+                mesh_work_J = preds["loss_mesh"]
+                bearing_work_J = preds["loss_bearing"]
+                churning_work_J = preds["loss_churning"]
+
+                # Update Power (Watts) = Energy (J) * Cycles/sec
+                cycles_per_sec = float(ctx.rpm) / 60.0
+                loss_total = loss_work_J * cycles_per_sec
+
+                diag_update = {"gear_surrogate_used": True, "preds": preds}
+
+                # Update Ledger
+                if ledger:
+                    ledger = EnergyLedger(
+                        W_out_shaft=ledger.W_out_shaft,
+                        W_loss_mesh=mesh_work_J,
+                        W_loss_bearing=bearing_work_J,
+                        W_loss_churning=churning_work_J,
+                        # Other fields remain default/0 or lost if not copied,
+                        # but EnergyLedger is simple.
+                    )
+
+            except (ImportError, FileNotFoundError, ValueError):
+                # Fallback to V1 if surrogate fails
+                pass
+
         return GearResult(
             ratio_error_mean=v1_result.ratio_error_mean,
             ratio_error_max=v1_result.ratio_error_max,
             max_planet_radius=v1_result.max_planet_radius,
-            loss_total=v1_result.loss_total,
+            loss_total=loss_total,
             G=v1_result.G,
-            diag=v1_result.diag,
+            diag={**v1_result.diag, **diag_update},
+            ledger=ledger,
         )
 
     theta = np.linspace(0, 2 * np.pi, N_POINTS, endpoint=False)
@@ -279,6 +331,36 @@ def eval_gear(
         "self_intersection": self_intersection,
     }
 
+    # Populate Energy Ledger (Toy Mode)
+    # W_in = Torque * Theta? No, that's shaft input.
+    # W_in_piston comes from Thermo, not strictly known here unless passed.
+    # But we can calculate W_out_shaft and W_loss.
+    # For Toy Mode, we assume Input = Output + Loss for now, or just track what we can.
+    # The actual "Piston Work" input is external.
+    # Let's populate what we know.
+
+    # Calculate Mesh Work Dissipated (Integral of Power Loss)
+    # P_loss = loss_profile (W)
+    # Energy = Integral P_loss dt = Integral P_loss * (dtheta / omega)
+    # dt = dtheta / omega_rad
+    omega_rad = ctx.rpm * 2 * np.pi / 60
+    dtheta = 2 * np.pi / N_POINTS
+    dt_step = dtheta / omega_rad if omega_rad > 1e-9 else 0.0
+
+    W_mesh = float(np.sum(loss_profile) * dt_step)
+
+    # Shaft Work = Torque * 2pi (per rev)
+    # This is W_out if torque is output torque.
+    W_out = float(ctx.torque * 2 * np.pi)
+
+    # Ledger
+    ledger = EnergyLedger(
+        W_out_shaft=W_out,
+        W_loss_mesh=W_mesh,
+        # In toy mode, efficiency is not perfectly 1.0 unless mu=0
+        # If mu=0, W_mesh=0.
+    )
+
     return GearResult(
         ratio_error_mean=ratio_error_mean,
         ratio_error_max=ratio_error_max,
@@ -286,4 +368,5 @@ def eval_gear(
         loss_total=loss_total,
         G=G,
         diag=diag,
+        ledger=ledger,
     )

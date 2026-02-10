@@ -10,13 +10,28 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .docker_openfoam import DockerOpenFoam, DockerOpenFoamConfig
+
 
 class OpenFoamRunner:
     """Manages OpenFOAM case execution."""
 
-    def __init__(self, template_dir: str | Path, solver_cmd: str = "pisoFoam"):
+    def __init__(
+        self,
+        template_dir: str | Path,
+        solver_cmd: str = "pisoFoam",
+        *,
+        backend: str = "docker",
+        docker_image: str | None = None,
+    ):
         self.template_dir = Path(template_dir)
         self.solver_cmd = solver_cmd
+        self.backend = backend
+        self._docker = (
+            DockerOpenFoam(DockerOpenFoamConfig(image=docker_image))
+            if docker_image is not None
+            else DockerOpenFoam()
+        )
 
     def setup_case(self, run_dir: Path, params: dict[str, float]):
         """Clone template and update dictionaries."""
@@ -26,48 +41,66 @@ class OpenFoamRunner:
         # Clone
         shutil.copytree(self.template_dir, run_dir)
 
-        # Update dictionaries
-        # We assume specific file locations for parameters
-        # e.g. constant/pistonMeshDict
-        self._update_piston_mesh(run_dir, params)
-        # self._update_boundary_conditions(run_dir, params)
+        # Replace placeholders across the entire case directory.
+        # This allows templates to parameterize arbitrary files under 0/, constant/, system/, etc.
+        self._replace_placeholders(run_dir, params)
 
-    def _update_piston_mesh(self, run_dir: Path, params: dict[str, float]):
-        """Update mesh generation parameters."""
-        # This is highly specific to the case structure.
-        # We implement a simple sed-like replacement for now.
+    def _replace_placeholders(self, run_dir: Path, params: dict[str, float]) -> None:
+        """Replace `{{key}}` placeholders in all text files under run_dir."""
 
-        target = run_dir / "constant" / "pistonMeshDict"
-        if not target.exists():
-            return
+        # Pre-compute placeholder map as strings (OpenFOAM dicts are text)
+        replacements = {f"{{{{{k}}}}}": str(v) for k, v in params.items()}
 
-        content = target.read_text()
+        # Walk all files and attempt text replacement.
+        # We skip large files to avoid expensive operations.
+        for p in run_dir.rglob("*"):
+            if not p.is_file():
+                continue
+            try:
+                if p.stat().st_size > 2_000_000:
+                    continue
+            except OSError:
+                continue
 
-        # Replace keys like {{compression_ratio}}
-        # Params expected: compression_ratio, expansion_ratio, etc.
-        for k, v in params.items():
-            placeholder = f"{{{{{k}}}}}"  # {{key}}
-            if placeholder in content:
-                content = content.replace(placeholder, str(v))
+            try:
+                text = p.read_text()
+            except Exception:
+                continue
 
-        target.write_text(content)
+            updated = text
+            for ph, val in replacements.items():
+                if ph in updated:
+                    updated = updated.replace(ph, val)
 
-    def run(self, run_dir: Path, log_name: str = "solver.log") -> bool:
+            if updated != text:
+                p.write_text(updated)
+
+    def run(self, run_dir: Path, log_name: str = "solver.log", *, timeout_s: int = 300) -> bool:
         """Execute solver in run_dir."""
         log_path = run_dir / log_name
 
         print(f"Running {self.solver_cmd} in {run_dir}...")
 
         try:
-            with open(log_path, "w") as log_file:
-                subprocess.run(
-                    [self.solver_cmd],
-                    cwd=run_dir,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    check=True,
-                    timeout=300,  # 5 min timeout
+            if self.backend == "docker":
+                code, _, _ = self._docker.run_solver(
+                    solver=self.solver_cmd,
+                    case_dir=run_dir,
+                    timeout_s=timeout_s,
+                    log_file=log_path,
                 )
+                if code != 0:
+                    raise subprocess.CalledProcessError(code, [self.solver_cmd])
+            else:
+                with open(log_path, "w") as log_file:
+                    subprocess.run(
+                        [self.solver_cmd],
+                        cwd=run_dir,
+                        stdout=log_file,
+                        stderr=subprocess.STDOUT,
+                        check=True,
+                        timeout=timeout_s,
+                    )
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
             print(f"OpenFOAM execution failed: {e}")
@@ -81,17 +114,26 @@ class OpenFoamRunner:
 
         text = log_path.read_text()
 
-        # Placeholder Regex
-        # "Scavenging Efficiency = 0.85"
         metrics = {}
 
-        eff_match = re.search(r"Scavenging Efficiency\s*=\s*([0-9\.]+)", text)
-        if eff_match:
-            metrics["scavenging_efficiency"] = float(eff_match.group(1))
+        # Accept scientific notation where relevant
+        float_re = r"([0-9]+(?:\.[0-9]+)?(?:[eE][\-\+]?[0-9]+)?)"
 
-        mass_match = re.search(r"Trapped Mass\s*=\s*([0-9\.eE\-\+]+)", text)
-        if mass_match:
-            metrics["trapped_mass"] = float(mass_match.group(1))
+        eff_matches = re.findall(rf"Scavenging Efficiency\s*=\s*{float_re}", text)
+        if eff_matches:
+            metrics["scavenging_efficiency"] = float(eff_matches[-1])
+
+        mass_matches = re.findall(rf"Trapped Mass\s*=\s*{float_re}", text)
+        if mass_matches:
+            metrics["trapped_mass"] = float(mass_matches[-1])
+
+        resid_matches = re.findall(rf"Residual Fraction\s*=\s*{float_re}", text)
+        if resid_matches:
+            metrics["residual_fraction"] = float(resid_matches[-1])
+
+        o2_matches = re.findall(rf"Trapped O2 Mass\s*=\s*{float_re}", text)
+        if o2_matches:
+            metrics["trapped_o2_mass"] = float(o2_matches[-1])
 
         return metrics
 

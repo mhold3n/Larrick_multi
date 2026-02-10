@@ -3,10 +3,10 @@
 This module defines the parameter structure and provides pack/unpack
 functions for the flat decision vector x.
 
-Layout (ENCODING_VERSION = "0.1"):
-    x[0:4]   - ThermoParams (4 floats)
-    x[4:12]  - GearParams (8 floats)
-    Total: 12 decision variables
+Layout (ENCODING_VERSION = "0.2"):
+    x[0:5]   - ThermoParams (5 floats)
+    x[5:13]  - GearParams (8 floats)
+    Total: 13 decision variables
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-ENCODING_VERSION = "0.1"
+ENCODING_VERSION = "0.2"
 
 # Decision variable count
-N_THERMO = 4
+N_THERMO = 5
 N_GEAR = 8
 N_TOTAL = N_THERMO + N_GEAR
 
@@ -32,12 +32,14 @@ class ThermoParams:
         expansion_duration: Expansion phase duration (degrees), [60, 120].
         heat_release_center: Center of heat release (degrees), [0, 30].
         heat_release_width: Heat release duration (degrees), [10, 60].
+        lambda_af: Air-fuel equivalence ratio λ [-], where λ < 1 is rich and λ > 1 is lean.
     """
 
     compression_duration: float
     expansion_duration: float
     heat_release_center: float
     heat_release_width: float
+    lambda_af: float
 
     def to_array(self) -> np.ndarray:
         """Convert to flat array."""
@@ -47,6 +49,7 @@ class ThermoParams:
                 self.expansion_duration,
                 self.heat_release_center,
                 self.heat_release_width,
+                self.lambda_af,
             ],
             dtype=np.float64,
         )
@@ -59,6 +62,7 @@ class ThermoParams:
             expansion_duration=float(arr[1]),
             heat_release_center=float(arr[2]),
             heat_release_width=float(arr[3]),
+            lambda_af=float(arr[4]),
         )
 
 
@@ -138,8 +142,9 @@ def bounds() -> tuple[np.ndarray, np.ndarray]:
         (xl, xu) tuple of bound arrays, each of length N_TOTAL.
     """
     # ThermoParams bounds
-    thermo_lb = np.array([30.0, 60.0, 0.0, 10.0])  # compression, expansion, hr_center, hr_width
-    thermo_ub = np.array([90.0, 120.0, 30.0, 60.0])
+    # compression, expansion, hr_center, hr_width, lambda_af
+    thermo_lb = np.array([30.0, 60.0, 0.0, 10.0, 0.6])
+    thermo_ub = np.array([90.0, 120.0, 30.0, 60.0, 1.6])
 
     # GearParams bounds: base_radius + 7 pitch coefficients
     gear_lb = np.array([20.0, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5])

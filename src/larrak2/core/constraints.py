@@ -15,6 +15,7 @@ DEFAULT_SCALES: dict[str, float] = {
     "thermo_eff_min": 1.0,
     "thermo_eff_max": 1.0,
     "thermo_pmax_norm": 1.0,
+    "system_power_balance": 1e4,  # W (10 kW scale)
     "gear_ratio_error_max": 1.0,
     "gear_min_radius": 10.0,  # mm
     "gear_max_radius": 10.0,  # mm
@@ -34,6 +35,7 @@ DEFAULT_KIND: dict[str, str] = {
     "thermo_eff_min": "hard",
     "thermo_eff_max": "hard",
     "thermo_pmax_norm": "hard",
+    "system_power_balance": "hard",
     # Gear
     "gear_ratio_error_max": "soft",
     "gear_min_radius": "hard",
@@ -53,6 +55,7 @@ DEFAULT_REASON: dict[str, str] = {
     "thermo_eff_min": "efficiency below zero",
     "thermo_eff_max": "efficiency above physical bound",
     "thermo_pmax_norm": "peak pressure exceeds limit",
+    "system_power_balance": "indicated power below demanded (including gear loss)",
     "gear_ratio_error_max": "gear ratio tracking error too high",
     "gear_min_radius": "planet radius below minimum",
     "gear_max_radius": "planet radius above maximum",
@@ -76,6 +79,7 @@ THERMO_CONSTRAINTS_FID1 = [
     "thermo_eff_max",
     "thermo_pmax_norm",
     "thermo_ratio_slope_max",
+    "system_power_balance",
 ]
 
 GEAR_CONSTRAINTS = [

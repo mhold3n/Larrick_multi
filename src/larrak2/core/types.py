@@ -13,6 +13,26 @@ import numpy as np
 
 
 @dataclass(frozen=True)
+class BreathingConfig:
+    """Operating-point breathing/BC/timing inputs for OpenFOAM NN inference.
+
+    These are used only when the OpenFOAM NN surrogate is active (fidelity >= 2).
+    """
+
+    bore_mm: float = 80.0
+    stroke_mm: float = 90.0
+    intake_port_area_m2: float = 4.0e-4
+    exhaust_port_area_m2: float = 4.0e-4
+    p_manifold_Pa: float = 101325.0
+    p_back_Pa: float = 101325.0
+    overlap_deg: float = 0.0
+    intake_open_deg: float = 0.0
+    intake_close_deg: float = 0.0
+    exhaust_open_deg: float = 0.0
+    exhaust_close_deg: float = 0.0
+
+
+@dataclass(frozen=True)
 class EvalContext:
     """Context for candidate evaluation.
 
@@ -30,6 +50,10 @@ class EvalContext:
     torque: float
     fidelity: int = 0
     seed: int = 0
+    breathing: BreathingConfig | None = None
+    # Gear Loss Coefficients (Calibration Data)
+    # Keys: "bearing" (4 floats), "churning" (2 floats), "mesh" (1 float mu)
+    loss_coeffs: dict[str, tuple[float, ...]] | None = None
 
     def __post_init__(self) -> None:
         if self.fidelity not in (0, 1, 2):

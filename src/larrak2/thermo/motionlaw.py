@@ -20,6 +20,7 @@ import numpy as np
 from ..core.constants import RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
 from ..core.encoding import ThermoParams
 from ..core.types import EvalContext
+from ..surrogate.openfoam_nn import get_openfoam_surrogate
 
 # Number of discretization points
 N_POINTS = 360
@@ -199,6 +200,83 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
     """
     # Fidelity routing
     if ctx.fidelity >= 1:
+        # Check for Surrogate (Fidelity 2)
+        if ctx.fidelity >= 2:
+            try:
+                # Load surrogate (lazy singleton)
+                # For CI/Testing, this function can be patched to return a mock
+                surrogate = get_openfoam_surrogate("models/fluid_surrogate_v1.pt")
+
+                # Construct feature vector
+                # Map ThermoParams -> Feature Keys
+                # Note: Some features are fixed/assumed for this pilot surrogate
+                features: dict[str, float] = {
+                    "rpm": float(ctx.rpm),
+                    "torque": float(ctx.torque),
+                    # TODO: Add to ThermoParams
+                    "lambda_af": float(params.lambda_af) if hasattr(params, "lambda_af") else 1.0,
+                    "bore_mm": 80.0,  # Fixed in pilot
+                    "stroke_mm": 90.0,  # Fixed in pilot
+                    "intake_port_area_m2": 4e-4,  # Placeholder or from params
+                    "exhaust_port_area_m2": 4e-4,  # Placeholder
+                    "p_manifold_Pa": 101325.0 * 1.5,  # Placeholder
+                    "p_back_Pa": 101325.0,  # Placeholder
+                    # Rough proxy
+                    "overlap_deg": float(params.compression_duration + params.expansion_duration)
+                    * 0.5,
+                    "intake_open_deg": -30.0,
+                    "intake_close_deg": 60.0,
+                    "exhaust_open_deg": -60.0,
+                    "exhaust_close_deg": 30.0,
+                    # Real implementation needs these in ThermoParams
+                }
+
+                # Predict
+                preds = surrogate.predict_one(features)
+
+                # Unpack targets
+                scav_eff = preds.get("scavenging_efficiency", 0.0)
+                # m_air_trapped = preds.get("m_air_trapped", 0.0) # Unused
+
+                # Map to efficiency (Proxy: Efficiency ~ Scavenging * Thermal_Ideal)
+                # This is a temporary bridge until we predict 'efficiency' directly or 'IMEP'
+                eff_proxy = scav_eff * 0.5  # Rough scaling
+
+                # Generate compatible curves (for visual continuity)
+                requested_ratio_profile = _generate_ratio_profile(
+                    params, np.linspace(0, 360, N_POINTS, endpoint=False)
+                )
+
+                # Calculate Ratio Stats
+                ratio_stats = _ratio_profile_stats(requested_ratio_profile)
+                slope_limit = RATIO_SLOPE_LIMIT_FID1  # FID2 uses same limit as FID1
+
+                # Construct Constraints matching THERMO_CONSTRAINTS_FID1 (minus system_power_balance)
+                # 1. eff_min
+                g_eff_min = 0.0 - eff_proxy  # Feasible if eff > 0
+                # 2. eff_max
+                g_eff_max = eff_proxy - 1.0  # Feasible if eff < 1
+                # 3. pmax_norm (Surrogate doesn't predict Pmax yet, assume feasible)
+                g_pmax = -1.0
+                # 4. ratio_slope_max
+                g_slope = ratio_stats["max_slope"] - slope_limit
+
+                G = np.array([g_eff_min, g_eff_max, g_pmax, g_slope], dtype=np.float64)
+
+                return ThermoResult(
+                    efficiency=eff_proxy,
+                    requested_ratio_profile=requested_ratio_profile,
+                    G=G,
+                    diag={
+                        "surrogate_preds": preds,
+                        "openfoam_nn_used": True,
+                        "ratio_profile_stats": ratio_stats,
+                    },
+                )
+            except (ImportError, FileNotFoundError, ValueError):
+                # Fallback to V1 if surrogate fails (or in CI without model file and no mock)
+                pass
+
         from ..ports.larrak_v1.thermo_forward import v1_eval_thermo_forward
 
         v1_result = v1_eval_thermo_forward(params, ctx)

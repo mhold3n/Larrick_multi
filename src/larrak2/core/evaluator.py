@@ -64,53 +64,90 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     gear_result = eval_gear(candidate.gear, thermo_result.requested_ratio_profile, ctx)
     t_gear = time.perf_counter() - t_gear_start
 
-    # Objectives (minimize):
-    # - F[0]: negative efficiency (we want to maximize efficiency → minimize -efficiency)
-    # - F[1]: gear loss (minimize)
-    # - F[2]: max planet radius (minimize packaging size) [NEW]
+    # Objectives (minimize) are the three efficiencies:
+    # - F[0] = 1 - η_comb  (chemical -> released heat)
+    # - F[1] = 1 - η_exp   (released heat -> work)
+    # - F[2] = 1 - η_gear  (piston/mech power -> output power)
 
-    # Fidelity 2: Apply surrogate corrections
-    eff_corrected = thermo_result.efficiency
+    thermo_diag = thermo_result.diag or {}
+    Q_chem = float(thermo_diag.get("Q_chem", 0.0))
+    Q_rel = float(thermo_diag.get("Q_rel", 0.0))
+    W = float(thermo_diag.get("W", 0.0))
+
+    eta_comb = Q_rel / Q_chem if Q_chem > 0 else 0.0
+    eta_exp = W / Q_rel if Q_rel > 0 else float(thermo_result.efficiency)
+
+    eta_comb = float(np.clip(eta_comb, 0.0, 1.0))
+    eta_exp = float(np.clip(eta_exp, 0.0, 1.0))
+
+    # Fidelity 2+: Apply surrogate corrections (legacy residual surrogates)
+    delta_eff = 0.0
+    delta_loss = 0.0
     loss_corrected = gear_result.loss_total
+    surrogate_meta: dict[str, object] = {"surrogate_used": False}
 
-    surrogate_meta = {}
+    # Legacy residual surrogates (sklearn) are disabled when OpenFOAM NN is active,
+    # since their semantics don't match the new efficiency decomposition.
+    enable_residual = (
+        ctx.fidelity >= 2
+        and not bool(thermo_diag.get("openfoam_nn_used", False))
+    )
 
-    if ctx.fidelity >= 2:
-        # Load surrogate engine (lazy singleton)
+    if enable_residual:
         from larrak2.surrogate.inference import get_surrogate_engine
 
         engine = get_surrogate_engine()
-
-        # Predict corrections (returns 0 if models missing)
         delta_eff, delta_loss, meta = engine.predict_corrections(x)
 
-        eff_corrected += delta_eff
-        loss_corrected += delta_loss
+        # Interpret delta_eff as an additive correction to η_exp (bounded)
+        eta_exp = float(np.clip(eta_exp + float(delta_eff), 0.0, 1.0))
+
+        # Gear loss correction directly impacts η_gear
+        loss_corrected = float(loss_corrected + float(delta_loss))
 
         surrogate_meta = {
             "surrogate_used": True,
-            "delta_eff": delta_eff,
-            "delta_loss": delta_loss,
+            "delta_eff": float(delta_eff),
+            "delta_loss": float(delta_loss),
             "version_surrogate": "SurrogateEngine_v1",
             "active_models": meta.get("surrogates_active", []),
             "uncertainty": meta.get("uncertainty", {}),
         }
 
-    F = np.array(
-        [
-            -eff_corrected,  # negate for minimization
-            loss_corrected,
-            gear_result.max_planet_radius,
-        ],
-        dtype=np.float64,
-    )
+    omega = float(ctx.rpm) * 2.0 * np.pi / 60.0
+    P_out = float(ctx.torque) * omega
+    denom = max(P_out + loss_corrected, 1e-12)
+    eta_gear = float(np.clip(P_out / denom, 0.0, 1.0)) if P_out > 0 else 1.0
+
+    F = np.array([1.0 - eta_comb, 1.0 - eta_exp, 1.0 - eta_gear], dtype=np.float64)
 
     # Constraints (G <= 0 feasible) with centralized scaling/naming
     thermo_names = THERMO_CONSTRAINTS_FID1 if ctx.fidelity >= 1 else THERMO_CONSTRAINTS_FID0
     gear_names = GEAR_CONSTRAINTS
 
+    thermo_G_values: list[float] = list(np.asarray(thermo_result.G, dtype=float))
+    power_balance_raw = 0.0
+
+    if ctx.fidelity >= 1:
+        # Operating-point demand constraint:
+        # indicated power must meet demanded output power plus gear loss.
+        # For fidelity=2 (OpenFOAM NN), enforce unconditionally.
+        # For fidelity=1, keep permissive behavior unless NN is explicitly active.
+        if ctx.fidelity >= 2 or bool(thermo_diag.get("openfoam_nn_used", False)):
+            cycles_per_sec = float(ctx.rpm) / 60.0
+            W_for_balance = float(thermo_diag.get("W", thermo_diag.get("w_indicated", 0.0)))
+            P_indicated = max(W_for_balance, 0.0) * max(cycles_per_sec, 0.0)
+            P_required = max(P_out, 0.0) + max(float(loss_corrected), 0.0)
+            power_balance_raw = float(P_required - P_indicated)  # <= 0 feasible
+        else:
+            power_balance_raw = 0.0
+        thermo_G_values.append(power_balance_raw)
+
     G, constraint_diag = combine_constraints(
-        thermo_result.G, gear_result.G, thermo_names, gear_names
+        thermo_G_values,
+        list(np.asarray(gear_result.G, dtype=float)),
+        thermo_names,
+        gear_names,
     )
 
     # Feasibility based only on hard constraints
@@ -128,13 +165,19 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             "gear_ms": t_gear * 1000,
         },
         "metrics": {
-            "efficiency": eff_corrected,
+            "eta_comb": eta_comb,
+            "eta_exp": eta_exp,
+            "eta_gear": eta_gear,
+            "eta_therm": float(np.clip(eta_comb * eta_exp, 0.0, 1.0)),
+            "eta_total": float(np.clip(eta_comb * eta_exp * eta_gear, 0.0, 1.0)),
             "efficiency_raw": thermo_result.efficiency,
             "ratio_error_mean": gear_result.ratio_error_mean,
             "ratio_error_max": gear_result.ratio_error_max,
             "max_planet_radius": gear_result.max_planet_radius,
-            "loss_total": loss_corrected,
+            "loss_total": float(loss_corrected),
             "loss_raw": gear_result.loss_total,
+            "power_out": P_out,
+            "power_balance_raw": power_balance_raw,
         },
         "versions": {
             "thermo_v1": MODEL_VERSION_THERMO_V1,
