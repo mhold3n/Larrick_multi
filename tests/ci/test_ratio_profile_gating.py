@@ -2,9 +2,9 @@
 
 import numpy as np
 
-from larrak2.core.types import EvalContext
+from larrak2.core.encoding import Candidate, GearParams, ThermoParams, encode_candidate
 from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.encoding import Candidate, ThermoParams, GearParams, encode_candidate
+from larrak2.core.types import EvalContext
 
 
 def _make_candidate(compression, expansion, hr_center, hr_width):

@@ -1,9 +1,8 @@
 """Continuity checks for requested ratio profile."""
 
-import numpy as np
 
-from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.encoding import mid_bounds_candidate
+from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 
 

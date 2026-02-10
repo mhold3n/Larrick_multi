@@ -20,6 +20,7 @@ from scipy.interpolate import PchipInterpolator
 from ...core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
 from ...core.encoding import GearParams
 from ...core.types import EvalContext
+from ...gear.energy_ledger import EnergyLedger
 from ...gear.loss_model import total_loss
 from ...gear.pitchcurve import fourier_pitch_curve
 
@@ -41,6 +42,7 @@ class V1GearResult:
     loss_total: float
     G: np.ndarray  # G <= 0 feasible
     diag: dict[str, Any] = field(default_factory=dict)
+    ledger: EnergyLedger | None = None
 
 
 # =============================================================================
@@ -360,6 +362,7 @@ def v1_eval_gear_forward(
         ctx.rpm,
         ctx.torque,
         enable_windage=ctx.fidelity >= 1,
+        loss_coeffs=ctx.loss_coeffs,
     )
 
     sliding_speed = ctx.rpm * 2 * np.pi / 60 * np.abs(r_planet / 1000 - np.abs(rho_c) / 1000)
@@ -444,6 +447,35 @@ def v1_eval_gear_forward(
         "v1_port": True,
     }
 
+    # Populate Energy Ledger (Fidelity 1)
+    # -----------------------------------
+    omega_rad = ctx.rpm * 2 * np.pi / 60
+    dtheta = 2 * np.pi / N_POINTS
+    # Time step for energy integration
+    dt_step = dtheta / omega_rad if omega_rad > 1e-9 else 0.0
+
+    # Mesh loss energy (Integral of Power Loss)
+    # loss_profile is in Watts
+    W_mesh = float(np.sum(loss_profile) * dt_step)
+
+    # Auxiliary Losses (Average Power * Cycle Time)
+    T_cycle = (2 * np.pi) / omega_rad if omega_rad > 1e-9 else 0.0
+    W_bearing = float(loss_diag.get("bearing_loss", 0.0) * T_cycle)
+    W_churning = float(loss_diag.get("churning_loss", 0.0) * T_cycle)
+    W_windage = float(loss_diag.get("windage_loss", 0.0) * T_cycle)  # Compatibility
+
+    # Shaft Work Output
+    # W_out = Torque * 2pi
+    W_out = float(ctx.torque * 2 * np.pi)
+
+    ledger = EnergyLedger(
+        W_out_shaft=W_out,
+        W_loss_mesh=W_mesh,
+        W_loss_bearing=W_bearing,
+        W_loss_churning=W_churning,
+        W_loss_windage=W_windage,
+    )
+
     return V1GearResult(
         ratio_error_mean=ratio_error_mean,
         ratio_error_max=ratio_error_max,
@@ -451,4 +483,5 @@ def v1_eval_gear_forward(
         loss_total=loss_total,
         G=G,
         diag=diag,
+        ledger=ledger,
     )

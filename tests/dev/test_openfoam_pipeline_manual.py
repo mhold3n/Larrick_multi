@@ -26,7 +26,9 @@ def main() -> int:
     p.add_argument("--doe-jsonl", type=str, default="data/openfoam_doe/results.jsonl")
     p.add_argument("--doe-outdir", type=str, default="data/openfoam_doe")
     p.add_argument("--runs-root", type=str, default="runs/openfoam_doe")
-    p.add_argument("--template", type=str, default="openfoam_templates/opposed_piston_rotary_valve_case")
+    p.add_argument(
+        "--template", type=str, default="openfoam_templates/opposed_piston_rotary_valve_case"
+    )
     p.add_argument("--solver", type=str, default="rhoPimpleFoam")
     p.add_argument("--train-epochs", type=int, default=200)
     p.add_argument("--artifact-outdir", type=str, default="models/openfoam_nn")
@@ -119,4 +121,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

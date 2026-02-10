@@ -8,6 +8,7 @@ Stage 3: Refinement (Hi-Fi NSGA-III seeded with Stage 2) (Optional)
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 
 import numpy as np
@@ -36,6 +37,10 @@ class StagedWorkflow:
     def run_stage1(self, pop_size: int, n_gen: int) -> ArchiveBundle:
         """Stage 1: Exploration at Fidelity 1."""
         print("=== Stage 1: Exploration (Fidelity 1) ===")
+
+        # Enforce strict determinism across repeated runs in-process.
+        np.random.seed(self.seed)
+        random.seed(self.seed)
 
         ctx = EvalContext(rpm=self.rpm, torque=self.torque, fidelity=1, seed=self.seed)
         problem = ParetoProblem(ctx)
@@ -103,6 +108,10 @@ class StagedWorkflow:
         # Typically we re-seed NSGA-III with the High-Fidelity points
         print("=== Stage 3: Refinement (Fidelity 2) ===")
 
+        # Enforce strict determinism across repeated runs in-process.
+        np.random.seed(self.seed)
+        random.seed(self.seed)
+
         ctx = EvalContext(rpm=self.rpm, torque=self.torque, fidelity=2, seed=self.seed)
         problem = ParetoProblem(ctx)
 
@@ -125,8 +134,9 @@ class StagedWorkflow:
 
         # Custom Initialization
         # Manually construct X with seeds + random fill
-        rng = np.random.default_rng(self.seed)
-        X_init = rng.random((actual_pop, problem.n_var))
+        # Use legacy RandomState to avoid cross-test interference with default_rng.
+        rng = np.random.RandomState(self.seed)
+        X_init = rng.rand(actual_pop, problem.n_var)
         X_init = problem.xl + X_init * (problem.xu - problem.xl)
 
         n_seed = len(X_seed)

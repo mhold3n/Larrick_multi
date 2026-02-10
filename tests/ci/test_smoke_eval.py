@@ -1,7 +1,6 @@
 """Smoke test for evaluation."""
 
 import numpy as np
-import pytest
 
 from larrak2.core.encoding import bounds, random_candidate
 from larrak2.core.evaluator import evaluate_candidate

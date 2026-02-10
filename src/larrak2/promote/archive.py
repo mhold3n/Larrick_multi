@@ -17,14 +17,8 @@ from typing import Any
 
 import numpy as np
 
-from larrak2.core.constants import (
-    MODEL_VERSION_GEAR_V1,
-    MODEL_VERSION_THERMO_V1,
-    N_THETA,
-)
-
-# Encoding version should ideally come from core.encoding
-ENCODING_VERSION = "0.1"
+from larrak2.core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1, N_THETA
+from larrak2.core.encoding import ENCODING_VERSION
 
 
 @dataclass
@@ -74,9 +68,11 @@ class ArchiveBundle:
         if not self.records:
             return np.array([]), np.array([]), np.array([])
 
-        X = np.array([r.x for r in self.records])
-        F = np.array([r.f for r in self.records])
-        G = np.array([r.g for r in self.records])
+        # Enforce a stable ordering for strict determinism across runs.
+        ordered = sorted(self.records, key=lambda r: r.x_hash)
+        X = np.array([r.x for r in ordered])
+        F = np.array([r.f for r in ordered])
+        G = np.array([r.g for r in ordered])
         return X, F, G
 
     def get_hashes(self) -> list[str]:
@@ -86,7 +82,7 @@ class ArchiveBundle:
         return len(self.records)
 
 
-def save_meta(outdir: Path, extra_meta: dict[str, Any] = None):
+def save_meta(outdir: Path, extra_meta: dict[str, Any] | None = None) -> None:
     """Save rigorous metadata."""
     meta = {
         "timestamp": time.time(),
@@ -107,7 +103,12 @@ def save_meta(outdir: Path, extra_meta: dict[str, Any] = None):
         json.dump(meta, f, indent=2)
 
 
-def save_npz(outdir: Path, bundle: ArchiveBundle, stage_name: str, extra_arrays: dict = None):
+def save_npz(
+    outdir: Path,
+    bundle: ArchiveBundle,
+    stage_name: str,
+    extra_arrays: dict[str, np.ndarray] | None = None,
+) -> None:
     """Save bundle to numpy archive."""
     X, F, G = bundle.to_arrays()
     hashes = np.array(bundle.get_hashes())
@@ -130,7 +131,7 @@ def save_npz(outdir: Path, bundle: ArchiveBundle, stage_name: str, extra_arrays:
         data.update(extra_arrays)
 
     outdir.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(outdir / f"archive_{stage_name}.npz", **data)
+    np.savez_compressed(outdir / f"archive_{stage_name}.npz", **data)  # type: ignore[arg-type]
 
 
 def load_npz(path: Path) -> ArchiveBundle:

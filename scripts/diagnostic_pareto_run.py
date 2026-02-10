@@ -93,22 +93,24 @@ def main(argv: list[str] | None = None) -> int:
             opt = algorithm.opt
             n_pareto = len(opt) if opt is not None else 0
 
-            self.gen_stats.append({
-                "generation": gen,
-                "n_feasible": int(n_feasible),
-                "feasible_fraction": float(feasible_frac),
-                "mean_max_violation": float(mean_max_violation),
-                "median_max_violation": float(median_max_violation),
-                "f0_mean": float(f0_mean),
-                "f1_mean": float(f1_mean),
-                "n_pareto": n_pareto,
-            })
+            self.gen_stats.append(
+                {
+                    "generation": gen,
+                    "n_feasible": int(n_feasible),
+                    "feasible_fraction": float(feasible_frac),
+                    "mean_max_violation": float(mean_max_violation),
+                    "median_max_violation": float(median_max_violation),
+                    "f0_mean": float(f0_mean),
+                    "f1_mean": float(f1_mean),
+                    "n_pareto": n_pareto,
+                }
+            )
 
     callback = DiagnosticCallback()
     algorithm = NSGA2(pop_size=args.pop)
     termination = get_termination("n_gen", args.gen)
 
-    print(f"Starting diagnostic Pareto run:")
+    print("Starting diagnostic Pareto run:")
     print(f"  pop={args.pop}, gen={args.gen}, fidelity={args.fidelity}")
     print(f"  rpm={args.rpm}, torque={args.torque}, seed={args.seed}")
     print()
@@ -132,7 +134,11 @@ def main(argv: list[str] | None = None) -> int:
     n_pareto = len(X)
 
     # Get G for Pareto solutions
-    G_pareto = np.zeros((n_pareto, problem.N_CONSTR)) if n_pareto > 0 else np.array([]).reshape(0, problem.N_CONSTR)
+    G_pareto = (
+        np.zeros((n_pareto, problem.N_CONSTR))
+        if n_pareto > 0
+        else np.array([]).reshape(0, problem.N_CONSTR)
+    )
     eval_times = []
     for i, x in enumerate(X):
         t0 = time.perf_counter()
@@ -183,8 +189,16 @@ def main(argv: list[str] | None = None) -> int:
 
     # Generation stats CSV
     with open(output_dir / "generation_stats.csv", "w") as f:
-        headers = ["generation", "n_feasible", "feasible_fraction", "mean_max_violation",
-                   "median_max_violation", "f0_mean", "f1_mean", "n_pareto"]
+        headers = [
+            "generation",
+            "n_feasible",
+            "feasible_fraction",
+            "mean_max_violation",
+            "median_max_violation",
+            "f0_mean",
+            "f1_mean",
+            "n_pareto",
+        ]
         f.write(",".join(headers) + "\n")
         for row in callback.gen_stats:
             vals = [str(row[h]) for h in headers]
@@ -201,12 +215,18 @@ def main(argv: list[str] | None = None) -> int:
     # Constraint distribution CSV
     if n_pareto > 0:
         with open(output_dir / "constraint_dist.csv", "w") as f:
-            headers = ["idx"] + [f"g{j}" for j in range(problem.N_CONSTR)] + ["max_violation", "feasible"]
+            headers = (
+                ["idx"] + [f"g{j}" for j in range(problem.N_CONSTR)] + ["max_violation", "feasible"]
+            )
             f.write(",".join(headers) + "\n")
             for i in range(n_pareto):
                 max_viol = max(G_pareto[i])
                 feasible = "1" if np.all(G_pareto[i] <= 0) else "0"
-                vals = [str(i)] + [f"{G_pareto[i, j]:.6f}" for j in range(problem.N_CONSTR)] + [f"{max_viol:.6f}", feasible]
+                vals = (
+                    [str(i)]
+                    + [f"{G_pareto[i, j]:.6f}" for j in range(problem.N_CONSTR)]
+                    + [f"{max_viol:.6f}", feasible]
+                )
                 f.write(",".join(vals) + "\n")
 
     # Print summary
@@ -219,7 +239,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Avg eval time: {avg_eval_time_ms:.2f} ± {std_eval_time_ms:.2f} ms")
     print()
     print(f"Final Pareto size: {n_pareto}")
-    print(f"Feasible in Pareto: {pareto_feasible}/{n_pareto} ({100*pareto_feasible/n_pareto:.1f}%)" if n_pareto > 0 else "N/A")
+    print(
+        f"Feasible in Pareto: {pareto_feasible}/{n_pareto} ({100 * pareto_feasible / n_pareto:.1f}%)"
+        if n_pareto > 0
+        else "N/A"
+    )
     print()
     if n_pareto > 0:
         print(f"Best efficiency: {-F[:, 0].min():.4f}")
@@ -227,10 +251,12 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("Generation progression (first/mid/last):")
     if callback.gen_stats:
-        for idx in [0, len(callback.gen_stats)//2, -1]:
+        for idx in [0, len(callback.gen_stats) // 2, -1]:
             s = callback.gen_stats[idx]
-            print(f"  Gen {s['generation']:3d}: feasible={s['feasible_fraction']:.1%}, "
-                  f"max_viol={s['mean_max_violation']:.2f}, pareto={s['n_pareto']}")
+            print(
+                f"  Gen {s['generation']:3d}: feasible={s['feasible_fraction']:.1%}, "
+                f"max_viol={s['mean_max_violation']:.2f}, pareto={s['n_pareto']}"
+            )
     print()
     print(f"Results written to: {output_dir}/")
     print("=" * 60)
@@ -240,4 +266,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

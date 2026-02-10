@@ -23,6 +23,7 @@ from ..core.archive_io import save_archive
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import get_constraint_names, get_constraint_scales
 from ..core.encoding import ENCODING_VERSION
+from ..core.types import BreathingConfig
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -48,6 +49,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
 
+    # Breathing/BC/timing inputs for OpenFOAM NN (fidelity>=2)
+    parser.add_argument("--bore-mm", type=float, default=80.0)
+    parser.add_argument("--stroke-mm", type=float, default=90.0)
+    parser.add_argument("--intake-port-area-m2", type=float, default=4.0e-4)
+    parser.add_argument("--exhaust-port-area-m2", type=float, default=4.0e-4)
+    parser.add_argument("--p-manifold-pa", type=float, default=101325.0)
+    parser.add_argument("--p-back-pa", type=float, default=101325.0)
+    parser.add_argument("--overlap-deg", type=float, default=0.0)
+    parser.add_argument("--intake-open-deg", type=float, default=0.0)
+    parser.add_argument("--intake-close-deg", type=float, default=0.0)
+    parser.add_argument("--exhaust-open-deg", type=float, default=0.0)
+    parser.add_argument("--exhaust-close-deg", type=float, default=0.0)
+
     args = parser.parse_args(argv)
 
     # Import here to avoid loading pymoo at module level
@@ -62,11 +76,26 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    breathing = BreathingConfig(
+        bore_mm=args.bore_mm,
+        stroke_mm=args.stroke_mm,
+        intake_port_area_m2=args.intake_port_area_m2,
+        exhaust_port_area_m2=args.exhaust_port_area_m2,
+        p_manifold_Pa=args.p_manifold_pa,
+        p_back_Pa=args.p_back_pa,
+        overlap_deg=args.overlap_deg,
+        intake_open_deg=args.intake_open_deg,
+        intake_close_deg=args.intake_close_deg,
+        exhaust_open_deg=args.exhaust_open_deg,
+        exhaust_close_deg=args.exhaust_close_deg,
+    )
+
     ctx = EvalContext(
         rpm=args.rpm,
         torque=args.torque,
         fidelity=args.fidelity,
         seed=args.seed,
+        breathing=breathing,
     )
 
     problem = ParetoProblem(ctx=ctx)
@@ -126,15 +155,18 @@ def main(argv: list[str] | None = None) -> int:
     if n_pareto > 0 and F is not None:
         f_min = F.min(axis=0).tolist()
         f_max = F.max(axis=0).tolist()
-        best_efficiency = float(-F[:, 0].min())
-        best_loss = float(F[:, 1].min())
-        best_radius = float(F[:, 2].min())
+        best_eta_comb = float(1.0 - F[:, 0].min())
+        best_eta_exp = float(1.0 - F[:, 1].min())
+        best_eta_gear = float(1.0 - F[:, 2].min())
+        eta_total = (1.0 - F[:, 0]) * (1.0 - F[:, 1]) * (1.0 - F[:, 2])
+        best_eta_total = float(np.max(eta_total))
     else:
         f_min = [0.0, 0.0, 0.0]
         f_max = [0.0, 0.0, 0.0]
-        best_efficiency = 0.0
-        best_loss = 0.0
-        best_radius = 0.0
+        best_eta_comb = 0.0
+        best_eta_exp = 0.0
+        best_eta_gear = 0.0
+        best_eta_total = 0.0
 
     summary = {
         "n_pareto": n_pareto,
@@ -161,9 +193,10 @@ def main(argv: list[str] | None = None) -> int:
         "feasible_fraction": float(np.sum(np.all(G <= 0, axis=1)) / n_pareto)
         if n_pareto > 0
         else 0.0,
-        "best_efficiency": best_efficiency,
-        "best_loss": best_loss,
-        "best_radius": best_radius,
+        "best_eta_comb": best_eta_comb,
+        "best_eta_exp": best_eta_exp,
+        "best_eta_gear": best_eta_gear,
+        "best_eta_total": best_eta_total,
     }
 
     save_archive(
@@ -178,6 +211,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nCompleted in {t_elapsed:.1f}s")
         print(f"Pareto front: {n_pareto} solutions")
         print(f"Feasible: {summary['n_feasible']}")
+        print(
+            "Best (component) efficiencies: "
+            f"η_comb={summary['best_eta_comb']:.3f}, "
+            f"η_exp={summary['best_eta_exp']:.3f}, "
+            f"η_gear={summary['best_eta_gear']:.3f}, "
+            f"η_total={summary['best_eta_total']:.3f}"
+        )
         print(f"Results saved to: {output_dir}")
 
     return 0

@@ -12,7 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-
 @dataclass
 class EnergyLedger:
     """Tracks energy flow through the gear system per cycle."""
@@ -47,10 +46,7 @@ class EnergyLedger:
         Residual = W_in - (W_out + Losses + Actuation + Delta_E)
         """
         w_losses = (
-            self.W_loss_mesh
-            + self.W_loss_bearing
-            + self.W_loss_churning
-            + self.W_loss_windage
+            self.W_loss_mesh + self.W_loss_bearing + self.W_loss_churning + self.W_loss_windage
         )
         # Using W_in = W_out + Losses + ...
         # So Residual = W_in - W_out - Losses - Actuation - Delta_E
@@ -63,11 +59,11 @@ class EnergyLedger:
 
         # Actually, simpler ledger:
         # Sum(Inputs) - Sum(Outputs) - Sum(Accumulation) = 0
-        
+
         # Let's assume W_actuation is NET work input by actuator.
         total_in = self.W_in_piston + self.W_actuation
         total_out = self.W_out_shaft + w_losses + self.delta_E_stored
-        
+
         return total_in - total_out
 
     @property
@@ -78,22 +74,22 @@ class EnergyLedger:
     @property
     def efficiency_mech(self) -> float:
         """Mechanical Efficiency (W_out / W_in).
-        
+
         If W_in_piston is provided (measured), use it.
         Otherwise, infer W_in from equilibrium (W_out + Losses).
         """
         w_in = self.W_in_piston
-        
+
         # If external input not provided, infer from output + losses (Backwards mode)
         if abs(w_in) < 1e-9:
-             w_losses = (
+            w_losses = (
                 self.W_loss_mesh + self.W_loss_bearing + self.W_loss_churning + self.W_loss_windage
             )
-             w_in = self.W_out_shaft + w_losses + self.delta_E_stored - self.W_actuation
-             
+            w_in = self.W_out_shaft + w_losses + self.delta_E_stored - self.W_actuation
+
         if abs(w_in) < 1e-9:
             return 0.0
-            
+
         return self.W_out_shaft / w_in
 
     def summarize(self) -> str:

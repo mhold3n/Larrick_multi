@@ -90,4 +90,3 @@ def _ensure_openfoam_nn_artifact_for_tests() -> None:
     save_artifact(artifact, model_path)
 
     os.environ["LARRAK2_OPENFOAM_NN_PATH"] = str(model_path)
-

@@ -12,7 +12,7 @@
 | :--- | :--- | :--- |
 | **0** | Toy ideal-gas + friction | Fast prototyping, unit tests |
 | **1** | Wiebe heat release (Thermo) + Litvin synthesis (Gear) | Realistic forward-eval |
-| **2** | NN Surrogates (OpenFOAM/FEA) | Optimization Loop (High Speed) |
+| **2** | NN Surrogates (OpenFOAM/FEA) | Optimization Loop (High Speed) **(Experimental / In Progress)** |
 
 ### Core Interface
 
@@ -91,7 +91,6 @@ We follow a **"Dev -> Robust -> CI"** promotion pipeline.
 - **Trigger**: Pushing to `main`.
 - **Workflows**:
   - `ci.yml`: Runs `pytest` (Standard suite).
-  - `verify_dual_opt.yml`: Verifies High-Fidelity topology (Mocked).
 
 ### Git Conventions
 

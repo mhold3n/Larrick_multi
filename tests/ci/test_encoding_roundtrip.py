@@ -4,15 +4,15 @@ import numpy as np
 import pytest
 
 from larrak2.core.encoding import (
+    N_TOTAL,
     Candidate,
-    ThermoParams,
     GearParams,
+    ThermoParams,
+    bounds,
     decode_candidate,
     encode_candidate,
-    bounds,
-    random_candidate,
     mid_bounds_candidate,
-    N_TOTAL,
+    random_candidate,
 )
 
 
@@ -60,9 +60,10 @@ def test_encode_decode_roundtrip_array():
         x_recovered = encode_candidate(candidate)
 
         np.testing.assert_array_almost_equal(
-            x_original, x_recovered,
+            x_original,
+            x_recovered,
             decimal=10,
-            err_msg="encode(decode(x)) should recover original x"
+            err_msg="encode(decode(x)) should recover original x",
         )
 
 

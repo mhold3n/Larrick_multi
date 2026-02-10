@@ -88,10 +88,7 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
 
     # Legacy residual surrogates (sklearn) are disabled when OpenFOAM NN is active,
     # since their semantics don't match the new efficiency decomposition.
-    enable_residual = (
-        ctx.fidelity >= 2
-        and not bool(thermo_diag.get("openfoam_nn_used", False))
-    )
+    enable_residual = ctx.fidelity >= 2 and not bool(thermo_diag.get("openfoam_nn_used", False))
 
     if enable_residual:
         from larrak2.surrogate.inference import get_surrogate_engine

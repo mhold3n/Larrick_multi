@@ -1,9 +1,8 @@
 """Test evaluation determinism."""
 
 import numpy as np
-import pytest
 
-from larrak2.core.encoding import random_candidate, mid_bounds_candidate
+from larrak2.core.encoding import mid_bounds_candidate, random_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 
@@ -18,14 +17,12 @@ def test_determinism_same_inputs():
 
     # F should be identical
     np.testing.assert_array_equal(
-        result1.F, result2.F,
-        err_msg="F differs between identical evaluations"
+        result1.F, result2.F, err_msg="F differs between identical evaluations"
     )
 
     # G should be identical
     np.testing.assert_array_equal(
-        result1.G, result2.G,
-        err_msg="G differs between identical evaluations"
+        result1.G, result2.G, err_msg="G differs between identical evaluations"
     )
 
 
@@ -79,6 +76,5 @@ def test_determinism_seed_unused():
 
     # For the toy model, seed should not affect results
     np.testing.assert_array_equal(
-        result1.F, result2.F,
-        err_msg="Different seeds should not affect deterministic evaluation"
+        result1.F, result2.F, err_msg="Different seeds should not affect deterministic evaluation"
     )

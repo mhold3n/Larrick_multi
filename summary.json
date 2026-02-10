@@ -1,20 +1,64 @@
 {
-  "n_pareto": 1,
-  "n_evals": 80,
-  "elapsed_s": 0.16409570106770843,
-  "pop_size": 16,
-  "n_gen": 5,
+  "n_pareto": 23,
+  "n_evals": 320,
+  "elapsed_s": 3.270462200998736,
+  "pop_size": 32,
+  "n_gen": 10,
   "rpm": 3000.0,
   "torque": 200.0,
-  "fidelity": 0,
+  "fidelity": 2,
   "seed": 42,
+  "encoding_version": "0.1",
+  "model_versions": {
+    "thermo_v1": "v1.1_20260128_phase_driven",
+    "gear_v1": "v1.0_20260125_initial"
+  },
+  "n_obj": 3,
+  "n_constr": 12,
+  "constraint_names": [
+    "thermo_eff_min",
+    "thermo_eff_max",
+    "thermo_pmax_norm",
+    "thermo_ratio_slope_max",
+    "gear_ratio_error_max",
+    "gear_min_radius",
+    "gear_max_radius",
+    "gear_max_curvature",
+    "gear_interference",
+    "gear_min_thickness",
+    "gear_contact_ratio_min",
+    "gear_self_intersection"
+  ],
+  "constraint_scales": {
+    "thermo_compression_min": 10.0,
+    "thermo_heat_release_width_min": 10.0,
+    "thermo_ratio_jerk_max": 1000000.0,
+    "thermo_eff_min": 1.0,
+    "thermo_eff_max": 1.0,
+    "thermo_pmax_norm": 1.0,
+    "gear_ratio_error_max": 1.0,
+    "gear_min_radius": 10.0,
+    "gear_max_radius": 10.0,
+    "gear_max_curvature": 0.5,
+    "gear_interference": 1.0,
+    "gear_min_thickness": 5.0,
+    "gear_contact_ratio_min": 1.0,
+    "gear_self_intersection": 1.0
+  },
   "F_min": [
-    -0.0,
-    160.05699571159937
+    -0.3005385478206642,
+    161.97006807362152,
+    39.43168223755551
   ],
   "F_max": [
-    -0.0,
-    160.05699571159937
+    -0.09083539777318354,
+    889.9589803940037,
+    58.29341747067544
   ],
-  "n_feasible": 1
+  "n_feasible": 23,
+  "feasible_fraction": 1.0,
+  "best_efficiency": 0.3005385478206642,
+  "best_loss": 161.97006807362152,
+  "best_radius": 39.43168223755551,
+  "n_var": 12
 }

@@ -88,12 +88,12 @@ def get_scavenge_schema_v1() -> FeatureSchema:
 
 def extract_gear_features_v1(x: np.ndarray) -> np.ndarray:
     """Extract features for Gear model from full decision vector."""
-    # Assuming standard encoding: [Thermo(4), Gear(8)]
-    # Gear is indices 4:12 (inclusive 4, exclusive 12)
+    # Assuming standard encoding: [Thermo(5), Gear(8)]
+    # Gear is indices 5:13 (inclusive 5, exclusive 13)
     # Validate size?
-    if len(x) < 12:
+    if len(x) < 13:
         raise ValueError(f"Input vector too small for V1 schema: {len(x)}")
-    return x[4:12]
+    return x[5:13]
 
 
 def extract_scavenge_features_v1(x: np.ndarray) -> np.ndarray:

@@ -34,4 +34,3 @@ def test_fidelity2_with_openfoam_nn_is_finite():
     assert res.F.shape == (3,)
     assert np.all(np.isfinite(res.F))
     assert np.all(np.isfinite(res.G))
-

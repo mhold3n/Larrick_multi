@@ -65,9 +65,7 @@ class TestV1PortDeterminism:
         f_differ = not np.array_equal(result1.F, result2.F)
         g_differ = not np.array_equal(result1.G, result2.G)
 
-        assert f_differ or g_differ, (
-            "Different context should give different F or G"
-        )
+        assert f_differ or g_differ, "Different context should give different F or G"
 
     def test_seed_does_not_affect_v1_results(self):
         """v1 port should be deterministic regardless of seed."""

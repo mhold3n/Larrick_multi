@@ -1,7 +1,6 @@
 """Test constraint sign convention (G <= 0 feasible)."""
 
 import numpy as np
-import pytest
 
 from larrak2.core.encoding import mid_bounds_candidate
 from larrak2.core.evaluator import evaluate_candidate

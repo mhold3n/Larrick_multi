@@ -5,17 +5,18 @@ It proves that the pipeline handles inputs -> features -> surrogate calls -> obj
 without requiring actual trained models or heavy computation.
 """
 
-import numpy as np
-import pytest
 from unittest.mock import patch
 
-from larrak2.core.types import EvalContext
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.encoding import random_candidate
-from larrak2.adapters.pymoo_problem import ParetoProblem
+import numpy as np
+import pytest
 from pymoo.algorithms.moo.nsga3 import NSGA3
 from pymoo.optimize import minimize
 from pymoo.util.ref_dirs import get_reference_directions
+
+from larrak2.adapters.pymoo_problem import ParetoProblem
+from larrak2.core.encoding import random_candidate
+from larrak2.core.evaluator import evaluate_candidate
+from larrak2.core.types import EvalContext
 
 # --- Mocks ---
 

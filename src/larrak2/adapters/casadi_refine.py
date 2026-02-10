@@ -70,7 +70,8 @@ def refine_candidate(
 
     if mode == RefinementMode.WEIGHTED_SUM:
         w = weights if weights is not None else np.ones(len(result0.F))
-        x_refined, diag = _weighted_sum_refine(x0, ctx, w, xl, xu, max_iter, tol)
+        x_refined, diag = _weighted_sum_refine(
+            x0, ctx, w, xl, xu, max_iter, tol)
     elif mode == RefinementMode.EPS_CONSTRAINT:
         x_refined, diag = _eps_constraint_refine(
             x0, ctx, eps_constraints or result0.F, xl, xu, max_iter, tol
@@ -135,7 +136,7 @@ def _weighted_sum_refine(
             method="SLSQP",
             bounds=list(zip(xl, xu)),
             constraints={"type": "ineq", "fun": constraint_func},
-            options={"maxiter": max_iter, "ftol": tol, "maxiter": max_iter, "disp": False},
+            options={"maxiter": max_iter, "ftol": tol, "disp": False},
         )
 
         x_final = np.clip(res.x, xl, xu)

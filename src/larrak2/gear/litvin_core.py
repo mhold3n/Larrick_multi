@@ -20,13 +20,13 @@ from typing import Any
 import numpy as np
 
 from ..core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
-from .energy_ledger import EnergyLedger
-from .loss_model import total_loss
 from ..core.encoding import GearParams
 from ..core.types import EvalContext
 from ..ports.larrak_v1.gear_forward import litvin_synthesize
-from .pitchcurve import fourier_pitch_curve
 from ..surrogate.gear_loss_net import get_gear_surrogate
+from .energy_ledger import EnergyLedger
+from .loss_model import total_loss
+from .pitchcurve import fourier_pitch_curve
 
 # Number of discretization points
 N_POINTS = 360

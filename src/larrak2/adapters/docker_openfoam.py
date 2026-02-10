@@ -120,4 +120,3 @@ class DockerOpenFoam:
             return result.returncode == 0 and "ready" in (result.stdout or "")
         except Exception:
             return False
-

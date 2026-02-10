@@ -37,9 +37,9 @@ def main():
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
     parser.add_argument("--outdir", type=str, default="results_nsga3", help="Output directory")
     parser.add_argument("--partitions", type=int, default=12, help="Ref dir partitions")
-    
+
     args = parser.parse_args()
-    
+
     # Setup context
     ctx = EvalContext(
         rpm=args.rpm,
@@ -47,38 +47,34 @@ def main():
         fidelity=args.fidelity,
         seed=args.seed,
     )
-    
+
     print(f"Starting NSGA-III run: pop={args.pop}, gen={args.gen}, fidelity={args.fidelity}")
-    
+
     # Setup problem
     problem = ParetoProblem(ctx=ctx)
     if problem.N_OBJ != 3:
         raise ValueError(f"ParetoProblem must have 3 objectives, got {problem.N_OBJ}")
-        
+
     # Setup reference directions
     # Das-Dennis directions for 3 objectives
-    ref_dirs = get_reference_directions(
-        "das-dennis", 
-        3, 
-        n_partitions=args.partitions
-    )
+    ref_dirs = get_reference_directions("das-dennis", 3, n_partitions=args.partitions)
     print(f"Reference directions: {len(ref_dirs)} points")
-    
+
     if args.pop < len(ref_dirs):
         print(f"WARNING: Population size ({args.pop}) < Reference directions ({len(ref_dirs)})")
         print("Increasing population size to match reference directions.")
         args.pop = len(ref_dirs)
-        
+
     # Algorithm
     algorithm = NSGA3(
         pop_size=args.pop,
         ref_dirs=ref_dirs,
         prob_neighbor_mating=0.7,
     )
-    
+
     # Termination
     termination = get_termination("n_gen", args.gen)
-    
+
     # Run
     t0 = time.time()
     result = minimize(
@@ -89,14 +85,14 @@ def main():
         verbose=True,
     )
     t_total = time.time() - t0
-    
+
     # Process results
     output_dir = Path(args.outdir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     X = result.X
     F = result.F
-    
+
     if X is None or len(X) == 0:
         print("No feasible solutions found!")
         n_pareto = 0
@@ -110,17 +106,19 @@ def main():
             res = evaluate_candidate(x, ctx)
             G[i] = res.G
             # Store some diagnostics for the Pareto front
-            diag_list.append({
-                "efficiency": res.diag["metrics"]["efficiency"],
-                "loss_total": res.diag["metrics"]["loss_total"],
-                "max_planet_radius": res.diag["metrics"]["max_planet_radius"],
-                "p_max_bar": res.diag["thermo"]["p_max"] / 1e5,
-            })
-            
+            diag_list.append(
+                {
+                    "efficiency": res.diag["metrics"]["efficiency"],
+                    "loss_total": res.diag["metrics"]["loss_total"],
+                    "max_planet_radius": res.diag["metrics"]["max_planet_radius"],
+                    "p_max_bar": res.diag["thermo"]["p_max"] / 1e5,
+                }
+            )
+
         np.save(output_dir / "pareto_X.npy", X)
         np.save(output_dir / "pareto_F.npy", F)
         np.save(output_dir / "pareto_G.npy", G)
-        
+
         # Save readable summary
         with open(output_dir / "pareto_metrics.json", "w") as f:
             json.dump(diag_list, f, indent=2)
@@ -136,16 +134,16 @@ def main():
         "objectives_min": F.min(axis=0).tolist() if n_pareto > 0 else [],
         "objectives_max": F.max(axis=0).tolist() if n_pareto > 0 else [],
     }
-    
+
     with open(output_dir / "run_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
-        
+
     print(f"Run complete in {t_total:.2f}s. Results in {output_dir}/")
     if n_pareto > 0:
         print(f"Pareto size: {n_pareto}")
-        print(f"Eff range: {-F[:,0].min():.1%} to {-F[:,0].max():.1%}")
-        print(f"Loss range: {F[:,1].min():.1f} to {F[:,1].max():.1f} W")
-        print(f"Radius range: {F[:,2].min():.1f} to {F[:,2].max():.1f} mm")
+        print(f"Eff range: {-F[:, 0].min():.1%} to {-F[:, 0].max():.1%}")
+        print(f"Loss range: {F[:, 1].min():.1f} to {F[:, 1].max():.1f} W")
+        print(f"Radius range: {F[:, 2].min():.1f} to {F[:, 2].max():.1f} mm")
 
 
 if __name__ == "__main__":

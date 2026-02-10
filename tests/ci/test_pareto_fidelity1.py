@@ -155,8 +155,11 @@ class TestParetoFidelity1:
         F2_sorted = np.sort(result2.F, axis=0)
 
         np.testing.assert_allclose(
-            F1_sorted, F2_sorted, rtol=1e-10, atol=1e-10,
-            err_msg="Determinism failed: different F with same seed"
+            F1_sorted,
+            F2_sorted,
+            rtol=1e-10,
+            atol=1e-10,
+            err_msg="Determinism failed: different F with same seed",
         )
 
     def test_cli_pareto_fidelity1(self):
@@ -165,15 +168,24 @@ class TestParetoFidelity1:
             from larrak2.cli.run_pareto import main
 
             # Run CLI
-            exit_code = main([
-                "--pop", "8",
-                "--gen", "3",
-                "--rpm", "3000",
-                "--torque", "200",
-                "--fidelity", "1",
-                "--seed", "123",
-                "--outdir", tmpdir,
-            ])
+            exit_code = main(
+                [
+                    "--pop",
+                    "8",
+                    "--gen",
+                    "3",
+                    "--rpm",
+                    "3000",
+                    "--torque",
+                    "200",
+                    "--fidelity",
+                    "1",
+                    "--seed",
+                    "123",
+                    "--outdir",
+                    tmpdir,
+                ]
+            )
 
             assert exit_code == 0, f"CLI failed with exit code {exit_code}"
 

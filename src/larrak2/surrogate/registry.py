@@ -22,6 +22,7 @@ class ModelRegistry:
             self.root_dir / f"model_{model_key}.pkl",
             self.root_dir / f"{model_key}.pkl",
             self.root_dir / model_key / "model.pkl",
+            self.root_dir / model_key / "best_model.pt",
         ]
 
         for p in candidates:

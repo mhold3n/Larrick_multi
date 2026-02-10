@@ -96,7 +96,7 @@ class Normalization:
         return Y * np.where(self.y_std > 0, self.y_std, 1.0) + self.y_mean
 
     @staticmethod
-    def fit(X: np.ndarray, Y: np.ndarray) -> "Normalization":
+    def fit(X: np.ndarray, Y: np.ndarray) -> Normalization:
         x_mean = np.mean(X, axis=0)
         x_std = np.std(X, axis=0)
         y_mean = np.mean(Y, axis=0)
@@ -179,7 +179,7 @@ def require_torch() -> None:
     if torch is None:  # pragma: no cover
         raise ImportError(
             "PyTorch is required for the OpenFOAM NN surrogate. "
-            "Install with the optional extra (recommended): `pip install -e \".[openfoam_nn]\"`."
+            'Install with the optional extra (recommended): `pip install -e ".[openfoam_nn]"`.'
         ) from _TORCH_IMPORT_ERROR
 
 
@@ -392,4 +392,3 @@ def load_artifact(path: str | Path) -> OpenFoamSurrogateArtifact:
         normalization=norm,
         state_dict=payload["state_dict"],
     )
-

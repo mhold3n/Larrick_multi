@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from larrak2.cli.refine_pareto import main as refine_main
-from larrak2.core.encoding import ENCODING_VERSION, mid_bounds_candidate, N_TOTAL
+from larrak2.core.encoding import ENCODING_VERSION, mid_bounds_candidate
 
 
 def test_refinement_summary_contains_versions():

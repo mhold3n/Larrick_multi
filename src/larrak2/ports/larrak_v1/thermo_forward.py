@@ -14,14 +14,16 @@ Attribution: Original code from Larrak v1 by Max Holden.
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from ...core.constants import N_THETA, P_ATM, RATIO_SLOPE_LIMIT_FID1
 from ...core.encoding import ThermoParams
-from ...core.types import EvalContext
+from ...core.types import BreathingConfig, EvalContext
 from ...thermo.motionlaw import _ratio_profile_stats
 
 # Constants
@@ -31,6 +33,19 @@ GAMMA = 1.3  # Ratio of specific heats
 T_INITIAL = 350.0  # K (intake temperature)
 CV = 718.0  # J/(kg·K) specific heat at constant volume
 R_SPECIFIC = 287.0  # J/(kg·K) specific gas constant for air
+
+# Fuel / mixture constants (used for λ-based fuel mass derivation)
+AFR_STOICH_GASOLINE = 14.7  # [-] stoichiometric air-fuel ratio
+LHV_GASOLINE = 44.0e6  # J/kg (lower heating value)
+# Oxygen required per kg fuel for complete combustion (gasoline approximation).
+# For iso-octane: C8H18 + 12.5 O2 -> ... gives ~3.51 kg O2 / kg fuel.
+O2_REQUIRED_PER_KG_FUEL = 3.51  # kg_O2 / kg_fuel
+O2_MASS_FRACTION_AIR = 0.233  # mass fraction of O2 in dry air
+
+# Simple residual-energy mixing (kept explicit; tune/replace with better physics as data improves)
+T_FRESH = 300.0  # K
+T_RESIDUAL = 900.0  # K
+RESIDUAL_HEAT_GAIN = 0.02  # fraction of released heat retained in initial state
 
 # Pressure limits (for constraint, not clamp)
 P_LIMIT_BAR = 300.0  # Target pressure limit [bar]
@@ -164,9 +179,13 @@ def compute_firstlaw_cycle(
     theta_comb_start: float,
     theta_comb_duration: float,
     q_total: float,
+    *,
+    T0: float | None = None,
+    p0: float | None = None,
+    m_gas_override: float | None = None,
     m_wiebe: float = DEFAULT_WIEBE_M,
     a_wiebe: float = DEFAULT_WIEBE_A,
-) -> dict[str, np.ndarray]:
+) -> dict[str, Any]:
     """Compute p-V-T cycle using first-law integration."""
     n = len(theta_deg)
 
@@ -177,10 +196,18 @@ def compute_firstlaw_cycle(
     dQ = np.zeros(n)
     W_cumulative = np.zeros(n)
 
-    # Initial state (beginning of cycle at TDC after intake)
-    T[0] = T_INITIAL
-    p[0] = P_ATM
-    m_gas = p[0] * V[0] / (R_SPECIFIC * T[0])  # Mass from ideal gas
+    # Initial state (beginning of cycle at TDC)
+    T[0] = float(T_INITIAL if T0 is None else T0)
+    p[0] = float(P_ATM if p0 is None else p0)
+
+    if m_gas_override is not None:
+        m_gas = float(m_gas_override)
+        # If p0 not provided, compute from ideal gas
+        if p0 is None:
+            p[0] = m_gas * R_SPECIFIC * T[0] / max(float(V[0]), 1e-12)
+    else:
+        # Mass from ideal gas
+        m_gas = p[0] * V[0] / (R_SPECIFIC * T[0])
 
     for i in range(1, n):
         # Burn fraction
@@ -221,6 +248,8 @@ def compute_firstlaw_cycle(
         "dQ": dQ,
         "W_cumulative": W_cumulative,
         "m_gas": m_gas,
+        "T0": T[0],
+        "p0": p[0],
     }
 
 
@@ -306,19 +335,84 @@ def v1_eval_thermo_forward(
     theta_comb_start = params.heat_release_center  # degrees after TDC
     theta_comb_duration = params.heat_release_width
 
-    # Heat input calculation (per cycle)
-    omega = ctx.rpm * 2 * np.pi / 60
-    power_out = ctx.torque * omega  # watts
-    cycles_per_sec = ctx.rpm / 60.0
-    work_per_cycle = power_out / cycles_per_sec if cycles_per_sec > 0 else 100.0
+    # -------------------------------------------------------------------------
+    # Operating-point-dependent initial conditions (fuel mass + temperature)
+    # -------------------------------------------------------------------------
+    # Baseline trapped air mass estimate (if no OpenFOAM NN is enabled)
+    V_bdc = float(v_clearance + v_displaced)  # max volume
+    m_air_trapped = P_ATM * V_bdc / (R_SPECIFIC * T_INITIAL)
+    scav_eff = 1.0
+    residual_fraction = 0.0
+    trapped_o2_mass = m_air_trapped * O2_MASS_FRACTION_AIR
+    openfoam_nn_used = False
 
-    target_efficiency = 0.30
-    q_total_power = work_per_cycle / target_efficiency
+    # Fidelity >= 2: use OpenFOAM NN surrogate for breathing/richness state
+    if ctx.fidelity >= 2:
+        model_path = os.environ.get(
+            "LARRAK2_OPENFOAM_NN_PATH", "models/openfoam_nn/openfoam_breathing.pt"
+        )
+        mp = Path(model_path)
+        if not mp.exists():
+            raise FileNotFoundError(
+                f"OpenFOAM NN surrogate not found at '{model_path}'. "
+                "Train it first (see scripts/train_openfoam_surrogate.py) "
+                "or set LARRAK2_OPENFOAM_NN_PATH to the artifact path."
+            )
 
-    # Cap heat input to realistic values for displacement
-    v_displaced_liters = v_displaced * 1000
-    q_reference = 1500.0 * v_displaced_liters / 0.45
-    q_total = min(q_total_power, q_reference * 2)
+        from ...surrogate.openfoam_nn import get_openfoam_surrogate
+
+        surrogate = get_openfoam_surrogate(mp)
+        bcfg = ctx.breathing or BreathingConfig()
+
+        pred = surrogate.predict_one(
+            {
+                "rpm": float(ctx.rpm),
+                "torque": float(ctx.torque),
+                "lambda_af": float(params.lambda_af),
+                "bore_mm": float(bcfg.bore_mm),
+                "stroke_mm": float(bcfg.stroke_mm),
+                "intake_port_area_m2": float(bcfg.intake_port_area_m2),
+                "exhaust_port_area_m2": float(bcfg.exhaust_port_area_m2),
+                "p_manifold_Pa": float(bcfg.p_manifold_Pa),
+                "p_back_Pa": float(bcfg.p_back_Pa),
+                "overlap_deg": float(bcfg.overlap_deg),
+                "intake_open_deg": float(bcfg.intake_open_deg),
+                "intake_close_deg": float(bcfg.intake_close_deg),
+                "exhaust_open_deg": float(bcfg.exhaust_open_deg),
+                "exhaust_close_deg": float(bcfg.exhaust_close_deg),
+            }
+        )
+        m_air_trapped = float(pred["m_air_trapped"])
+        scav_eff = float(pred["scavenging_efficiency"])
+        residual_fraction = float(pred["residual_fraction"])
+        trapped_o2_mass = float(pred["trapped_o2_mass"])
+        openfoam_nn_used = True
+
+    # Fuel mass from lambda (λ is a decision variable; do NOT derive λ from fuel mass)
+    lam = float(max(params.lambda_af, 1e-6))
+    m_fuel = float(m_air_trapped / (lam * AFR_STOICH_GASOLINE))
+
+    Q_chem = m_fuel * LHV_GASOLINE
+
+    # Oxygen-limited burn completion (physically grounded):
+    # burn fraction is limited by trapped oxygen availability.
+    # This naturally penalizes rich mixtures (lower lambda -> more fuel for a given trapped air/O2).
+    denom_o2 = max(m_fuel * O2_REQUIRED_PER_KG_FUEL, 1e-12)
+    burn_frac_o2 = float(np.clip(trapped_o2_mass / denom_o2, 0.0, 1.0))
+    combustion_completion_factor = 1.0
+    Q_rel = Q_chem * burn_frac_o2 * combustion_completion_factor
+
+    # Initial temperature derived from fuel input + surrogate residual state (not a direct rpm curve)
+    m_total = max(m_air_trapped + m_fuel, 1e-9)
+    base_T = T_FRESH * (1.0 - residual_fraction) + T_RESIDUAL * residual_fraction
+    delta_T = RESIDUAL_HEAT_GAIN * Q_rel / (m_total * CV)
+    T0 = float(max(base_T + delta_T, 100.0))
+
+    # Initial pressure from ideal gas at TDC
+    p0 = float(max(m_total * R_SPECIFIC * T0 / max(float(V[0]), 1e-12), 100.0))
+
+    # Heat released to the working fluid in this cycle
+    q_total = float(max(Q_rel, 0.0))
 
     # forward steps
     cycle = compute_firstlaw_cycle(
@@ -328,6 +422,9 @@ def v1_eval_thermo_forward(
         theta_comb_start,
         theta_comb_duration,
         q_total,
+        T0=T0,
+        p0=p0,
+        m_gas_override=m_total,
     )
 
     # Work and efficiency
@@ -381,12 +478,24 @@ def v1_eval_thermo_forward(
         "dV_dtheta": dV_dtheta,
         "W": W,
         "W_cumulative": cycle["W_cumulative"],
+        "T0": float(cycle.get("T0", T0)),
+        "p0": float(cycle.get("p0", p0)),
         "p_max": p_max,
         "p_min": p_min,
         "p_mean": p_mean,
         "p_limit_bar": P_LIMIT_BAR,
         "q_total": q_total,
         "m_gas": cycle["m_gas"],
+        "m_air_trapped": float(m_air_trapped),
+        "m_fuel": float(m_fuel),
+        "lambda_af": float(params.lambda_af),
+        "Q_chem": float(Q_chem),
+        "Q_rel": float(Q_rel),
+        "trapped_o2_mass": float(trapped_o2_mass),
+        "burn_frac_o2": float(burn_frac_o2),
+        "scavenging_efficiency": float(scav_eff),
+        "residual_fraction": float(residual_fraction),
+        "openfoam_nn_used": bool(openfoam_nn_used),
         "compression_duration": params.compression_duration,
         "expansion_duration": params.expansion_duration,
         "heat_release_center": params.heat_release_center,
