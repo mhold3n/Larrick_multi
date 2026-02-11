@@ -54,6 +54,7 @@ class EvalContext:
     # Gear Loss Coefficients (Calibration Data)
     # Keys: "bearing" (4 floats), "churning" (2 floats), "mesh" (1 float mu)
     loss_coeffs: dict[str, tuple[float, ...]] | None = None
+    gear_process_params: dict[str, float] | None = None
 
     def __post_init__(self) -> None:
         if self.fidelity not in (0, 1, 2):

@@ -29,6 +29,10 @@ from ..core.constraints import (
     combine_constraints,
 )
 from ..gear.litvin_core import eval_gear
+from ..gear.manufacturability_limits import (
+    ManufacturingProcessParams,
+    compute_manufacturable_ratio_rate_limits,
+)
 from ..thermo.motionlaw import eval_thermo
 from .encoding import decode_candidate
 from .types import EvalContext, EvalResult
@@ -54,9 +58,28 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     # Decode candidate
     candidate = decode_candidate(x)
 
+    # Manufacturability-derived ratio-rate limit (cached per gear/process setup)
+    process_cfg = ManufacturingProcessParams(**(ctx.gear_process_params or {}))
+    duration_grid = np.array(
+        [candidate.thermo.compression_duration, candidate.thermo.expansion_duration], dtype=float
+    )
+    rate_env = compute_manufacturable_ratio_rate_limits(
+        candidate.gear,
+        process=process_cfg,
+        durations_deg=duration_grid,
+    )
+    dynamic_slope_limit = float(
+        min(
+            rate_env.slope_limit_for_duration(candidate.thermo.compression_duration),
+            rate_env.slope_limit_for_duration(candidate.thermo.expansion_duration),
+        )
+    )
+    if not np.isfinite(dynamic_slope_limit) or dynamic_slope_limit < 0.0:
+        dynamic_slope_limit = 0.0
+
     # Thermo evaluation
     t_thermo_start = time.perf_counter()
-    thermo_result = eval_thermo(candidate.thermo, ctx)
+    thermo_result = eval_thermo(candidate.thermo, ctx, ratio_slope_limit=dynamic_slope_limit)
     t_thermo = time.perf_counter() - t_thermo_start
 
     # Gear evaluation (uses ratio profile from thermo)
@@ -183,6 +206,19 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         },
         "constraints": constraint_diag,
         "feasible_hard": bool(np.all(G_hard <= 0)) if len(G_hard) else True,
+        "manufacturability_limits": {
+            "durations_deg": rate_env.duration_deg,
+            "max_delta_ratio": rate_env.max_delta_ratio,
+            "max_ratio_slope": rate_env.max_ratio_slope,
+            "applied_ratio_slope_limit": dynamic_slope_limit,
+            "process": {
+                "kerf_mm": process_cfg.kerf_mm,
+                "overcut_mm": process_cfg.overcut_mm,
+                "min_ligament_mm": process_cfg.min_ligament_mm,
+                "min_feature_radius_mm": process_cfg.min_feature_radius_mm,
+                "max_pressure_angle_deg": process_cfg.max_pressure_angle_deg,
+            },
+        },
     }
 
     return EvalResult(F=F, G=G, diag=diag)

@@ -306,6 +306,7 @@ def generate_requested_ratio_profile(
 def v1_eval_thermo_forward(
     params: ThermoParams,
     ctx: EvalContext,
+    ratio_slope_limit: float | None = None,
 ) -> V1ThermoResult:
     """Evaluate thermodynamics using phase-driven v1 model."""
     # Theta grid using constant N_THETA
@@ -456,7 +457,9 @@ def v1_eval_thermo_forward(
 
     # C4: Ratio profile slope <= limit
     ratio_stats = _ratio_profile_stats(requested_ratio_profile)
-    constraints["g_ratio_slope"] = ratio_stats["max_slope"] - RATIO_SLOPE_LIMIT_FID1
+    static_limit = RATIO_SLOPE_LIMIT_FID1
+    slope_limit = min(static_limit, float(ratio_slope_limit)) if ratio_slope_limit is not None else static_limit
+    constraints["g_ratio_slope"] = ratio_stats["max_slope"] - slope_limit
 
     # Pack into array in fixed order
     G_list = [
@@ -505,6 +508,8 @@ def v1_eval_thermo_forward(
         "v1_port": True,
         "phase_driven": True,
         "constraints": constraints,  # Explicit map
+        "ratio_slope_limit_used": float(slope_limit),
+        "ratio_slope_limit_source": "manufacturability" if ratio_slope_limit is not None else "static",
     }
 
     return V1ThermoResult(
