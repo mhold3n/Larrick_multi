@@ -308,7 +308,7 @@ def diagnostic_workflow(args: Any) -> int:
             for i in range(n_pareto):
                 feasible = "1" if np.all(G_pareto[i] <= 0) else "0"
                 f.write(f"{i},{F[i, 0]},{F[i, 1]},{feasible}\n")
-    
+
     # Save arrays for reuse by sensitivity analysis
     np.save(output_dir / "pareto_X.npy", X)
 

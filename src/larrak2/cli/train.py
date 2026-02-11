@@ -16,7 +16,7 @@ from larrak2.training.workflows import (
 
 def main():
     parser = argparse.ArgumentParser(description="Larrak2 Unified Training CLI")
-    
+
     subparsers = parser.add_subparsers(dest="model_type", required=True, help="Model Type")
 
     # Common Arguments Factory
@@ -30,7 +30,7 @@ def main():
         p.add_argument("--lr", type=float, default=1e-3)
         p.add_argument("--hidden", type=str, default=None, help="Hidden layers (e.g. 64,64 or 64)")
         p.add_argument("--weight-decay", type=float, default=0.0)
-    
+
     # 1. OpenFOAM NN
     p_of = subparsers.add_parser("openfoam", help="OpenFOAM Neural Network Surrogate")
     add_common_args(p_of)

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -35,6 +34,7 @@ try:
     from sklearn.metrics import mean_squared_error, r2_score
     from sklearn.model_selection import train_test_split
     from sklearn.multioutput import MultiOutputRegressor
+
     from larrak2.surrogate.features import get_gear_schema_v1, get_scavenge_schema_v1
     from larrak2.surrogate.models import EnsembleRegressor
 except ImportError:
@@ -65,7 +65,7 @@ def train_openfoam_workflow(args: argparse.Namespace):
 
     # 2. Train
     hidden_layers = tuple(int(s) for s in args.hidden.split(",")) if args.hidden else (64, 64)
-    
+
     artifact = train_openfoam_surrogate(
         X,
         Y,
@@ -102,7 +102,7 @@ def train_gear_nn_workflow(args: argparse.Namespace):
     X_cols = ["rpm", "torque", "base_radius", "c0", "c1", "c2", "c3", "c4"]
     rename_map = {"dual_W_mesh": "W_mesh", "dual_W_bearing": "W_bearing"}
     df.rename(columns=rename_map, inplace=True)
-    
+
     available_y = [c for c in ["W_mesh", "W_bearing", "W_churning"] if c in df.columns]
     if not available_y:
         raise ValueError("No target columns found (W_mesh, W_bearing, W_churning)")
@@ -111,19 +111,12 @@ def train_gear_nn_workflow(args: argparse.Namespace):
     y = df[available_y].values.astype(np.float32)
 
     model = GearLossNetwork(
-        input_dim=len(X_cols), 
-        hidden_dim=int(args.hidden) if args.hidden and "," not in args.hidden else 64, 
-        output_dim=len(available_y)
+        input_dim=len(X_cols),
+        hidden_dim=int(args.hidden) if args.hidden and "," not in args.hidden else 64,
+        output_dim=len(available_y),
     )
 
-    train_proch_basic(
-        model=model,
-        X=X,
-        y=y,
-        output_dir=args.outdir,
-        epochs=args.epochs,
-        lr=args.lr
-    )
+    train_proch_basic(model=model, X=X, y=y, output_dir=args.outdir, epochs=args.epochs, lr=args.lr)
     print("Gear NN training complete.")
 
 
@@ -225,6 +218,7 @@ def train_residual_workflow(args: argparse.Namespace):
     print(f"Loss Residual R2:       {r2[1]:.4f}")
 
     import pickle
+
     with open(outdir / "model_residual.pkl", "wb") as f:
         pickle.dump(model, f)
     print(f"Saved to {outdir / 'model_residual.pkl'}")

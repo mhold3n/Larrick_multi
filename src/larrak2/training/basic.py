@@ -44,9 +44,7 @@ def train_model(
     print(f"Training on input shape: {X.shape}, output shape: {y.shape}")
 
     # Split
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=val_size, random_state=seed
-    )
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=val_size, random_state=seed)
 
     # Normalize Inputs
     scaler_X = StandardScaler()
@@ -74,7 +72,7 @@ def train_model(
     for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
-        
+
         # Simple Full Batch
         y_pred = model(X_train_t)
         loss = criterion(y_pred, y_train_t)
@@ -99,7 +97,7 @@ def train_model(
     # Save Scalers
     joblib.dump(scaler_X, output_dir / "scaler_X.pkl")
     joblib.dump(scaler_y, output_dir / "scaler_y.pkl")
-    
+
     return {
         "best_val_loss": best_loss,
         "model_path": str(output_dir / "best_model.pt"),

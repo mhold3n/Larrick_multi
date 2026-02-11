@@ -101,8 +101,6 @@ class OpenFoamPipeline:
         is_overset = (run_dir / "system" / "snappyHexMeshDict.background").exists()
         is_sliding = (run_dir / "system" / "snappyHexMeshDict").exists() and not is_overset
 
-
-
         if is_overset:
             # 1. Background Mesh
             c, _, _ = self.docker.run_utility(

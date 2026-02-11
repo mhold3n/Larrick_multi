@@ -12,13 +12,13 @@ from __future__ import annotations
 import argparse
 import sys
 
+from larrak2.geometry.generate_stl import generate_stl_workflow
 from larrak2.pipelines.data.workflows import (
     generate_gear_workflow,
     generate_openfoam_workflow,
     generate_residual_workflow,
     generate_scavenge_workflow,
 )
-from larrak2.geometry.generate_stl import generate_stl_workflow
 
 
 def main() -> int:

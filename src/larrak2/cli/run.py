@@ -12,13 +12,13 @@ from __future__ import annotations
 import argparse
 import sys
 
+from larrak2.analysis.workflows import diagnostic_workflow, sensitivity_workflow
 from larrak2.cli.run_workflows import (
     run_active_learning_workflow,
     run_openfoam_doe_workflow,
     run_pareto_grid_workflow,
     run_pareto_staged_workflow,
 )
-from larrak2.analysis.workflows import diagnostic_workflow, sensitivity_workflow
 
 
 def main() -> int:
@@ -76,7 +76,11 @@ def main() -> int:
 
     # --- OpenFOAM DOE ---
     od = subparsers.add_parser("openfoam-doe", help="Checkpointed OpenFOAM DOE")
-    od.add_argument("--template", type=str, default="openfoam_templates/opposed_piston_rotary_valve_sliding_case")
+    od.add_argument(
+        "--template",
+        type=str,
+        default="openfoam_templates/opposed_piston_rotary_valve_sliding_case",
+    )
     od.add_argument("--outdir", type=str, default="data/openfoam_doe")
     od.add_argument("--runs-root", type=str, default="runs/openfoam_doe")
     od.add_argument("--jsonl", type=str, default="data/openfoam_doe/results.jsonl")
