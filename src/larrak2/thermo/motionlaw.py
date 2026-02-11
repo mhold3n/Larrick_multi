@@ -184,7 +184,11 @@ def _ratio_profile_stats(profile: np.ndarray) -> dict[str, float | bool]:
     }
 
 
-def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
+def eval_thermo(
+    params: ThermoParams,
+    ctx: EvalContext,
+    ratio_slope_limit: float | None = None,
+) -> ThermoResult:
     """Evaluate thermodynamic cycle.
 
     Fidelity routing:
@@ -249,7 +253,8 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
 
                 # Calculate Ratio Stats
                 ratio_stats = _ratio_profile_stats(requested_ratio_profile)
-                slope_limit = RATIO_SLOPE_LIMIT_FID1  # FID2 uses same limit as FID1
+                static_limit = RATIO_SLOPE_LIMIT_FID1
+                slope_limit = min(static_limit, float(ratio_slope_limit)) if ratio_slope_limit is not None else static_limit
 
                 # Construct Constraints matching THERMO_CONSTRAINTS_FID1 (minus system_power_balance)
                 # 1. eff_min
@@ -271,6 +276,10 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
                         "surrogate_preds": preds,
                         "openfoam_nn_used": True,
                         "ratio_profile_stats": ratio_stats,
+                        "ratio_slope_limit_used": float(slope_limit),
+                        "ratio_slope_limit_source": "manufacturability"
+                        if ratio_slope_limit is not None
+                        else "static",
                     },
                 )
             except (ImportError, FileNotFoundError, ValueError):
@@ -279,7 +288,7 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
 
         from ..ports.larrak_v1.thermo_forward import v1_eval_thermo_forward
 
-        v1_result = v1_eval_thermo_forward(params, ctx)
+        v1_result = v1_eval_thermo_forward(params, ctx, ratio_slope_limit=ratio_slope_limit)
         stats = _ratio_profile_stats(v1_result.requested_ratio_profile)
         return ThermoResult(
             efficiency=v1_result.efficiency,
@@ -370,7 +379,8 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
     constraints.append(g_jerk)
 
     # C4: Max slope of ratio profile (gear capability proxy)
-    slope_limit = RATIO_SLOPE_LIMIT_FID1 if ctx.fidelity >= 1 else RATIO_SLOPE_LIMIT_FID0
+    static_limit = RATIO_SLOPE_LIMIT_FID1 if ctx.fidelity >= 1 else RATIO_SLOPE_LIMIT_FID0
+    slope_limit = min(static_limit, float(ratio_slope_limit)) if ratio_slope_limit is not None else static_limit
     g_slope = ratio_stats["max_slope"] - slope_limit
     constraints.append(g_slope)
 
@@ -388,6 +398,8 @@ def eval_thermo(params: ThermoParams, ctx: EvalContext) -> ThermoResult:
         "q_in": q_in,
         "requested_ratio_profile": requested_ratio_profile,
         "ratio_profile_stats": ratio_stats,
+        "ratio_slope_limit_used": float(slope_limit),
+        "ratio_slope_limit_source": "manufacturability" if ratio_slope_limit is not None else "static",
     }
 
     return ThermoResult(
