@@ -254,7 +254,11 @@ def eval_thermo(
                 # Calculate Ratio Stats
                 ratio_stats = _ratio_profile_stats(requested_ratio_profile)
                 static_limit = RATIO_SLOPE_LIMIT_FID1
-                slope_limit = min(static_limit, float(ratio_slope_limit)) if ratio_slope_limit is not None else static_limit
+                slope_limit = (
+                    min(static_limit, float(ratio_slope_limit))
+                    if ratio_slope_limit is not None
+                    else static_limit
+                )
 
                 # Construct Constraints matching THERMO_CONSTRAINTS_FID1 (minus system_power_balance)
                 # 1. eff_min
@@ -380,7 +384,11 @@ def eval_thermo(
 
     # C4: Max slope of ratio profile (gear capability proxy)
     static_limit = RATIO_SLOPE_LIMIT_FID1 if ctx.fidelity >= 1 else RATIO_SLOPE_LIMIT_FID0
-    slope_limit = min(static_limit, float(ratio_slope_limit)) if ratio_slope_limit is not None else static_limit
+    slope_limit = (
+        min(static_limit, float(ratio_slope_limit))
+        if ratio_slope_limit is not None
+        else static_limit
+    )
     g_slope = ratio_stats["max_slope"] - slope_limit
     constraints.append(g_slope)
 
@@ -399,7 +407,9 @@ def eval_thermo(
         "requested_ratio_profile": requested_ratio_profile,
         "ratio_profile_stats": ratio_stats,
         "ratio_slope_limit_used": float(slope_limit),
-        "ratio_slope_limit_source": "manufacturability" if ratio_slope_limit is not None else "static",
+        "ratio_slope_limit_source": "manufacturability"
+        if ratio_slope_limit is not None
+        else "static",
     }
 
     return ThermoResult(

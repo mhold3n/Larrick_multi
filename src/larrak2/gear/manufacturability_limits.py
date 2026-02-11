@@ -118,7 +118,9 @@ def _manufacturability_check(
         R_psi = synth["R_psi"]
         rho_c = np.asarray(synth["rho_c"], dtype=float)
 
-        if not (np.all(np.isfinite(psi)) and np.all(np.isfinite(R_psi)) and np.all(np.isfinite(rho_c))):
+        if not (
+            np.all(np.isfinite(psi)) and np.all(np.isfinite(R_psi)) and np.all(np.isfinite(rho_c))
+        ):
             return False
         if np.any(np.diff(psi) <= 0.0):
             return False
@@ -129,7 +131,9 @@ def _manufacturability_check(
             return False
 
         min_osculating_radius = float(np.min(np.abs(rho_c))) if rho_c.size else 0.0
-        if min_osculating_radius < (process.min_feature_radius_mm + process.kerf_mm * 0.5 + process.overcut_mm):
+        if min_osculating_radius < (
+            process.min_feature_radius_mm + process.kerf_mm * 0.5 + process.overcut_mm
+        ):
             return False
 
         geom = compute_gear_geometry(
