@@ -458,7 +458,11 @@ def v1_eval_thermo_forward(
     # C4: Ratio profile slope <= limit
     ratio_stats = _ratio_profile_stats(requested_ratio_profile)
     static_limit = RATIO_SLOPE_LIMIT_FID1
-    slope_limit = min(static_limit, float(ratio_slope_limit)) if ratio_slope_limit is not None else static_limit
+    slope_limit = (
+        min(static_limit, float(ratio_slope_limit))
+        if ratio_slope_limit is not None
+        else static_limit
+    )
     constraints["g_ratio_slope"] = ratio_stats["max_slope"] - slope_limit
 
     # Pack into array in fixed order
@@ -509,7 +513,9 @@ def v1_eval_thermo_forward(
         "phase_driven": True,
         "constraints": constraints,  # Explicit map
         "ratio_slope_limit_used": float(slope_limit),
-        "ratio_slope_limit_source": "manufacturability" if ratio_slope_limit is not None else "static",
+        "ratio_slope_limit_source": "manufacturability"
+        if ratio_slope_limit is not None
+        else "static",
     }
 
     return V1ThermoResult(
