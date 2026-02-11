@@ -48,6 +48,19 @@ def main(argv: list[str] | None = None) -> int:
         "--output", "--outdir", type=str, default=".", dest="output", help="Output directory"
     )
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
+    parser.add_argument(
+        "--algorithm",
+        type=str,
+        default="nsga2",
+        choices=["nsga2", "nsga3"],
+        help="Optimization algorithm",
+    )
+    parser.add_argument(
+        "--partitions",
+        type=int,
+        default=12,
+        help="Reference direction partitions (NSGA-III only)",
+    )
 
     # Breathing/BC/timing inputs for OpenFOAM NN (fidelity>=2)
     parser.add_argument("--bore-mm", type=float, default=80.0)
@@ -66,11 +79,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # Import here to avoid loading pymoo at module level
     from pymoo.algorithms.moo.nsga2 import NSGA2
+    from pymoo.algorithms.moo.nsga3 import NSGA3
     from pymoo.optimize import minimize
     from pymoo.termination import get_termination
+    from pymoo.util.ref_dirs import get_reference_directions
 
-    from ..adapters.pymoo_problem import ParetoProblem
-    from ..core.types import EvalContext
+    from larrak2.adapters.pymoo_problem import ParetoProblem
+    from larrak2.core.types import EvalContext
 
     # Setup
     output_dir = Path(args.output)
@@ -100,11 +115,38 @@ def main(argv: list[str] | None = None) -> int:
 
     problem = ParetoProblem(ctx=ctx)
 
-    algorithm = NSGA2(pop_size=args.pop)
+    if args.algorithm == "nsga3":
+        if problem.n_obj < 3:
+            # Not strictly required, but NSGA-III is usually for many-objective
+            pass
+
+        # Setup reference directions
+        ref_dirs = get_reference_directions(
+            "das-dennis", problem.n_obj, n_partitions=args.partitions
+        )
+
+        if args.verbose:
+            print(f"Reference directions: {len(ref_dirs)} points")
+
+        if args.pop < len(ref_dirs):
+            if args.verbose:
+                print(
+                    f"WARNING: Population size ({args.pop}) < Reference directions ({len(ref_dirs)})"
+                )
+                print("Increasing population size to match reference directions.")
+            args.pop = len(ref_dirs)
+
+        algorithm = NSGA3(
+            pop_size=args.pop,
+            ref_dirs=ref_dirs,
+            prob_neighbor_mating=0.7,
+        )
+    else:
+        algorithm = NSGA2(pop_size=args.pop)
     termination = get_termination("n_gen", args.gen)
 
     if args.verbose:
-        print(f"Starting NSGA-II: pop={args.pop}, gen={args.gen}")
+        print(f"Starting {args.algorithm.upper()}: pop={args.pop}, gen={args.gen}")
         print(f"Context: rpm={args.rpm}, torque={args.torque}, fidelity={args.fidelity}")
 
     # Run optimization

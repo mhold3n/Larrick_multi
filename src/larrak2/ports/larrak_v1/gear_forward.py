@@ -262,56 +262,6 @@ def compute_gear_geometry(
 
 # =============================================================================
 # Mesh friction loss (enhanced from toy model)
-# =============================================================================
-
-
-def compute_mesh_loss(
-    theta: np.ndarray,
-    r_planet: np.ndarray,
-    rho_c: np.ndarray,
-    omega_rpm: float,
-    torque: float,
-    mu: float = MU_MESH,
-) -> tuple[float, np.ndarray]:
-    """Compute mesh friction loss using Litvin-based sliding velocity.
-
-    Enhanced from toy model with proper sliding velocity from curvature.
-
-    Args:
-        theta: Angle array (radians).
-        r_planet: Planet radius profile (mm).
-        rho_c: Osculating radius (mm).
-        omega_rpm: Rotational speed (rpm).
-        torque: Torque (Nm).
-        mu: Friction coefficient.
-
-    Returns:
-        (total_loss_watts, loss_profile)
-    """
-    omega_rad = omega_rpm * 2 * np.pi / 60  # rad/s
-
-    # Convert to meters
-    r_m = r_planet / 1000
-    rho_m = np.abs(rho_c) / 1000
-
-    # Sliding velocity: v_slide ~ omega * |r - rho_c| (simplified Litvin)
-    v_sliding = omega_rad * np.abs(r_m - rho_m)
-
-    # Normal force from torque
-    fn = torque / np.maximum(np.mean(r_m), 1e-6)
-
-    # Power loss
-    loss_profile = mu * fn * v_sliding
-    loss_profile = np.maximum(loss_profile, 0.0)
-    total_loss = float(np.mean(loss_profile))
-    total_loss = max(total_loss, 0.0)
-
-    return total_loss, loss_profile
-
-
-# =============================================================================
-# Main forward-evaluation function
-# =============================================================================
 
 
 def v1_eval_gear_forward(

@@ -1,22 +1,10 @@
-#!/usr/bin/env python3
-"""Sensitivity scan and constraint activation analysis.
-
-Checks:
-A) Sensitivity: Perturb each thermo DOF ±1%, measure Δeff, Δp_max, Δwork, Δloss
-B) Constraint activation: How close are candidates to constraint limits?
-
-Usage:
-    python scripts/sensitivity_analysis.py
-"""
+"""Sensitivity and Constraint Analysis Logic."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import numpy as np
 
-from larrak2.core.encoding import bounds, decode_candidate, mid_bounds_candidate
+from larrak2.core.encoding import bounds, decode_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 
@@ -202,122 +190,3 @@ def constraint_activation_report(X: np.ndarray, ctx: EvalContext) -> dict:
         "constraint_stats": constraint_stats,
         "metric_distributions": metric_stats,
     }
-
-
-def main():
-    ctx = EvalContext(rpm=3000.0, torque=200.0, fidelity=1, seed=123)
-
-    print("=" * 70)
-    print("SENSITIVITY AND CONSTRAINT ACTIVATION ANALYSIS")
-    print("=" * 70)
-
-    # A) Sensitivity scan on mid-bounds candidate
-    print("\n[A] Sensitivity Scan (±1% perturbation on mid-bounds candidate)")
-    print("-" * 70)
-
-    x_mid = mid_bounds_candidate()
-    sens_results = sensitivity_scan(x_mid, ctx)
-
-    print("\nBase metrics:")
-    for k, v in sens_results["base_metrics"].items():
-        if k == "efficiency":
-            print(f"  {k}: {v:.4%}")
-        elif k in ["p_max", "W"]:
-            print(f"  {k}: {v:.2e}")
-        else:
-            print(f"  {k}: {v:.4f}")
-
-    print("\nSensitivity table (Δ for ±1% parameter change):")
-    print(f"{'Parameter':<25} {'Type':<8} {'Δeff%':<12} {'Δloss':<12} {'Δp_max':<12}")
-    print("-" * 70)
-
-    for s in sens_results["sensitivities"]:
-        d_eff = (s["d_efficiency_plus"] - s["d_efficiency_minus"]) / 2 * 100  # as percentage points
-        d_loss = (s["d_loss_plus"] - s["d_loss_minus"]) / 2
-        d_pmax = (s["d_p_max_plus"] - s["d_p_max_minus"]) / 2 / 1e5  # as bar
-        print(f"{s['param']:<25} {s['type']:<8} {d_eff:+.6f}% {d_loss:+.4e} {d_pmax:+.2f} bar")
-
-    # B) Constraint activation on Pareto front
-    print("\n" + "=" * 70)
-    print("[B] Constraint Activation Report")
-    print("-" * 70)
-
-    # Load Pareto front from diagnostic run
-    pareto_file = Path("diagnostic_results_v2/pareto_X.npy")
-    if pareto_file.exists():
-        X_pareto = np.load(pareto_file)
-        print(f"Analyzing {len(X_pareto)} Pareto solutions from diagnostic_results_v2/")
-    else:
-        # Fall back to mid-bounds and some random samples
-        print("Pareto file not found, using synthetic samples")
-        xl, xu = bounds()
-        rng = np.random.default_rng(123)
-        X_pareto = np.vstack(
-            [mid_bounds_candidate()] + [xl + rng.random(len(xl)) * (xu - xl) for _ in range(15)]
-        )
-
-    activation = constraint_activation_report(X_pareto, ctx)
-
-    print(f"\nConstraint activation (n={activation['n_candidates']} candidates):")
-    print(f"{'Constraint':<12} {'Description':<30} {'Mean':<10} {'Active%':<10} {'Violated'}")
-    print("-" * 80)
-
-    for stat in activation["constraint_stats"]:
-        print(
-            f"{stat['constraint']:<12} {stat['description']:<30} {stat['mean']:+.4f} "
-            f"{stat['pct_active']:>6.1f}% {stat['n_violated']}"
-        )
-
-    print("\nMetric distributions:")
-    for metric, stats in activation["metric_distributions"].items():
-        print(f"  {metric}:")
-        print(f"    range: [{stats['min']:.4f}, {stats['max']:.4f}]")
-        print(f"    mean:  {stats['mean']:.4f} ± {stats['std']:.4f}")
-        if "limit" in stats:
-            print(f"    limit: {stats['limit']}, headroom: {stats['headroom_pct']:.1f}%")
-
-    # Save results
-    output = {
-        "sensitivity": sens_results,
-        "activation": activation,
-    }
-
-    with open("sensitivity_analysis.json", "w") as f:
-        json.dump(output, f, indent=2)
-
-    print("\n" + "=" * 70)
-    print("INTERPRETATION")
-    print("=" * 70)
-
-    # Check for low thermo sensitivity
-    thermo_sens = [s for s in sens_results["sensitivities"] if s["type"] == "thermo"]
-    max_thermo_eff_sens = max(
-        abs((s["d_efficiency_plus"] - s["d_efficiency_minus"]) / 2) for s in thermo_sens
-    )
-
-    if max_thermo_eff_sens < 0.001:  # less than 0.1% change
-        print("\n⚠️  THERMO SENSITIVITY IS LOW:")
-        print("   The thermo DOFs have negligible effect on efficiency.")
-        print("   This explains the tight efficiency range in Pareto front.")
-        print("   → Need to reparameterize thermo or add more DOFs.")
-    else:
-        print(
-            f"\n✓  Thermo sensitivity: max Δeff = {max_thermo_eff_sens:.4%} per 1% parameter change"
-        )
-
-    # Check for constraint activation
-    active_constraints = [s for s in activation["constraint_stats"] if s["pct_active"] > 0]
-    if not active_constraints:
-        print("\n⚠️  NO CONSTRAINTS ARE ACTIVE:")
-        print("   All constraints have significant headroom.")
-        print("   Search is essentially unconstrained inside bounds.")
-        print("   → Consider tightening constraint limits.")
-    else:
-        print(f"\n✓  Active constraints: {[s['constraint'] for s in active_constraints]}")
-
-    print("\nResults saved to sensitivity_analysis.json")
-    print("=" * 70)
-
-
-if __name__ == "__main__":
-    main()

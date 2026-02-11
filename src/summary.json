@@ -1,0 +1,66 @@
+{
+  "n_pareto": 1,
+  "n_evals": 40,
+  "elapsed_s": 0.1448629540100228,
+  "pop_size": 20,
+  "n_gen": 2,
+  "rpm": 3000.0,
+  "torque": 200.0,
+  "fidelity": 0,
+  "seed": 42,
+  "encoding_version": "0.2",
+  "model_versions": {
+    "thermo_v1": "v1.1_20260128_phase_driven",
+    "gear_v1": "v1.0_20260125_initial"
+  },
+  "n_obj": 3,
+  "n_constr": 12,
+  "constraint_names": [
+    "thermo_compression_min",
+    "thermo_heat_release_width_min",
+    "thermo_ratio_jerk_max",
+    "thermo_ratio_slope_max",
+    "gear_ratio_error_max",
+    "gear_min_radius",
+    "gear_max_radius",
+    "gear_max_curvature",
+    "gear_interference",
+    "gear_min_thickness",
+    "gear_contact_ratio_min",
+    "gear_self_intersection"
+  ],
+  "constraint_scales": {
+    "thermo_compression_min": 10.0,
+    "thermo_heat_release_width_min": 10.0,
+    "thermo_ratio_jerk_max": 1000000.0,
+    "thermo_eff_min": 1.0,
+    "thermo_eff_max": 1.0,
+    "thermo_pmax_norm": 1.0,
+    "system_power_balance": 10000.0,
+    "gear_ratio_error_max": 1.0,
+    "gear_min_radius": 10.0,
+    "gear_max_radius": 10.0,
+    "gear_max_curvature": 0.5,
+    "gear_interference": 1.0,
+    "gear_min_thickness": 5.0,
+    "gear_contact_ratio_min": 1.0,
+    "gear_self_intersection": 1.0
+  },
+  "F_min": [
+    1.0,
+    1.0,
+    0.008399477235459751
+  ],
+  "F_max": [
+    1.0,
+    1.0,
+    0.008399477235459751
+  ],
+  "n_feasible": 1,
+  "feasible_fraction": 1.0,
+  "best_eta_comb": 0.0,
+  "best_eta_exp": 0.0,
+  "best_eta_gear": 0.9916005227645402,
+  "best_eta_total": 0.0,
+  "n_var": 13
+}

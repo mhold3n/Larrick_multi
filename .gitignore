@@ -3,7 +3,17 @@
 larrak2/out/
 larrak2/diagnostic_*/
 larrak2/results_*/
-!larrak2/out/.gitkeep
+outputs/
+runs/
+
+# Large Data
+data/
+models/
+openfoam_templates/
+
+# IDE
+.vscode/
+.idea/
 
 # System
 __pycache__/

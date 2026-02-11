@@ -11,7 +11,7 @@ except ImportError:
 
 
 class GearLossNetwork(nn.Module):
-    def __init__(self, input_dim: int = 8, hidden_dim: int = 64):
+    def __init__(self, input_dim: int = 8, hidden_dim: int = 64, output_dim: int = 3):
         """
         Inputs:
         1. RPM
@@ -28,7 +28,7 @@ class GearLossNetwork(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.LeakyReLU(),
-            nn.Linear(hidden_dim, 3),  # Outputs: Mesh, Bearing, Churning
+            nn.Linear(hidden_dim, output_dim),  # Outputs: Mesh, Bearing, Churning (or others)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

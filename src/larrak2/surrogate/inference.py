@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pickle
 import warnings
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -18,7 +19,17 @@ from larrak2.surrogate.features import (
     get_gear_schema_v1,
     get_scavenge_schema_v1,
 )
-from larrak2.surrogate.registry import get_model_path
+
+_MODEL_ROOT = Path("models/surrogate_v1")
+
+
+def _get_model_path(key: str) -> Path | None:
+    """Resolve model path by convention."""
+    for name in [f"model_{key}.pkl", f"{key}.pkl", f"{key}/model.pkl", f"{key}/best_model.pt"]:
+        p = _MODEL_ROOT / name
+        if p.exists():
+            return p
+    return None
 
 
 class SurrogateEngine:
@@ -40,7 +51,7 @@ class SurrogateEngine:
 
     def _load_model(self, key: str):
         """Load a specific model if available and valid."""
-        path = get_model_path(key)
+        path = _get_model_path(key)
         if not path:
             return
 
@@ -52,17 +63,21 @@ class SurrogateEngine:
             loaded_hash = ""
 
             # Case 1: Legacy Dict Artifact
-            if isinstance(artifact, dict) and "model" in artifact and "schema_hash" in artifact:
-                model = artifact["model"]
-                loaded_hash = artifact["schema_hash"]
+            if isinstance(artifact, dict):
+                if "model" in artifact and "schema_hash" in artifact:
+                    model = artifact["model"]
+                    loaded_hash = artifact["schema_hash"]
+                else:
+                    warnings.warn(f"Invalid dict artifact format for {key} at {path}")
+                    return
 
             # Case 2: EnsembleRegressor Object
             elif hasattr(artifact, "schema_hash") and hasattr(artifact, "predict"):
                 model = artifact
-                loaded_hash = artifact.schema_hash
+                loaded_hash = getattr(artifact, "schema_hash")  # type: ignore
 
             else:
-                warnings.warn(f"Invalid artifact format for {key} at {path}")
+                warnings.warn(f"Invalid artifact type for {key} at {path}: {type(artifact)}")
                 return
 
             # Verify Schema

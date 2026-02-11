@@ -1,52 +1,150 @@
-#!/usr/bin/env python3
-"""Diagnostic Pareto run at fidelity=1.
-
-Collects statistics to assess readiness for:
-- Constraint tightening
-- Fidelity promotion
-- Adding objectives
-
-Usage:
-    python scripts/diagnostic_pareto_run.py --pop 64 --gen 50 --fidelity 1
-
-Outputs:
-    diagnostic_results/
-    ├── run_summary.json      # Overall stats
-    ├── generation_stats.csv  # Per-generation metrics
-    ├── pareto_front.csv      # Final Pareto solutions
-    └── constraint_dist.csv   # Constraint violation distribution
-"""
+"""Analysis Workflows."""
 
 from __future__ import annotations
 
-import argparse
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
+from larrak2.adapters.pymoo_problem import ParetoProblem
+from larrak2.analysis.sensitivity import constraint_activation_report, sensitivity_scan
+from larrak2.core.encoding import bounds, mid_bounds_candidate
+from larrak2.core.evaluator import evaluate_candidate
+from larrak2.core.types import EvalContext
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Diagnostic Pareto run")
-    parser.add_argument("--pop", type=int, default=64, help="Population size")
-    parser.add_argument("--gen", type=int, default=50, help="Number of generations")
-    parser.add_argument("--rpm", type=float, default=3000.0, help="Engine speed")
-    parser.add_argument("--torque", type=float, default=200.0, help="Torque demand")
-    parser.add_argument("--fidelity", type=int, default=1, help="Model fidelity")
-    parser.add_argument("--seed", type=int, default=123, help="Random seed")
-    parser.add_argument("--outdir", type=str, default="diagnostic_results", help="Output dir")
-    args = parser.parse_args(argv)
 
+def sensitivity_workflow(args: Any) -> int:
+    """Run sensitivity analysis and constraint check."""
+    ctx = EvalContext(rpm=3000.0, torque=200.0, fidelity=1, seed=123)
+
+    print("=" * 70)
+    print("SENSITIVITY AND CONSTRAINT ACTIVATION ANALYSIS")
+    print("=" * 70)
+
+    # A) Sensitivity scan on mid-bounds candidate
+    print("\n[A] Sensitivity Scan (±1% perturbation on mid-bounds candidate)")
+    print("-" * 70)
+
+    x_mid = mid_bounds_candidate()
+    sens_results = sensitivity_scan(x_mid, ctx)
+
+    print("\nBase metrics:")
+    for k, v in sens_results["base_metrics"].items():
+        if k == "efficiency":
+            print(f"  {k}: {v:.4%}")
+        elif k in ["p_max", "W"]:
+            print(f"  {k}: {v:.2e}")
+        else:
+            print(f"  {k}: {v:.4f}")
+
+    print("\nSensitivity table (Δ for ±1% parameter change):")
+    print(f"{'Parameter':<25} {'Type':<8} {'Δeff%':<12} {'Δloss':<12} {'Δp_max':<12}")
+    print("-" * 70)
+
+    for s in sens_results["sensitivities"]:
+        d_eff = (s["d_efficiency_plus"] - s["d_efficiency_minus"]) / 2 * 100  # as percentage points
+        d_loss = (s["d_loss_plus"] - s["d_loss_minus"]) / 2
+        d_pmax = (s["d_p_max_plus"] - s["d_p_max_minus"]) / 2 / 1e5  # as bar
+        print(f"{s['param']:<25} {s['type']:<8} {d_eff:+.6f}% {d_loss:+.4e} {d_pmax:+.2f} bar")
+
+    # B) Constraint activation on Pareto front
+    print("\n" + "=" * 70)
+    print("[B] Constraint Activation Report")
+    print("-" * 70)
+
+    # Load Pareto front from diagnostic run if available
+    # Defaulting to diagnostic_results (default outdir for diagnostic run)
+    diagnostic_dir = Path("diagnostic_results")
+    pareto_file = diagnostic_dir / "pareto_X.npy"
+
+    if pareto_file.exists():
+        X_pareto = np.load(pareto_file)
+        print(f"Analyzing {len(X_pareto)} Pareto solutions from {diagnostic_dir}/")
+    else:
+        # Fall back to mid-bounds and some random samples
+        print("Pareto file not found, using synthetic samples")
+        xl, xu = bounds()
+        rng = np.random.default_rng(123)
+        X_pareto = np.vstack(
+            [mid_bounds_candidate()] + [xl + rng.random(len(xl)) * (xu - xl) for _ in range(15)]
+        )
+
+    activation = constraint_activation_report(X_pareto, ctx)
+
+    print(f"\nConstraint activation (n={activation['n_candidates']} candidates):")
+    print(f"{'Constraint':<12} {'Description':<30} {'Mean':<10} {'Active%':<10} {'Violated'}")
+    print("-" * 80)
+
+    for stat in activation["constraint_stats"]:
+        print(
+            f"{stat['constraint']:<12} {stat['description']:<30} {stat['mean']:+.4f} "
+            f"{stat['pct_active']:>6.1f}% {stat['n_violated']}"
+        )
+
+    print("\nMetric distributions:")
+    for metric, stats in activation["metric_distributions"].items():
+        print(f"  {metric}:")
+        print(f"    range: [{stats['min']:.4f}, {stats['max']:.4f}]")
+        print(f"    mean:  {stats['mean']:.4f} ± {stats['std']:.4f}")
+        if "limit" in stats:
+            print(f"    limit: {stats['limit']}, headroom: {stats['headroom_pct']:.1f}%")
+
+    # Save results
+    output = {
+        "sensitivity": sens_results,
+        "activation": activation,
+    }
+
+    with open("sensitivity_analysis.json", "w") as f:
+        json.dump(output, f, indent=2)
+
+    print("\n" + "=" * 70)
+    print("INTERPRETATION")
+    print("=" * 70)
+
+    # Check for low thermo sensitivity
+    thermo_sens = [s for s in sens_results["sensitivities"] if s["type"] == "thermo"]
+    if thermo_sens:
+        max_thermo_eff_sens = max(
+            abs((s["d_efficiency_plus"] - s["d_efficiency_minus"]) / 2) for s in thermo_sens
+        )
+
+        if max_thermo_eff_sens < 0.001:  # less than 0.1% change
+            print("\n⚠️  THERMO SENSITIVITY IS LOW:")
+            print("   The thermo DOFs have negligible effect on efficiency.")
+            print("   This explains the tight efficiency range in Pareto front.")
+            print("   → Need to reparameterize thermo or add more DOFs.")
+        else:
+            print(
+                f"\n✓  Thermo sensitivity: max Δeff = {max_thermo_eff_sens:.4%} per 1% parameter change"
+            )
+
+    # Check for constraint activation
+    active_constraints = [s for s in activation["constraint_stats"] if s["pct_active"] > 0]
+    if not active_constraints:
+        print("\n⚠️  NO CONSTRAINTS ARE ACTIVE:")
+        print("   All constraints have significant headroom.")
+        print("   Search is essentially unconstrained inside bounds.")
+        print("   → Consider tightening constraint limits.")
+    else:
+        print(f"\n✓  Active constraints: {[s['constraint'] for s in active_constraints]}")
+
+    print("\nResults saved to sensitivity_analysis.json")
+    print("=" * 70)
+
+    return 0
+
+
+def diagnostic_workflow(args: Any) -> int:
+    """Run diagnostic Pareto optimization."""
     # Lazy imports
     from pymoo.algorithms.moo.nsga2 import NSGA2
     from pymoo.core.callback import Callback
     from pymoo.optimize import minimize
     from pymoo.termination import get_termination
-
-    from larrak2.adapters.pymoo_problem import ParetoProblem
-    from larrak2.core.evaluator import evaluate_candidate
-    from larrak2.core.types import EvalContext
 
     output_dir = Path(args.outdir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -65,7 +163,6 @@ def main(argv: list[str] | None = None) -> int:
         def __init__(self):
             super().__init__()
             self.gen_stats = []
-            self.eval_times = []
 
         def notify(self, algorithm):
             gen = algorithm.n_gen
@@ -211,6 +308,9 @@ def main(argv: list[str] | None = None) -> int:
             for i in range(n_pareto):
                 feasible = "1" if np.all(G_pareto[i] <= 0) else "0"
                 f.write(f"{i},{F[i, 0]},{F[i, 1]},{feasible}\n")
+    
+    # Save arrays for reuse by sensitivity analysis
+    np.save(output_dir / "pareto_X.npy", X)
 
     # Constraint distribution CSV
     if n_pareto > 0:
@@ -262,9 +362,3 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 60)
 
     return 0
-
-
-if __name__ == "__main__":
-    import sys
-
-    sys.exit(main())
