@@ -48,7 +48,9 @@ def _cache_key(
     h = hashlib.sha256()
     h.update(np.asarray(theta, dtype=np.float64).tobytes())
     h.update(np.asarray(r_planet, dtype=np.float64).tobytes())
-    h.update(f"{wire_d_mm},{overcut_mm},{corner_margin_mm},{min_ligament_mm},{voxel_size_mm}".encode())
+    h.update(
+        f"{wire_d_mm},{overcut_mm},{corner_margin_mm},{min_ligament_mm},{voxel_size_mm}".encode()
+    )
     return h.hexdigest()
 
 
@@ -86,27 +88,40 @@ def evaluate_manufacturability(
         b_max_survivable_mm, area_original_mm2, area_after_inset_mm2,
         component_count_after_inset, voxel_resolution_mm, notes.
     """
-    key = _cache_key(theta, r_planet, wire_d_mm, overcut_mm, corner_margin_mm, min_ligament_mm, voxel_size_mm)
+    key = _cache_key(
+        theta, r_planet, wire_d_mm, overcut_mm, corner_margin_mm, min_ligament_mm, voxel_size_mm
+    )
     if key in _ORACLE_CACHE:
         logger.debug("PicoGK oracle cache hit")
         return _ORACLE_CACHE[key]
 
-    process_params = process_params_to_dict(wire_d_mm, overcut_mm, corner_margin_mm, min_ligament_mm)
+    process_params = process_params_to_dict(
+        wire_d_mm, overcut_mm, corner_margin_mm, min_ligament_mm
+    )
 
     with tempfile.TemporaryDirectory(prefix="picogk_") as tmpdir:
         input_path = Path(tmpdir) / "profile.json"
         export_profile_json(
-            theta, r_planet, process_params, input_path,
-            R_psi=R_psi, psi=psi,
+            theta,
+            r_planet,
+            process_params,
+            input_path,
+            R_psi=R_psi,
+            psi=psi,
         )
 
         cmd = [
-            "dotnet", "run",
-            "--project", str(_ORACLE_PROJECT),
+            "dotnet",
+            "run",
+            "--project",
+            str(_ORACLE_PROJECT),
             "--",
-            "--input", str(input_path),
-            "--voxel-size", str(voxel_size_mm),
-            "--slab-thickness", str(slab_thickness_mm),
+            "--input",
+            str(input_path),
+            "--voxel-size",
+            str(voxel_size_mm),
+            "--slab-thickness",
+            str(slab_thickness_mm),
         ]
 
         logger.debug("Running PicoGK oracle: %s", " ".join(cmd))

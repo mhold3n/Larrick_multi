@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 if TYPE_CHECKING:
     from ..core.encoding import GearParams
-
 
 
 logger = logging.getLogger(__name__)
@@ -200,10 +199,7 @@ def _build_all_candidates(
 
     Returns list of (shape_name, ratio_profile) tuples.
     """
-    return [
-        (name, _build_profile(theta, duration_deg, amplitude, name))
-        for name in PROFILE_NAMES
-    ]
+    return [(name, _build_profile(theta, duration_deg, amplitude, name)) for name in PROFILE_NAMES]
 
 
 # ============================================================================
@@ -271,10 +267,10 @@ def _surrogate_check(
     d2_ratio = np.gradient(d_ratio, theta)
     if not np.all(np.isfinite(d2_ratio)):
         return False
-    
+
     max_d1 = float(np.max(np.abs(d_ratio)))
     max_d2 = float(np.max(np.abs(d2_ratio)))
-    
+
     # Limits for stability screen:
     # d1 ~ 10.0 allows steep ramps but catches infinite spikes.
     # d2 ~ 50.0 allows tight turns but catches cusp-forming acceleration.
@@ -298,7 +294,7 @@ def _surrogate_check(
 
     min_rho = float(np.min(rho))
     min_allowed_rho = process.min_feature_radius_mm + process.kerf_mm * 0.5 + process.overcut_mm
-    
+
     if min_rho < min_allowed_rho:
         return False
 
@@ -340,6 +336,7 @@ def _manufacturability_check(
     """
     try:
         from ..ports.larrak_v1.gear_forward import compute_gear_geometry, litvin_synthesize
+
         ratio_safe = np.maximum(np.asarray(ratio_profile, dtype=float), 1e-6)
         r_planet = RING_RADIUS_MM / ratio_safe
 
@@ -347,19 +344,24 @@ def _manufacturability_check(
             return False
 
         synth = litvin_synthesize(
-            theta, r_planet,
+            theta,
+            r_planet,
             target_ratio=float(RING_RADIUS_MM / np.mean(r_planet)),
         )
         psi = synth["psi"]
         R_psi = synth["R_psi"]
         rho_c = np.asarray(synth["rho_c"], dtype=float)
 
-        if not (np.all(np.isfinite(psi)) and np.all(np.isfinite(R_psi)) and np.all(np.isfinite(rho_c))):
+        if not (
+            np.all(np.isfinite(psi)) and np.all(np.isfinite(R_psi)) and np.all(np.isfinite(rho_c))
+        ):
             return False
 
         # Osculating radius bound — curvature must support tooling
         min_osculating_radius = float(np.min(np.abs(rho_c))) if rho_c.size else 0.0
-        if min_osculating_radius < (process.min_feature_radius_mm + process.kerf_mm * 0.5 + process.overcut_mm):
+        if min_osculating_radius < (
+            process.min_feature_radius_mm + process.kerf_mm * 0.5 + process.overcut_mm
+        ):
             return False
 
         # Full gear geometry check
@@ -517,7 +519,9 @@ def _three_phase_scan(
         for amp in amps:
             point_passed = False
 
-            for shape_name, ratio_profile in _build_all_candidates(theta, float(duration_deg), float(amp)):
+            for shape_name, ratio_profile in _build_all_candidates(
+                theta, float(duration_deg), float(amp)
+            ):
                 # Phase 1 — mathematical surrogate (centrode geometry)
                 if not _surrogate_check(theta, ratio_profile, process):
                     continue
@@ -584,4 +588,3 @@ def _three_phase_scan(
             "total_litvin_calls": total_litvin,
         },
     )
-
