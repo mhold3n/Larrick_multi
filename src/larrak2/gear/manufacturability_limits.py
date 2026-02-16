@@ -232,7 +232,7 @@ def _surrogate_check(
     """Reduced Litvin-Consistent Geometric Analysis.
 
     Evaluates the geometric invariants that control the conjugate envelope.
-    
+
     Args:
         theta: Angle grid.
         ratio_profile: Ratio profile.
@@ -494,9 +494,10 @@ def _three_phase_scan(
     # We flatten the loops to collect all candidates that pass the surrogate.
     # Store: (duration_idx, amp_idx, shape_name, ratio_profile, amp_val)
     candidates = []
-    
+
     # Process params dict for adapter
     from .profile_export import process_params_to_dict
+
     proc_dict = process_params_to_dict(
         process.kerf_mm, process.overcut_mm, 0.0, process.min_ligament_mm
     )
@@ -511,73 +512,77 @@ def _three_phase_scan(
             ):
                 if _surrogate_check(theta, ratio_profile, process, strict=strict_surrogate):
                     surrogate_pass_counts[i] += 1
-                    
+
                     # Prepare data for next phases
-                    # Calculate r_planet now or later? 
+                    # Calculate r_planet now or later?
                     # Adapter expects r_planet.
                     ratio_safe = np.maximum(np.asarray(ratio_profile, dtype=float), 1e-6)
                     r_planet = RING_RADIUS_MM / ratio_safe
-                    
-                    candidates.append({
-                        "dur_idx": i,
-                        "amp_idx": j,
-                        "shape_name": shape_name,
-                        "ratio_profile": ratio_profile,
-                        "amp_val": float(amp),
-                        "r_planet": r_planet,
-                        # Batch adapter inputs
-                        "theta": theta,
-                        "wire_d_mm": process.kerf_mm,
-                        "overcut_mm": process.overcut_mm,
-                        "min_ligament_mm": process.min_ligament_mm,
-                        "process": proc_dict # Optimization: pass pre-built dict
-                    })
+
+                    candidates.append(
+                        {
+                            "dur_idx": i,
+                            "amp_idx": j,
+                            "shape_name": shape_name,
+                            "ratio_profile": ratio_profile,
+                            "amp_val": float(amp),
+                            "r_planet": r_planet,
+                            # Batch adapter inputs
+                            "theta": theta,
+                            "wire_d_mm": process.kerf_mm,
+                            "overcut_mm": process.overcut_mm,
+                            "min_ligament_mm": process.min_ligament_mm,
+                            "process": proc_dict,  # Optimization: pass pre-built dict
+                        }
+                    )
 
     # --- Phase 2: PicoGK Batch ---
     # Result mask: default True (if pico disabled).
     # If enabled, we run batch.
     pico_results = [True] * len(candidates)
-    
+
     if _PICOGK_ENABLED and candidates:
         from .picogk_adapter import evaluate_manufacturability_batch
-        
+
         logger.info("Phase 2: Running PicoGK batch for %d candidates", len(candidates))
         try:
-            # Adapter expects list of dicts with specific keys. 
+            # Adapter expects list of dicts with specific keys.
             # Our candidate dict has extras, but adapter extracts what it needs?
-            # actually adapter iterates and looks for keys. 
+            # actually adapter iterates and looks for keys.
             # 'process' key is handled optimised.
-            
+
             results = evaluate_manufacturability_batch(candidates)
-            
+
             # Map back: adapter returns list of result dicts in order
             pico_results = [bool(r.get("passed", False)) for r in results]
-            
+
         except Exception as e:
-            logger.warning("PicoGK batch failed: %s. Treating all %d as PASS (Fail-Open)", e, len(candidates))
+            logger.warning(
+                "PicoGK batch failed: %s. Treating all %d as PASS (Fail-Open)", e, len(candidates)
+            )
             # Fail-open: all passed
             pico_results = [True] * len(candidates)
 
     # --- Phase 3: Litvin & Aggregation ---
     for k, cand in enumerate(candidates):
         dur_idx = cand["dur_idx"]
-        
+
         if pico_results[k]:
             picogk_pass_counts[dur_idx] += 1
             litvin_call_counts[dur_idx] += 1
-            
+
             if _manufacturability_check(theta, cand["ratio_profile"], process):
                 shape_pass_counts[cand["shape_name"]] += 1
                 pass_counts[dur_idx] += 1
-                
+
                 # Update max feasible for this duration
                 amp_val = cand["amp_val"]
                 current_max = feasible_delta[dur_idx]
                 if abs(amp_val) > current_max:
-                   feasible_delta[dur_idx] = abs(amp_val)
-                   # Re-calc slope
-                   duration_rad = np.deg2rad(max(float(durations[dur_idx]), 1e-6))
-                   feasible_slope[dur_idx] = abs(amp_val) * np.pi / duration_rad
+                    feasible_delta[dur_idx] = abs(amp_val)
+                    # Re-calc slope
+                    duration_rad = np.deg2rad(max(float(durations[dur_idx]), 1e-6))
+                    feasible_slope[dur_idx] = abs(amp_val) * np.pi / duration_rad
 
     # n_shapes was removed in refactor, restore it
     n_shapes = len(PROFILE_NAMES)
