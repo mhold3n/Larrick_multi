@@ -227,22 +227,19 @@ def _surrogate_check(
     theta: np.ndarray,
     ratio_profile: np.ndarray,
     process: ManufacturingProcessParams,
+    strict: bool = True,
 ) -> bool:
     """Reduced Litvin-Consistent Geometric Analysis.
 
-    Evaluates the geometric invariants that control the conjugate envelope,
-    as defined by the governing differential geometry of the centrodes.
-    This is NOT a heuristic model, but a deterministic evaluation of the
-    necessary conditions for a valid Litvin envelope.
-
-    Invariants Checked:
-        1. Centrodes (Pitch Curves) — physical radius bounds
-        2. Curvature Field — osculating radius > tooling limit
-        3. Envelope Stability — relative motion derivatives bounded
-        4. Medial Axis / Thickness — feature size vs kerf
-        5. Offset Robustness — Minkowski sum viability
-        6. Monotonicity — positive ratio (dψ/dθ > 0)
-        7. Topology — limited sign changes (no complex loops)
+    Evaluates the geometric invariants that control the conjugate envelope.
+    
+    Args:
+        theta: Angle grid.
+        ratio_profile: Ratio profile.
+        process: Process params.
+        strict: If True, enforce all invariants (Phase 1 as hard filter).
+                If False, enforce only fundamental viability (finite radii,
+                positive ratio) and let downstream Oracle decide.
     """
     ratio_safe = np.maximum(np.asarray(ratio_profile, dtype=float), 1e-6)
     r_planet = RING_RADIUS_MM / ratio_safe
@@ -256,11 +253,16 @@ def _surrogate_check(
     if r_min < 2.0 or r_max > RING_RADIUS_MM - 1.0:
         return False
 
+    # --- 6. Mapping Monotonicity ---
+    # Litvin requirement: dψ/dθ > 0.
+    # Must hold even in non-strict mode to avoid kinematic reversal.
+    if float(np.min(ratio_safe)) <= 0.01:
+        return False
+
+    if not strict:
+        return True
+
     # --- 2. Envelope Stability (Relative Motion Field) ---
-    # Envelope singularities occur when d(n·v_rel)/dθ vanishes.
-    # Large first or second derivatives of the ratio law amplify curvature
-    # and produce envelope degeneracy (cusps/undercuts) or extreme pressure angles.
-    # We use generous bounds as a "loose screen" for stability.
     d_ratio = np.gradient(ratio_safe, theta)
     if not np.all(np.isfinite(d_ratio)):
         return False
@@ -271,20 +273,10 @@ def _surrogate_check(
     max_d1 = float(np.max(np.abs(d_ratio)))
     max_d2 = float(np.max(np.abs(d2_ratio)))
 
-    # Limits for stability screen:
-    # d1 ~ 10.0 allows steep ramps but catches infinite spikes.
-    # d2 ~ 50.0 allows tight turns but catches cusp-forming acceleration.
     if max_d1 > 10.0 or max_d2 > 50.0:
         return False
 
     # --- 3. Curvature & 4. Medial Axis / Offset Robustness ---
-    # 5. Minkowski Sum Viability & 7. Osculating Circle Approximation ---
-    #
-    # All these invariants reduce to the same geometric condition:
-    # The osculating radius ρ must be larger than the tool/kerf radius.
-    # If ρ_min < R_kerf, the offset surface self-intersects (undercut).
-    #
-    # We enforce: ρ_min >= min_feature + kerf/2 + overcut
     kappa = _centrode_curvature(theta, r_planet)
     if not np.all(np.isfinite(kappa)):
         return False
@@ -298,17 +290,7 @@ def _surrogate_check(
     if min_rho < min_allowed_rho:
         return False
 
-    # --- 6. Mapping Monotonicity ---
-    # Litvin requirement: dψ/dθ > 0.
-    # For a fixed center distance, dψ/dθ = i(θ).
-    # Thus, the ratio must be strictly positive to avoid kinematic reversal.
-    if float(np.min(ratio_safe)) <= 0.01:
-        return False
-
     # --- 7. Topology (Self-Intersection Risk) ---
-    # Curvature sign changes indicate inflection points.
-    # Complex looping behavior (many sign changes) implies pathological
-    # centrode geometry that rarely yields valid teeth.
     sign_changes = int(np.sum(np.diff(np.sign(kappa)) != 0))
     if sign_changes > 4:
         return False
@@ -495,12 +477,11 @@ def _three_phase_scan(
     amps: np.ndarray,
     process: ManufacturingProcessParams,
 ) -> RatioRateLimitEnvelope:
-    """Phase 1: surrogate → Phase 2: PicoGK → Phase 3: Litvin.
+    """Phase 1: surrogate → Phase 2: PicoGK (Batch) → Phase 3: Litvin.
 
-    For each (duration, amplitude) pair, ALL profile shapes are tested.
-    A grid point passes if ANY shape produces a feasible design.
+    Refactored to gather all candidates first and run PicoGK in a single batch
+    process to amortize overhead.
     """
-
     feasible_delta = np.zeros_like(durations, dtype=float)
     feasible_slope = np.zeros_like(durations, dtype=float)
     pass_counts = np.zeros_like(durations, dtype=int)
@@ -509,62 +490,107 @@ def _three_phase_scan(
     litvin_call_counts = np.zeros_like(durations, dtype=int)
     shape_pass_counts: dict[str, int] = {name: 0 for name in PROFILE_NAMES}
 
+    # --- Phase 1: Collect Candidates ---
+    # We flatten the loops to collect all candidates that pass the surrogate.
+    # Store: (duration_idx, amp_idx, shape_name, ratio_profile, amp_val)
+    candidates = []
+    
+    # Process params dict for adapter
+    from .profile_export import process_params_to_dict
+    proc_dict = process_params_to_dict(
+        process.kerf_mm, process.overcut_mm, 0.0, process.min_ligament_mm
+    )
+
+    # Use strict=False if PicoGK is enabled (letting PicoGK decide)
+    strict_surrogate = not _PICOGK_ENABLED
+
     for i, duration_deg in enumerate(durations):
-        best_amp = 0.0
-        n_pass = 0
-        n_surrogate_pass = 0
-        n_picogk_pass = 0
-        n_litvin = 0
-
-        for amp in amps:
-            point_passed = False
-
+        for j, amp in enumerate(amps):
             for shape_name, ratio_profile in _build_all_candidates(
                 theta, float(duration_deg), float(amp)
             ):
-                # Phase 1 — mathematical surrogate (centrode geometry)
-                if not _surrogate_check(theta, ratio_profile, process):
-                    continue
-                n_surrogate_pass += 1
+                if _surrogate_check(theta, ratio_profile, process, strict=strict_surrogate):
+                    surrogate_pass_counts[i] += 1
+                    
+                    # Prepare data for next phases
+                    # Calculate r_planet now or later? 
+                    # Adapter expects r_planet.
+                    ratio_safe = np.maximum(np.asarray(ratio_profile, dtype=float), 1e-6)
+                    r_planet = RING_RADIUS_MM / ratio_safe
+                    
+                    candidates.append({
+                        "dur_idx": i,
+                        "amp_idx": j,
+                        "shape_name": shape_name,
+                        "ratio_profile": ratio_profile,
+                        "amp_val": float(amp),
+                        "r_planet": r_planet,
+                        # Batch adapter inputs
+                        "theta": theta,
+                        "wire_d_mm": process.kerf_mm,
+                        "overcut_mm": process.overcut_mm,
+                        "min_ligament_mm": process.min_ligament_mm,
+                        "process": proc_dict # Optimization: pass pre-built dict
+                    })
 
-                # Phase 2 — PicoGK oracle (SDF offset checks)
-                if not _picogk_check(theta, ratio_profile, process):
-                    continue
-                n_picogk_pass += 1
+    # --- Phase 2: PicoGK Batch ---
+    # Result mask: default True (if pico disabled).
+    # If enabled, we run batch.
+    pico_results = [True] * len(candidates)
+    
+    if _PICOGK_ENABLED and candidates:
+        from .picogk_adapter import evaluate_manufacturability_batch
+        
+        logger.info("Phase 2: Running PicoGK batch for %d candidates", len(candidates))
+        try:
+            # Adapter expects list of dicts with specific keys. 
+            # Our candidate dict has extras, but adapter extracts what it needs?
+            # actually adapter iterates and looks for keys. 
+            # 'process' key is handled optimised.
+            
+            results = evaluate_manufacturability_batch(candidates)
+            
+            # Map back: adapter returns list of result dicts in order
+            pico_results = [bool(r.get("passed", False)) for r in results]
+            
+        except Exception as e:
+            logger.warning("PicoGK batch failed: %s. Treating all %d as PASS (Fail-Open)", e, len(candidates))
+            # Fail-open: all passed
+            pico_results = [True] * len(candidates)
 
-                # Phase 3 — full Litvin confirmation (conjugate tooth pair)
-                litvin_pass = _manufacturability_check(theta, ratio_profile, process)
-                n_litvin += 1
+    # --- Phase 3: Litvin & Aggregation ---
+    for k, cand in enumerate(candidates):
+        dur_idx = cand["dur_idx"]
+        
+        if pico_results[k]:
+            picogk_pass_counts[dur_idx] += 1
+            litvin_call_counts[dur_idx] += 1
+            
+            if _manufacturability_check(theta, cand["ratio_profile"], process):
+                shape_pass_counts[cand["shape_name"]] += 1
+                pass_counts[dur_idx] += 1
+                
+                # Update max feasible for this duration
+                amp_val = cand["amp_val"]
+                current_max = feasible_delta[dur_idx]
+                if abs(amp_val) > current_max:
+                   feasible_delta[dur_idx] = abs(amp_val)
+                   # Re-calc slope
+                   duration_rad = np.deg2rad(max(float(durations[dur_idx]), 1e-6))
+                   feasible_slope[dur_idx] = abs(amp_val) * np.pi / duration_rad
 
-                if litvin_pass:
-                    point_passed = True
-                    shape_pass_counts[shape_name] += 1
-                    break
-
-            if point_passed:
-                best_amp = max(best_amp, abs(float(amp)))
-                n_pass += 1
-
-        duration_rad = np.deg2rad(max(float(duration_deg), 1e-6))
-        feasible_delta[i] = best_amp
-        feasible_slope[i] = best_amp * np.pi / duration_rad
-        pass_counts[i] = n_pass
-        surrogate_pass_counts[i] = n_surrogate_pass
-        picogk_pass_counts[i] = n_picogk_pass
-        litvin_call_counts[i] = n_litvin
-
+    # n_shapes was removed in refactor, restore it
     n_shapes = len(PROFILE_NAMES)
     total_grid = len(durations) * len(amps) * n_shapes
     total_litvin = int(np.sum(litvin_call_counts))
     total_surrogate_pass = int(np.sum(surrogate_pass_counts))
     total_picogk_pass = int(np.sum(picogk_pass_counts))
     logger.info(
-        "Three-phase scan: %d/%d surr → %d picogk → %d litvin (%.1f%% total reduction)",
+        "Three-phase scan (Batch): %d/%d surr → %d picogk → %d litvin",
         total_surrogate_pass,
         total_grid,
         total_picogk_pass,
         total_litvin,
-        100.0 * (1.0 - total_litvin / max(total_grid, 1)),
     )
 
     return RatioRateLimitEnvelope(

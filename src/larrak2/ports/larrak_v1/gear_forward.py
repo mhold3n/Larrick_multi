@@ -239,7 +239,7 @@ def compute_gear_geometry(
     # Path of contact
     phi_bound = np.radians(max_pressure_angle_deg)
     valid = np.isfinite(phi_local) & (phi_local <= phi_bound)
-    s_path = float(np.trapz(ring_radii[valid], psi[valid])) if np.any(valid) else 0.0
+    s_path = float(np.trapezoid(ring_radii[valid], psi[valid])) if np.any(valid) else 0.0
 
     # Contact ratio
     circular_pitch = (2.0 * np.pi * r_ring_avg) / max(z_ring, 1)

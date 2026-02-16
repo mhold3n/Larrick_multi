@@ -87,18 +87,48 @@ static class Program
 
         try
         {
-            var result = RunOracle(inputPath, voxelSize, slabThickness);
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
+            // Initialize PicoGK once for the session
+            using var lib = new Library(voxelSize);
+
+            // Read and parse JSON
+            var jsonText = File.ReadAllText(inputPath);
+            var doc = JsonDocument.Parse(jsonText);
+            var root = doc.RootElement;
+
+            var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-            });
-            Console.WriteLine(json);
+            };
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                // Batch mode
+                var inputs = JsonSerializer.Deserialize<List<ProfileInput>>(jsonText, options) 
+                             ?? new List<ProfileInput>();
+                var results = new List<OracleResult>();
+
+                foreach (var input in inputs)
+                {
+                    results.Add(EvaluateProfile(input, lib, voxelSize, slabThickness));
+                }
+                Console.WriteLine(JsonSerializer.Serialize(results, options));
+            }
+            else
+            {
+                // Single mode (legacy)
+                var input = JsonSerializer.Deserialize<ProfileInput>(jsonText, options)
+                            ?? throw new ArgumentException("Invalid profile input");
+                var result = EvaluateProfile(input, lib, voxelSize, slabThickness);
+                Console.WriteLine(JsonSerializer.Serialize(result, options));
+            }
+
             return 0;
         }
         catch (Exception ex)
         {
             // Fail closed: any exception means infeasible
+            Console.Error.WriteLine($"Fatal Error: {ex}");
             var failResult = new OracleResult(
                 Passed: false,
                 KerfBufferMm: 0f,
@@ -110,6 +140,9 @@ static class Program
                 VoxelResolutionMm: voxelSize,
                 Notes: new[] { $"Exception: {ex.Message}" }
             );
+            // In batch mode, we might want to return a list of fails, but for fatal crash just return one fail object
+            // or let the caller handle the non-zero exit.
+            // For now, print a single fail result to stdout so parsing might survive if it was single mode.
             Console.WriteLine(JsonSerializer.Serialize(failResult, new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -119,20 +152,12 @@ static class Program
         }
     }
 
-    static OracleResult RunOracle(string inputPath, float voxelSize, float slabThickness)
+    static OracleResult EvaluateProfile(ProfileInput input, Library lib, float voxelSize, float slabThickness)
     {
-        // Read and parse JSON
-        var jsonText = File.ReadAllText(inputPath);
-        var doc = JsonDocument.Parse(jsonText);
-        var root = doc.RootElement;
-
-        var process = ParseProcess(root.GetProperty("process"));
-        var outerPoints = ParsePolyline(root.GetProperty("outer"));
-
+        var process = input.Process;
+        var outerPoints = ToVector2(input.Outer);
+        
         var notes = new List<string>();
-
-        // Initialize PicoGK in headless mode
-        using var lib = new Library(voxelSize);
 
         // Build mesh: extrude 2D polygon into slab
         var mesh = ExtrudePolygon(outerPoints, slabThickness);
@@ -144,18 +169,27 @@ static class Program
         }
 
         // Voxelize
-        var voxOriginal = new Voxels(mesh);
+        // Note: Voxels constructor takes a Mesh. 
+        using var voxOriginal = new Voxels(mesh);
 
         // Compute original area (approximate from bounding box cross-section)
-        var bbox = voxOriginal.mshAsMesh().oBoundingBox();
         float areaOriginal = EstimateCrossSectionArea(voxOriginal, voxelSize, slabThickness);
 
         // --- Check A: Inward offset survival ---
         float kerfBuffer = process.KerfBufferMm;
-        var voxInset = voxOriginal.voxOffset(-kerfBuffer);
-        var meshInset = voxInset.mshAsMesh();
-        bool emptyAfterInset = meshInset.nTriangleCount() == 0;
-        float areaAfterInset = emptyAfterInset ? 0f : EstimateCrossSectionArea(voxInset, voxelSize, slabThickness);
+        
+        bool emptyAfterInset;
+        float areaAfterInset = 0f;
+        
+        using (var voxInset = voxOriginal.voxOffset(-kerfBuffer))
+        {
+            var meshInset = voxInset.mshAsMesh();
+            emptyAfterInset = meshInset.nTriangleCount() == 0;
+            if (!emptyAfterInset)
+            {
+                areaAfterInset = EstimateCrossSectionArea(voxInset, voxelSize, slabThickness);
+            }
+        }
 
         if (emptyAfterInset)
         {
@@ -190,8 +224,7 @@ static class Program
         }
 
         // --- Check D: Gap collapse (simplified) ---
-        // Test if a slight inset causes topology change (merging)
-        int componentCount = 1; // Approximate — PicoGK doesn't expose component count directly
+        int componentCount = 1; 
         notes.Add("Check D: gap collapse check (single-body assumption)");
 
         bool passed = !emptyAfterInset && ligamentOk && radiusOk;
@@ -209,6 +242,16 @@ static class Program
         );
     }
 
+    static Vector2[] ToVector2(float[][] points)
+    {
+        var result = new Vector2[points.Length];
+        for (int i = 0; i < points.Length; i++)
+        {
+            result[i] = new Vector2(points[i][0], points[i][1]);
+        }
+        return result;
+    }
+
     /// <summary>
     /// Binary search for the largest inward offset where the shape remains non-empty.
     /// </summary>
@@ -221,7 +264,8 @@ static class Program
         for (int i = 0; i < maxIter; i++)
         {
             float mid = (lo + hi) / 2f;
-            var voxTest = voxOriginal.voxOffset(-mid);
+            
+            using var voxTest = voxOriginal.voxOffset(-mid);
             var meshTest = voxTest.mshAsMesh();
             bool nonEmpty = meshTest.nTriangleCount() > 0;
 
@@ -257,7 +301,7 @@ static class Program
 
     /// <summary>
     /// Extrude a 2D polygon (closed polyline) into a 3D triangulated mesh slab.
-    /// The polygon lies in the XY plane, extruded along Z.
+    /// Uses center-point fan triangulation for caps, assuming star-shaped polygon (valid for gears).
     /// </summary>
     static Mesh ExtrudePolygon(Vector2[] points, float height)
     {
@@ -272,7 +316,16 @@ static class Program
         float zLo = 0f;
         float zHi = height;
 
-        // Add bottom and top vertices
+        // Compute centroid for cap triangulation
+        Vector2 center = Vector2.Zero;
+        for (int i = 0; i < n; i++) center += points[i];
+        center /= n;
+
+        // Add center vertices
+        int bottomCenter = mesh.nAddVertex(new Vector3(center.X, center.Y, zLo));
+        int topCenter = mesh.nAddVertex(new Vector3(center.X, center.Y, zHi));
+
+        // Add perimeter vertices
         int[] bottomVerts = new int[n];
         int[] topVerts = new int[n];
         for (int i = 0; i < n; i++)
@@ -286,19 +339,29 @@ static class Program
         {
             int j = (i + 1) % n;
             // Two triangles for the quad
+            // Winding: CCW from outside
             mesh.nAddTriangle(bottomVerts[i], bottomVerts[j], topVerts[j]);
             mesh.nAddTriangle(bottomVerts[i], topVerts[j], topVerts[i]);
         }
 
-        // Top and bottom caps using fan triangulation
-        // (Assumes convex-ish polygon; for non-convex, ear clipping would be needed,
-        //  but gear profiles are generally star-shaped around origin)
-        for (int i = 1; i < n - 1; i++)
+        // Top and bottom caps using center fan
+        for (int i = 0; i < n; i++)
         {
-            // Bottom (winding: clockwise from below = CCW from above)
-            mesh.nAddTriangle(bottomVerts[0], bottomVerts[i + 1], bottomVerts[i]);
-            // Top (winding: CCW from above)
-            mesh.nAddTriangle(topVerts[0], topVerts[i], topVerts[i + 1]);
+            int j = (i + 1) % n;
+            // Bottom (viewed from below, center is visible)
+            // Winding: Clockwise around perimeter? No, standard mesh is CCW.
+            // If viewed from OUTSIDE (below), normal points down.
+            // Triangle: (Center, P_current, P_next) -> Normal = (P_curr - Center) x (P_next - Center)
+            // If polygon is CCW in XY:
+            // Cross product roughly (1,0) x (0,1) = (0,0,1) -> Points UP (inside).
+            // We want Normal DOWN (0,0,-1).
+            // So we need: (Center, P_next, P_current)
+            mesh.nAddTriangle(bottomCenter, bottomVerts[j], bottomVerts[i]);
+
+            // Top (viewed from above, normal points up)
+            // Same polygon CCW.
+            // Triangle: (Center, P_current, P_next) -> Normal UP (correct).
+            mesh.nAddTriangle(topCenter, topVerts[i], topVerts[j]);
         }
 
         return mesh;

@@ -77,6 +77,13 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     if not np.isfinite(dynamic_slope_limit) or dynamic_slope_limit < 0.0:
         dynamic_slope_limit = 0.0
 
+    # Apply the same static cap that thermo applies internally, so the
+    # recorded ``applied_ratio_slope_limit`` matches ``ratio_slope_limit_used``.
+    from ..core.constants import RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
+
+    static_limit = RATIO_SLOPE_LIMIT_FID1 if ctx.fidelity >= 1 else RATIO_SLOPE_LIMIT_FID0
+    dynamic_slope_limit = min(dynamic_slope_limit, static_limit)
+
     # Thermo evaluation
     t_thermo_start = time.perf_counter()
     thermo_result = eval_thermo(candidate.thermo, ctx, ratio_slope_limit=dynamic_slope_limit)
