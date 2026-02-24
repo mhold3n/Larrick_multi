@@ -28,6 +28,7 @@ from larrak2.cem.post_processing import (
     coating_from_level,
     get_coating,
 )
+from larrak2.cem.material_snapping import get_soft_selected_routes
 from larrak2.cem.surface_finish import (
     effective_composite_roughness,
     get_finish_properties,
@@ -58,15 +59,17 @@ class RealWorldSurrogateParams:
         oil_flow_level: 0→0.5 L/min, 1→10 L/min
         oil_supply_temp_level: 0→40°C, 1→120°C
         evacuation_level: 0→passive drain, 1→active scavenge
+        material_state: Optional 4D properties [case_HRC, core_KIC, temp_C, clean]
     """
 
     surface_finish_level: float = 0.7
     lube_mode_level: float = 0.7
-    material_quality_level: float = 0.5
+    material_quality_level: float | None = None
     coating_level: float = 0.0
     oil_flow_level: float = 0.5
     oil_supply_temp_level: float = 0.5
     evacuation_level: float = 0.5
+    material_state: np.ndarray | None = None
 
 
 # Sensible defaults: mid-tier options that represent "generic good practice"
@@ -83,8 +86,10 @@ _MATERIAL_LADDER: list[tuple[float, MaterialClass]] = [
 ]
 
 
-def _material_from_level(level: float) -> MaterialClass:
+def _material_from_level(level: float | None) -> MaterialClass:
     """Map continuous level (0–1) to material class."""
+    if level is None:
+        level = 0.5
     level = float(np.clip(level, 0.0, 1.0))
     best = _MATERIAL_LADDER[0][1]
     for threshold, mat in _MATERIAL_LADDER:
@@ -108,6 +113,7 @@ class RealWorldSurrogateResult:
     material_temp_margin_C: float
     total_cost_index: float
     feature_importance: list[tuple[str, float]]
+    min_snap_distance: float = 0.0
 
 
 def evaluate_realworld_surrogates(
@@ -137,11 +143,9 @@ def evaluate_realworld_surrogates(
     # 1. Decode levels → CEM tiers
     finish_tier = tier_from_level(params.surface_finish_level)
     lube_mode = mode_from_level(params.lube_mode_level)
-    material = _material_from_level(params.material_quality_level)
     coating = coating_from_level(params.coating_level)
 
     # 2. Properties from CEM modules (fast lookups, no heavy computation)
-    mat_props = get_material(material)
     finish_props = get_finish_properties(finish_tier)
     coating_props = get_coating(coating)
 
@@ -184,39 +188,64 @@ def evaluate_realworld_surrogates(
     micropitting_sf = compute_micropitting_safety(lambda_min)
     regime = classify_regime(lambda_min)
 
-    # 4. Material temperature margin
-    material_temp_margin = mat_props.max_service_temp_C - operating_temp_C
+    # --- Soft Material Selection & Safe Constraint Aggregation ---
+    if params.material_state is not None:
+        min_snap_dist, routes_weights = get_soft_selected_routes(
+            params.material_state, operating_temp_C
+        )
+    else:
+        # Legacy fallback
+        mat_class = _material_from_level(params.material_quality_level)
+        min_snap_dist, routes_weights = 0.0, [(mat_class.value, 1.0)]
 
-    # 5. Cost index
-    total_cost = mat_props.cost_tier + finish_props.cost_multiplier + coating_props.cost_tier
+    _lambda_mins = []
+    _scuff_margins = []
+    _micropitting_sfs = []
+    _temp_margins = []
+    _costs = []
+    _rankings = []
 
-    # 6. Feature importance (how much each lever matters for feasibility)
-    importance: dict[str, float] = {}
+    for rid, alpha in routes_weights:
+        # Evaluate for this specific physical route
+        mat_props = get_material(MaterialClass(rid))
 
-    # Lubrication: critical if λ < 1.0
-    importance["lubrication"] = max(0.0, (1.0 - lambda_min) * 10.0) if lambda_min < 1.5 else 0.3
+        material_temp_margin = mat_props.max_service_temp_C - operating_temp_C
+        total_cost = mat_props.cost_tier + finish_props.cost_multiplier + coating_props.cost_tier
 
-    # Surface finish: contributes to λ via roughness
-    importance["surface_finish"] = max(0.0, 3.0 - lambda_min * 2.0) if lambda_min < 2.0 else 0.2
+        # Feature importance per route
+        importance: dict[str, float] = {}
+        importance["lubrication"] = max(0.0, (1.0 - lambda_min) * 10.0) if lambda_min < 1.5 else 0.3
+        importance["surface_finish"] = max(0.0, 3.0 - lambda_min * 2.0) if lambda_min < 2.0 else 0.2
+        importance["material"] = (
+            max(0.0, (50.0 - material_temp_margin) / 10.0) if material_temp_margin < 80.0 else 0.3
+        )
+        importance["coating"] = max(0.0, (100.0 - scuff_margin) / 20.0) if scuff_margin < 150.0 else 0.2
+        ranking = sorted(importance.items(), key=lambda kv: kv[1], reverse=True)
 
-    # Material: critical if temp margin < 50 °C
-    importance["material"] = (
-        max(0.0, (50.0 - material_temp_margin) / 10.0) if material_temp_margin < 80.0 else 0.3
-    )
+        _lambda_mins.append(lambda_min)
+        _scuff_margins.append(scuff_margin)
+        _micropitting_sfs.append(micropitting_sf)
+        _temp_margins.append(material_temp_margin)
+        _costs.append(alpha * total_cost)
+        if alpha == max(w for _, w in routes_weights):
+            _rankings = ranking  # Use ranking from dominant route
 
-    # Coating: important if scuff margin < 100 °C
-    importance["coating"] = max(0.0, (100.0 - scuff_margin) / 20.0) if scuff_margin < 150.0 else 0.2
-
-    ranking = sorted(importance.items(), key=lambda kv: kv[1], reverse=True)
+    safe_lambda_min = min(_lambda_mins)
+    safe_scuff_margin = min(_scuff_margins)
+    safe_micropitting = min(_micropitting_sfs)
+    safe_temp_margin = min(_temp_margins)
+    expected_cost = sum(_costs)
+    safe_regime = classify_regime(safe_lambda_min)
 
     return RealWorldSurrogateResult(
-        lambda_min=lambda_min,
-        scuff_margin_C=scuff_margin,
-        micropitting_safety=micropitting_sf,
-        lube_regime=regime.value,
-        material_temp_margin_C=material_temp_margin,
-        total_cost_index=total_cost,
-        feature_importance=ranking,
+        lambda_min=safe_lambda_min,
+        scuff_margin_C=safe_scuff_margin,
+        micropitting_safety=safe_micropitting,
+        lube_regime=safe_regime.value,
+        material_temp_margin_C=safe_temp_margin,
+        total_cost_index=expected_cost,
+        feature_importance=_rankings,
+        min_snap_distance=min_snap_dist,
     )
 
 
@@ -239,6 +268,7 @@ class PhaseResolvedResult:
     n_bins_analyzed: int
     force_threshold_N: float
     lambda_profile: np.ndarray  # Full 360-point λ(θ) — NaN for non-analyzed bins
+    min_snap_distance: float = 0.0
 
 
 def evaluate_realworld_phase_resolved(
@@ -275,10 +305,8 @@ def evaluate_realworld_phase_resolved(
     # 1. Decode levels → CEM tiers (same as scalar version)
     finish_tier = tier_from_level(params.surface_finish_level)
     lube_mode = mode_from_level(params.lube_mode_level)
-    material = _material_from_level(params.material_quality_level)
     coating = coating_from_level(params.coating_level)
 
-    mat_props = get_material(material)
     finish_props = get_finish_properties(finish_tier)
     coating_props = get_coating(coating)
 
@@ -338,27 +366,50 @@ def evaluate_realworld_phase_resolved(
     worst_idx = int(np.nanargmin(lambda_profile))
     worst_phase_deg = float(worst_idx) / n_bins * 360.0
 
-    # 5. Material, cost, feature importance (same as scalar)
-    material_temp_margin = mat_props.max_service_temp_C - operating_temp_C
-    total_cost = mat_props.cost_tier + finish_props.cost_multiplier + coating_props.cost_tier
+    # 5. Soft Material Selection & Safe Constraint Aggregation
+    if params.material_state is not None:
+        min_snap_dist, routes_weights = get_soft_selected_routes(
+            params.material_state, operating_temp_C
+        )
+    else:
+        mat_class = _material_from_level(params.material_quality_level)
+        min_snap_dist, routes_weights = 0.0, [(mat_class.value, 1.0)]
 
-    importance: dict[str, float] = {}
-    importance["lubrication"] = max(0.0, (1.0 - lambda_min) * 10.0) if lambda_min < 1.5 else 0.3
-    importance["surface_finish"] = max(0.0, 3.0 - lambda_min * 2.0) if lambda_min < 2.0 else 0.2
-    importance["material"] = (
-        max(0.0, (50.0 - material_temp_margin) / 10.0) if material_temp_margin < 80.0 else 0.3
-    )
-    importance["coating"] = max(0.0, (100.0 - scuff_margin) / 20.0) if scuff_margin < 150.0 else 0.2
-    ranking = sorted(importance.items(), key=lambda kv: kv[1], reverse=True)
+    _temp_margins = []
+    _costs = []
+    _rankings = []
+
+    for rid, alpha in routes_weights:
+        mat_props = get_material(MaterialClass(rid))
+        material_temp_margin = mat_props.max_service_temp_C - operating_temp_C
+        total_cost = mat_props.cost_tier + finish_props.cost_multiplier + coating_props.cost_tier
+
+        importance: dict[str, float] = {}
+        importance["lubrication"] = max(0.0, (1.0 - lambda_min) * 10.0) if lambda_min < 1.5 else 0.3
+        importance["surface_finish"] = max(0.0, 3.0 - lambda_min * 2.0) if lambda_min < 2.0 else 0.2
+        importance["material"] = (
+            max(0.0, (50.0 - material_temp_margin) / 10.0) if material_temp_margin < 80.0 else 0.3
+        )
+        importance["coating"] = max(0.0, (100.0 - scuff_margin) / 20.0) if scuff_margin < 150.0 else 0.2
+        ranking = sorted(importance.items(), key=lambda kv: kv[1], reverse=True)
+
+        _temp_margins.append(material_temp_margin)
+        _costs.append(alpha * total_cost)
+        if alpha == max(w for _, w in routes_weights):
+            _rankings = ranking
+
+    safe_temp_margin = min(_temp_margins)
+    expected_cost = sum(_costs)
 
     return PhaseResolvedResult(
         lambda_min=lambda_min,
         scuff_margin_C=scuff_margin,
         micropitting_safety=micropitting_sf,
         lube_regime=regime.value,
-        material_temp_margin_C=material_temp_margin,
-        total_cost_index=total_cost,
-        feature_importance=ranking,
+        material_temp_margin_C=safe_temp_margin,
+        total_cost_index=expected_cost,
+        feature_importance=_rankings,
+        min_snap_distance=min_snap_dist,
         worst_phase_deg=worst_phase_deg,
         n_bins_analyzed=n_analyzed,
         force_threshold_N=force_threshold,

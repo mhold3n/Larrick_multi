@@ -267,31 +267,44 @@ def eval_gear(
     max_curvature = float(np.max(curvature))
     curvature_smoothness = float(np.sqrt(np.mean(np.gradient(curvature) ** 2)))
 
-    # Sliding speed proxy
-    omega_rad = ctx.rpm * 2 * np.pi / 60
-    sliding_speed = omega_rad * np.abs(np.gradient(r_planet / 1000))
-    sliding_speed_mean = float(np.mean(sliding_speed))
-    sliding_speed_max = float(np.max(sliding_speed))
+    omega_rad = ctx.rpm * 2.0 * np.pi / 60.0
 
-    # Entrainment velocity: v_e = ω · (r_planet + r_ring) / (2 · 1000)  [m/s]
-    entrainment_velocity = omega_rad * (r_planet + r_ring) / (2.0 * 1000.0)
-    entrainment_velocity_mean = float(np.mean(entrainment_velocity))
+    # ---------------------------------------------------------
+    # Rigorous Kinematics & Stress (Aligned with fidelity=1)
+    # ---------------------------------------------------------
+    # 1. Normal Force
+    phi_nominal = np.radians(20.0)  # Nominal for fidelity=0
+    r_planet_m = np.maximum(r_planet / 1000.0, 1e-6)
+    fn_profile = ctx.torque / (r_planet_m * np.maximum(np.cos(phi_nominal), 1e-6))
 
-    # Hertz contact stress proxy: σ_H ≈ √(F_n / (π · b · ρ_reduced))
-    # F_n = torque / r_planet (per unit, normal force profile)
-    # ρ_reduced = 1 / (1/r_planet + 1/r_ring) [mm]
-    # b = face_width_mm from gear params
-    face_width = params.face_width_mm
-    r_planet_m = r_planet / 1000.0
-    fn_profile = ctx.torque / np.maximum(r_planet_m, 1e-6)  # N
+    # 2. Velocities (Sliding and Entrainment)
+    rho_c = synth["rho_c"]
+    sliding_speed_profile = omega_rad * np.abs(r_planet / 1000.0 - np.abs(rho_c) / 1000.0)
+    sliding_speed_mean = float(np.mean(sliding_speed_profile))
+    sliding_speed_max = float(np.max(sliding_speed_profile))
 
-    rho_reduced = 1.0 / (1.0 / np.maximum(r_planet, 1e-6) + 1.0 / r_ring)  # mm
+    entrainment_velocity_profile = omega_rad * (r_planet / 1000.0 + r_ring / 1000.0) / 2.0
+    entrainment_velocity_mean = float(np.mean(entrainment_velocity_profile))
+
+    # 3. Hertzian Contact Stress (using true E')
+    if hasattr(ctx, "material_properties") and ctx.material_properties is not None:
+        E_GPa = ctx.material_properties.youngs_modulus_GPa
+        nu = ctx.material_properties.poissons_ratio
+    else:
+        E_GPa = 205.0  # fallback to steel
+        nu = 0.29
+
+    E_Pa = E_GPa * 1e9
+    E_prime = E_Pa / (1.0 - nu**2)  # self-mated properties
+
+    face_width_m = params.face_width_mm / 1000.0
+    rho_reduced = 1.0 / (1.0 / np.maximum(np.abs(rho_c), 1e-6) + 1.0 / r_ring)
     rho_reduced_m = rho_reduced / 1000.0
-    face_width_m = face_width / 1000.0
 
-    # Simplified Hertzian: σ_H ≈ √(F_n / (π · b · ρ))  [Pa → MPa]
     hertz_stress_Pa = np.sqrt(
-        np.maximum(fn_profile, 0.0) / (np.pi * face_width_m * np.maximum(rho_reduced_m, 1e-9))
+        np.maximum(fn_profile, 0.0)
+        * E_prime
+        / (np.pi * face_width_m * np.maximum(rho_reduced_m, 1e-9))
     )
     hertz_stress_profile = hertz_stress_Pa / 1e6  # MPa
     hertz_stress_max = float(np.max(hertz_stress_profile))
@@ -346,14 +359,15 @@ def eval_gear(
         "min_planet_radius": min_planet_radius,
         "max_curvature": max_curvature,
         "curvature_smoothness_rms": curvature_smoothness,
+        "sliding_speed_profile": sliding_speed_profile,
         "sliding_speed_mean": sliding_speed_mean,
         "sliding_speed_max": sliding_speed_max,
-        "entrainment_velocity_profile": entrainment_velocity,
+        "entrainment_velocity_profile": entrainment_velocity_profile,
         "entrainment_velocity_mean": entrainment_velocity_mean,
         "hertz_stress_profile": hertz_stress_profile,
         "hertz_stress_max": hertz_stress_max,
         "fn_profile": fn_profile,
-        "face_width_mm": face_width,
+        "face_width_mm": params.face_width_mm,
         "min_thickness": min_thickness,
         "thickness_ok": thickness_ok,
         "interference_flag": interference_flag,

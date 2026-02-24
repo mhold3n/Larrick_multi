@@ -21,7 +21,8 @@ class TestSurrogateParams:
         p = DEFAULT_REALWORLD_PARAMS
         assert 0.0 <= p.surface_finish_level <= 1.0
         assert 0.0 <= p.lube_mode_level <= 1.0
-        assert 0.0 <= p.material_quality_level <= 1.0
+        if p.material_quality_level is not None:
+            assert 0.0 <= p.material_quality_level <= 1.0
         assert 0.0 <= p.coating_level <= 1.0
 
     def test_custom_params(self):
@@ -104,15 +105,16 @@ class TestConstraints:
 
     def test_constraint_names(self):
         """Constraint names should be the expected list."""
-        assert len(REALWORLD_CONSTRAINT_NAMES) == 5
+        assert len(REALWORLD_CONSTRAINT_NAMES) == 7
         assert "rw_lambda_min" in REALWORLD_CONSTRAINT_NAMES
+        assert "rw_life_damage_10k" in REALWORLD_CONSTRAINT_NAMES
 
     def test_constraints_finite(self):
         """Default params should produce finite constraints."""
         result = evaluate_realworld_surrogates(DEFAULT_REALWORLD_PARAMS)
         G, names = compute_realworld_constraints(result)
-        assert len(G) == 5
-        assert len(names) == 5
+        assert len(G) == 7
+        assert len(names) == 7
         assert all(np.isfinite(g) for g in G)
 
     def test_constraint_sign_convention(self):

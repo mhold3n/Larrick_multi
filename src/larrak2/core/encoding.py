@@ -114,24 +114,49 @@ class RealWorldParams:
         oil_flow_level: 0→0.5 L/min, 1→10 L/min.
         oil_supply_temp_level: 0→40°C, 1→120°C.
         evacuation_level: 0→passive drain, 1→active scavenge.
+        material_state: Optional 4D properties [case_HRC, core_KIC, temp_C, clean].
     """
 
     surface_finish_level: float
     lube_mode_level: float
-    material_quality_level: float
-    coating_level: float
-    hunting_level: float
-    oil_flow_level: float
-    oil_supply_temp_level: float
-    evacuation_level: float
+    material_quality_level: float | None = None
+    coating_level: float = 0.0
+    hunting_level: float = 0.0
+    oil_flow_level: float = 0.5
+    oil_supply_temp_level: float = 0.5
+    evacuation_level: float = 0.5
+    material_state: np.ndarray | None = None
 
     def to_array(self) -> np.ndarray:
-        """Convert to flat array."""
+        """Convert to flat array.
+        
+        If material_state is present, prepends the -999.0 version sentinel
+        and packs the 4D state vector (length 12). Otherwise falls back to
+        legacy 1D format (length 8).
+        """
+        if self.material_state is not None:
+            return np.array(
+                [
+                    -999.0,  # Version Sentinel
+                    *self.material_state,  # 4 floats
+                    self.surface_finish_level,
+                    self.lube_mode_level,
+                    self.coating_level,
+                    self.hunting_level,
+                    self.oil_flow_level,
+                    self.oil_supply_temp_level,
+                    self.evacuation_level,
+                ],
+                dtype=np.float64,
+            )
+
+        # Legacy fallback
+        mat_lvl = self.material_quality_level if self.material_quality_level is not None else 0.5
         return np.array(
             [
                 self.surface_finish_level,
                 self.lube_mode_level,
-                self.material_quality_level,
+                mat_lvl,
                 self.coating_level,
                 self.hunting_level,
                 self.oil_flow_level,
@@ -143,7 +168,21 @@ class RealWorldParams:
 
     @classmethod
     def from_array(cls, arr: np.ndarray) -> RealWorldParams:
-        """Create from flat array."""
+        """Create from flat array, handling encoding versions."""
+        # Version 2.0 Check (-999.0 sentinel)
+        if len(arr) >= 12 and np.isclose(arr[0], -999.0):
+            return cls(
+                material_state=np.array(arr[1:5], dtype=np.float64),
+                surface_finish_level=float(arr[5]),
+                lube_mode_level=float(arr[6]),
+                coating_level=float(arr[7]),
+                hunting_level=float(arr[8]),
+                oil_flow_level=float(arr[9]),
+                oil_supply_temp_level=float(arr[10]),
+                evacuation_level=float(arr[11]),
+            )
+            
+        # Version 1.0 Legacy Check
         return cls(
             surface_finish_level=float(arr[0]),
             lube_mode_level=float(arr[1]),

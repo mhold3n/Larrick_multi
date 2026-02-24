@@ -39,6 +39,8 @@ class MaterialProperties:
         core_hardness_HRC: Typical core hardness.
         fatigue_life_multiplier: Surface fatigue life relative to
             AISI 9310 baseline (1.0 = 9310 level).
+        youngs_modulus_GPa: Young's Modulus (E) in GPa.
+        poissons_ratio: Poisson's ratio (ν).
         cost_tier: Relative cost index (1 = cheapest, 5 = most expensive).
     """
 
@@ -47,6 +49,8 @@ class MaterialProperties:
     case_hardness_HRC: float
     core_hardness_HRC: float
     fatigue_life_multiplier: float
+    youngs_modulus_GPa: float
+    poissons_ratio: float
     cost_tier: int
 
 
@@ -62,6 +66,8 @@ MATERIAL_DB: dict[MaterialClass, MaterialProperties] = {
         case_hardness_HRC=60.0,
         core_hardness_HRC=37.0,
         fatigue_life_multiplier=1.0,
+        youngs_modulus_GPa=205.0,
+        poissons_ratio=0.29,
         cost_tier=1,
     ),
     MaterialClass.PYROWEAR_53: MaterialProperties(
@@ -70,6 +76,8 @@ MATERIAL_DB: dict[MaterialClass, MaterialProperties] = {
         case_hardness_HRC=61.0,
         core_hardness_HRC=35.0,
         fatigue_life_multiplier=2.5,
+        youngs_modulus_GPa=200.0,
+        poissons_ratio=0.30,
         cost_tier=2,
     ),
     MaterialClass.CBS50_NIL: MaterialProperties(
@@ -78,6 +86,8 @@ MATERIAL_DB: dict[MaterialClass, MaterialProperties] = {
         case_hardness_HRC=62.0,
         core_hardness_HRC=40.0,
         fatigue_life_multiplier=4.5,
+        youngs_modulus_GPa=195.0,
+        poissons_ratio=0.30,
         cost_tier=3,
     ),
     MaterialClass.M50_NIL: MaterialProperties(
@@ -86,6 +96,8 @@ MATERIAL_DB: dict[MaterialClass, MaterialProperties] = {
         case_hardness_HRC=63.0,
         core_hardness_HRC=42.0,
         fatigue_life_multiplier=11.5,
+        youngs_modulus_GPa=202.0,
+        poissons_ratio=0.29,
         cost_tier=4,
     ),
     MaterialClass.FERRIUM_C64: MaterialProperties(
@@ -94,6 +106,8 @@ MATERIAL_DB: dict[MaterialClass, MaterialProperties] = {
         case_hardness_HRC=63.0,
         core_hardness_HRC=49.0,
         fatigue_life_multiplier=6.0,
+        youngs_modulus_GPa=207.0,
+        poissons_ratio=0.28,
         cost_tier=5,
     ),
 }
@@ -124,6 +138,8 @@ def get_material(cls: MaterialClass) -> MaterialProperties:
                     case_hardness_HRC=float(table["case_hardness_HRC"][i]),
                     core_hardness_HRC=float(table["core_hardness_HRC"][i]),
                     fatigue_life_multiplier=float(table["fatigue_life_multiplier"][i]),
+                    youngs_modulus_GPa=float(table.get("youngs_modulus_GPa", [MATERIAL_DB[cls].youngs_modulus_GPa])[min(i, len(table.get("youngs_modulus_GPa", [])) - 1)] if len(table.get("youngs_modulus_GPa", [])) > 0 else MATERIAL_DB[cls].youngs_modulus_GPa),
+                    poissons_ratio=float(table.get("poissons_ratio", [MATERIAL_DB[cls].poissons_ratio])[min(i, len(table.get("poissons_ratio", [])) - 1)] if len(table.get("poissons_ratio", [])) > 0 else MATERIAL_DB[cls].poissons_ratio),
                     cost_tier=int(table["cost_tier"][i]),
                 )
 

@@ -91,9 +91,33 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     thermo_result = eval_thermo(candidate.thermo, ctx, ratio_slope_limit=dynamic_slope_limit)
     t_thermo = time.perf_counter() - t_thermo_start
 
+    # Resolve material properties for gear eval (E' requires material DB)
+    from dataclasses import replace
+
+    from ..cem.material_db import get_material, MaterialClass
+    from ..cem.material_snapping import get_soft_selected_routes
+    from ..realworld.surrogates import _material_from_level
+
+    # Default to 200C gear bulk filter temp unless we have thermo
+    gear_bulk_filter_C = float(thermo_result.diag.get("T_wall_C", 200.0)) if thermo_result.diag else 200.0
+
+    if candidate.realworld.material_state is not None:
+        min_snap_dist, routes_weights = get_soft_selected_routes(
+            candidate.realworld.material_state, gear_bulk_filter_C
+        )
+    else:
+        # Legacy fallback
+        mat_class = _material_from_level(candidate.realworld.material_quality_level)
+        min_snap_dist, routes_weights = 0.0, [(mat_class.value, 1.0)]
+
+    # We evaluate gear kinematics using the dominant route's properties
+    dominant_rid = max(routes_weights, key=lambda rw: rw[1])[0]
+    dominant_mat = get_material(MaterialClass(dominant_rid))
+    ctx_gear = replace(ctx, material_properties=dominant_mat)
+
     # Gear evaluation (uses ratio profile from thermo)
     t_gear_start = time.perf_counter()
-    gear_result = eval_gear(candidate.gear, thermo_result.requested_ratio_profile, ctx)
+    gear_result = eval_gear(candidate.gear, thermo_result.requested_ratio_profile, ctx_gear)
     t_gear = time.perf_counter() - t_gear_start
 
     # ===================================================================
@@ -270,32 +294,100 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             operating_temp_C=operating_temp_C,
             pitch_line_vel_m_s=pitch_line_vel,
         )
-        # Use phase-resolved result for constraints
-        rw_result = phase_result
+        # 10,000 h life damage (phase-binned Miner accumulation)
+        from larrak2.realworld.life_damage import compute_life_damage_10k, get_sigma_ref_for_route
+        from larrak2.cem.registry import get_registry
+
+        reg = get_registry()
+        md_table = reg.load_table("route_metadata")
+
+        _rw_results = []
+        _life_damages = []
+
+        for rid, alpha in routes_weights:
+            try:
+                rid_idx = list(md_table["route_id"]).index(rid)
+                cleanliness = float(md_table.get("cleanliness_grade_proxy", [1.0]*len(md_table["route_id"]))[rid_idx])
+            except ValueError:
+                cleanliness = 1.0
+
+            # Override parameters scalar representation for internal physics call
+            from dataclasses import replace
+            rw_params_override = replace(
+                rw_params, 
+                material_state=None, 
+                material_quality_level=float(np.clip(
+                    dict([
+                        ("AISI_9310", 0.0), 
+                        ("Pyrowear_53", 0.25), 
+                        ("CBS50_NiL", 0.5), 
+                        ("M50NiL", 0.75), 
+                        ("Ferrium_C64", 1.0)
+                    ]).get(rid, 0.5), 
+                    0.0, 1.0
+                ))
+            )
+
+            phase_res_val = evaluate_realworld_phase_resolved(
+                rw_params_override,
+                hertz_stress_profile=_np.asarray(hertz_prof, dtype=_np.float64),
+                sliding_velocity_profile=_np.asarray(sliding_v_prof, dtype=_np.float64),
+                entrainment_velocity_profile=_np.asarray(entrainment_prof, dtype=_np.float64),
+                fn_profile=_np.asarray(fn_prof, dtype=_np.float64),
+                operating_temp_C=operating_temp_C,
+                pitch_line_vel_m_s=pitch_line_vel,
+            )
+
+            _sigma_ref = get_sigma_ref_for_route(rid, cleanliness_proxy=cleanliness)
+            
+            lambda_prof = getattr(phase_res_val, "lambda_profile", None)
+            if lambda_prof is None:
+                lambda_prof = _np.full_like(hertz_prof, max(phase_res_val.lambda_min, 0.1))
+
+            lr = compute_life_damage_10k(
+                hertz_stress_profile=_np.asarray(hertz_prof, dtype=_np.float64),
+                lambda_profile=lambda_prof,
+                fn_profile=_np.asarray(fn_prof, dtype=_np.float64),
+                rpm=ctx.rpm,
+                hunting_level=rw_params.hunting_level,
+                service_hours=10_000.0,
+                sigma_ref_MPa=_sigma_ref,
+            )
+
+            _rw_results.append((alpha, phase_res_val))
+            _life_damages.append((alpha, lr))
+
+        # Safe Constraint Aggregation over explicit top-k routes
+        from larrak2.realworld.surrogates import PhaseResolvedResult
+        rw_result = PhaseResolvedResult(
+            lambda_min=min(m.lambda_min for a, m in _rw_results),
+            scuff_margin_C=min(m.scuff_margin_C for a, m in _rw_results),
+            micropitting_safety=min(m.micropitting_safety for a, m in _rw_results),
+            lube_regime=_rw_results[0][1].lube_regime,
+            material_temp_margin_C=min(m.material_temp_margin_C for a, m in _rw_results),
+            total_cost_index=sum(a * m.total_cost_index for a, m in _rw_results),
+            feature_importance=_rw_results[0][1].feature_importance,
+            min_snap_distance=min_snap_dist,
+            worst_phase_deg=_rw_results[0][1].worst_phase_deg,
+            n_bins_analyzed=_rw_results[0][1].n_bins_analyzed,
+            force_threshold_N=_rw_results[0][1].force_threshold_N,
+            lambda_profile=_rw_results[0][1].lambda_profile,
+        )
+
+        life_damage_total = max(lr["D_total"] for a, lr in _life_damages)
+        life_damage_diag = {
+            "D_total": life_damage_total,
+            "D_ring": max(lr.get("D_ring", 0) for a, lr in _life_damages),
+            "D_planet": max(lr.get("D_planet", 0) for a, lr in _life_damages),
+            "N_set": candidate.realworld.hunting_level,
+        }
+        
         phase_diag = {
-            "worst_phase_deg": phase_result.worst_phase_deg,
-            "n_bins_analyzed": phase_result.n_bins_analyzed,
-            "force_threshold_N": phase_result.force_threshold_N,
+            "worst_phase_deg": rw_result.worst_phase_deg,
+            "n_bins_analyzed": rw_result.n_bins_analyzed,
+            "force_threshold_N": rw_result.force_threshold_N,
             "phase_resolved": True,
         }
-
-        # 10,000 h life damage (phase-binned Miner accumulation)
-        from larrak2.realworld.life_damage import compute_life_damage_10k
-
-        # Build lambda profile from the phase-resolved result's per-bin lambda
-        lambda_prof = getattr(phase_result, "lambda_profile", None)
-        if lambda_prof is None:
-            # Approximate: uniform lambda from the worst-case result
-            lambda_prof = _np.full_like(hertz_prof, max(rw_result.lambda_min, 0.1))
-        life_result = compute_life_damage_10k(
-            hertz_stress_profile=_np.asarray(hertz_prof, dtype=_np.float64),
-            lambda_profile=_np.asarray(lambda_prof, dtype=_np.float64),
-            fn_profile=_np.asarray(fn_prof, dtype=_np.float64),
-            rpm=float(ctx.rpm),
-            hunting_level=candidate.realworld.hunting_level,
-        )
-        life_damage_total = life_result["D_total"]
-        life_damage_diag = life_result
     else:
         # Scalar fallback (no profiles available)
         hertz_stress = float(gear_diag.get("hertz_stress_max", 1200.0))
@@ -313,7 +405,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         phase_diag = {"phase_resolved": False}
 
     rw_G, rw_names = compute_realworld_constraints(
-        rw_result, operating_temp_C, life_damage_total=life_damage_total
+        rw_result, 
+        operating_temp_C=operating_temp_C, 
+        life_damage_total=life_damage_total,
+        min_snap_distance=min_snap_dist,
     )
     t_rw = time.perf_counter() - t_rw_start
 

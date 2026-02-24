@@ -24,6 +24,7 @@ REALWORLD_CONSTRAINT_NAMES: list[str] = [
     "rw_material_temp",
     "rw_cost_index",
     "rw_life_damage_10k",
+    "rw_material_snap_dist",
 ]
 
 # Thresholds
@@ -31,6 +32,7 @@ _LAMBDA_TARGET = 1.0  # Full EHL target
 _SCUFF_MARGIN_MIN = 0.0  # Minimum scuff margin (°C)
 _MICROPITTING_SF_MIN = 1.0  # Minimum micropitting safety factor
 _COST_THRESHOLD = 8.0  # Soft penalty above this cost index
+_SNAP_DIST_MAX = 0.4  # Max allowed normalized material property distance
 
 
 def compute_realworld_constraints(
@@ -46,6 +48,7 @@ def compute_realworld_constraints(
         result: Output from evaluate_realworld_surrogates().
         operating_temp_C: Bulk gear temperature (for diagnostics).
         life_damage_total: Accumulated Miner damage D_total from life_damage module.
+        min_snap_distance: Distance to nearest feasible material route (0.0 if exact match).
 
     Returns:
         (G_values, constraint_names): Lists of constraint values and names.
@@ -70,5 +73,9 @@ def compute_realworld_constraints(
 
     # 6. Life damage D_total ≤ 1.0 → G = D_total − 1.0 (negative when D < 1)
     G.append(life_damage_total - 1.0)
+
+    # 7. Material Snapping Distance penalty → G = snap_dist - d_max
+    dist = getattr(result, "min_snap_distance", 0.0)
+    G.append(dist - _SNAP_DIST_MAX)
 
     return G, list(REALWORLD_CONSTRAINT_NAMES)

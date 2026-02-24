@@ -18,11 +18,17 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Resolve data/cem/ relative to the package, not the CWD.
+# Layout: src/larrak2/cem/registry.py → parents[3] = repo root
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_DATA_CEM_ROOT = _REPO_ROOT / "data" / "cem"
 
 # ---------------------------------------------------------------------------
 # Dataset descriptor
@@ -136,10 +142,10 @@ class DatasetRegistry:
                 logger.warning("Dataset file not found: %s — returning empty placeholder", p)
                 table = {col: [] for col in desc.columns}
         else:
-            # Auto-locate from data/cem/{name}.csv or .json
+            # Auto-locate from data/cem/{name}.csv or .json (package-relative)
             auto_found = False
             for ext in (".csv", ".json"):
-                candidate_path = Path("data") / "cem" / f"{desc.name}{ext}"
+                candidate_path = _DATA_CEM_ROOT / f"{desc.name}{ext}"
                 if candidate_path.exists():
                     logger.info("Auto-located dataset: %s", candidate_path)
                     table = self._load_file(candidate_path, desc)
@@ -153,7 +159,14 @@ class DatasetRegistry:
 
     @staticmethod
     def _load_file(path: Path, desc: DatasetDescriptor) -> dict[str, list]:
-        """Load a CSV or JSON file into column-dict format."""
+        """Load a CSV or JSON file into column-dict format.
+
+        Validates that all columns declared in ``desc.columns`` are present
+        in the loaded header.  Extra columns are allowed.
+
+        Raises:
+            ValueError: If required columns are missing from the file.
+        """
         if path.suffix == ".json":
             with open(path) as f:
                 data = json.load(f)
@@ -161,24 +174,49 @@ class DatasetRegistry:
                 # List of records → column dict
                 if data:
                     cols = list(data[0].keys())
-                    return {c: [row.get(c) for row in data] for c in cols}
-                return {col: [] for col in desc.columns}
-            return data  # Already column dict
+                    table = {c: [row.get(c) for row in data] for c in cols}
+                else:
+                    table = {col: [] for col in desc.columns}
+            else:
+                table = data  # Already column dict
         elif path.suffix == ".csv":
-            # Minimal CSV reader (no pandas dependency)
-            lines = path.read_text().strip().split("\n")
-            if not lines:
+            import csv as _csv
+
+            text = path.read_text().strip()
+            if not text:
                 return {col: [] for col in desc.columns}
-            header = [h.strip() for h in lines[0].split(",")]
-            table: dict[str, list] = {h: [] for h in header}
-            for line in lines[1:]:
-                values = line.split(",")
-                for h, v in zip(header, values):
+            reader = _csv.reader(text.splitlines())
+            header = [h.strip() for h in next(reader)]
+            table = {h: [] for h in header}
+            for row_num, row in enumerate(reader, start=2):
+                if len(row) != len(header):
+                    logger.warning(
+                        "Dataset '%s' row %d has %d values (expected %d) — skipping",
+                        desc.name,
+                        row_num,
+                        len(row),
+                        len(header),
+                    )
+                    continue
+                for h, v in zip(header, row):
                     table[h].append(v.strip())
-            return table
         else:
             logger.warning("Unsupported file format: %s", path.suffix)
             return {col: [] for col in desc.columns}
+
+        # --- Schema validation ---
+        if desc.columns:
+            required = set(desc.columns)
+            present = set(table.keys())
+            missing = required - present
+            if missing:
+                raise ValueError(
+                    f"Dataset '{desc.name}' loaded from {path} is missing "
+                    f"required columns: {sorted(missing)}. "
+                    f"Present columns: {sorted(present)}"
+                )
+
+        return table
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +352,72 @@ def _register_placeholders(reg: DatasetRegistry) -> None:
                 "temper_temp_C",
                 "case_hardness_HRC",
                 "core_hardness_HRC",
+            ),
+        )
+    )
+
+    # --- Phase 7: Screening & Galerkin datasets ---
+
+    reg.register(
+        DatasetDescriptor(
+            name="route_metadata",
+            domain="material",
+            source_ref="Phase 8 Aggregated Literature/Datasheets",
+            columns=(
+                "route_id",
+                "process_family",
+                "case_hardness_hrc_nom",
+                "core_toughness_KIC_MPa_m05",
+                "max_service_temp_C",
+                "cleanliness_grade_proxy",
+                "quality_grade",
+                "provenance",
+            ),
+        )
+    )
+
+    reg.register(
+        DatasetDescriptor(
+            name="limit_stress_numbers",
+            domain="material",
+            source_ref="ISO 6336-5 / AGMA 2101 allowable stress numbers",
+            columns=(
+                "route_id",
+                "material_group",
+                "sigma_Hlim_MPa",
+                "hardness_hrc_min",
+                "hardness_hrc_max",
+            ),
+        )
+    )
+
+    reg.register(
+        DatasetDescriptor(
+            name="material_route_cloud",
+            domain="material",
+            source_ref="ASM Alloy Center / Total Materia / SpringerMaterials",
+            columns=(
+                "route_id",
+                "youngs_modulus_GPa",
+                "poissons_ratio",
+                "rho_kg_m3",
+                "k_W_mK",
+                "cp_J_kgK",
+                "toughness_KIC_MPa_m05",
+            ),
+        )
+    )
+
+    reg.register(
+        DatasetDescriptor(
+            name="temperature_curves",
+            domain="material",
+            source_ref="JAHM MPDB / ASM Handbook temperature-dependent curves",
+            columns=(
+                "route_id",
+                "property",
+                "temp_c",
+                "value",
             ),
         )
     )

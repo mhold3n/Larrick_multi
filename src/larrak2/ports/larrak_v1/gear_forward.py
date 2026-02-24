@@ -315,9 +315,47 @@ def v1_eval_gear_forward(
         loss_coeffs=ctx.loss_coeffs,
     )
 
-    sliding_speed = ctx.rpm * 2 * np.pi / 60 * np.abs(r_planet / 1000 - np.abs(rho_c) / 1000)
-    sliding_speed_mean = float(np.mean(sliding_speed))
-    sliding_speed_max = float(np.max(sliding_speed))
+    omega_rad = ctx.rpm * 2 * np.pi / 60
+
+    # ---------------------------------------------------------
+    # Rigorous Kinematics & Stress
+    # ---------------------------------------------------------
+    # 1. Normal Force
+    phi_local = geom["pressure_angle_rad"]
+    r_planet_m = np.maximum(r_planet / 1000.0, 1e-6)
+    fn_profile = ctx.torque / (r_planet_m * np.maximum(np.cos(phi_local), 1e-6))
+
+    # 2. Velocities (Sliding and Entrainment)
+    # v1 = omega * r_planet, v2 = omega * rho_c (approx contact velocities)
+    sliding_speed_profile = omega_rad * np.abs(r_planet / 1000.0 - np.abs(rho_c) / 1000.0)
+    sliding_speed_mean = float(np.mean(sliding_speed_profile))
+    sliding_speed_max = float(np.max(sliding_speed_profile))
+
+    entrainment_velocity_profile = omega_rad * (r_planet / 1000.0 + r_ring / 1000.0) / 2.0
+    entrainment_velocity_mean = float(np.mean(entrainment_velocity_profile))
+
+    # 3. Hertzian Contact Stress (using true E')
+    if hasattr(ctx, "material_properties") and ctx.material_properties is not None:
+        E_GPa = ctx.material_properties.youngs_modulus_GPa
+        nu = ctx.material_properties.poissons_ratio
+    else:
+        E_GPa = 205.0  # fallback to steel
+        nu = 0.29
+
+    E_Pa = E_GPa * 1e9
+    E_prime = E_Pa / (1.0 - nu**2)  # self-mated properties
+
+    face_width_m = params.face_width_mm / 1000.0
+    rho_reduced = 1.0 / (1.0 / np.maximum(np.abs(rho_c), 1e-6) + 1.0 / r_ring)
+    rho_reduced_m = rho_reduced / 1000.0
+
+    hertz_stress_Pa = np.sqrt(
+        np.maximum(fn_profile, 0.0)
+        * E_prime
+        / (np.pi * face_width_m * np.maximum(rho_reduced_m, 1e-9))
+    )
+    hertz_stress_profile = hertz_stress_Pa / 1e6
+    hertz_stress_max = float(np.max(hertz_stress_profile))
 
     # Geometry metrics
     max_planet_radius = float(np.max(r_planet))
@@ -392,8 +430,14 @@ def v1_eval_gear_forward(
         "thickness_ok": thickness_ok,
         "thickness_profile": thickness_profile,
         "self_intersection": self_intersection,
+        "fn_profile": fn_profile,
+        "sliding_speed_profile": sliding_speed_profile,
         "sliding_speed_mean": sliding_speed_mean,
         "sliding_speed_max": sliding_speed_max,
+        "entrainment_velocity_profile": entrainment_velocity_profile,
+        "entrainment_velocity_mean": entrainment_velocity_mean,
+        "hertz_stress_profile": hertz_stress_profile,
+        "hertz_stress_max": hertz_stress_max,
         "v1_port": True,
     }
 
