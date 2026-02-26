@@ -10,7 +10,12 @@ from typing import Any
 import numpy as np
 
 from .constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
-from .constraints import get_constraint_names, get_constraint_scales
+from .constraints import (
+    get_constraint_kinds_for_phase,
+    get_constraint_names,
+    get_constraint_scales,
+    get_material_constraint_names,
+)
 from .encoding import ENCODING_VERSION, N_TOTAL
 
 META_FILENAME = "summary.json"
@@ -38,6 +43,10 @@ def save_archive(
         },
         "constraint_names": get_constraint_names(summary.get("fidelity", 0)),
         "constraint_scales": get_constraint_scales(),
+        "constraint_kinds": get_constraint_kinds_for_phase(
+            str(summary.get("constraint_phase", "explore"))
+        ),
+        "material_constraint_names": get_material_constraint_names(),
         "n_var": N_TOTAL,
     }
     with open(outdir / META_FILENAME, "w") as f:

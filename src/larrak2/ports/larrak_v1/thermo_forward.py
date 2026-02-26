@@ -349,9 +349,11 @@ def v1_eval_thermo_forward(
 
     # Fidelity >= 2: use OpenFOAM NN surrogate for breathing/richness state
     if ctx.fidelity >= 2:
-        model_path = os.environ.get(
-            "LARRAK2_OPENFOAM_NN_PATH", "models/openfoam_nn/openfoam_breathing.pt"
-        )
+        model_path = str(ctx.openfoam_model_path).strip() if ctx.openfoam_model_path else ""
+        if not model_path:
+            model_path = os.environ.get(
+                "LARRAK2_OPENFOAM_NN_PATH", "models/openfoam_nn/openfoam_breathing.pt"
+            )
         mp = Path(model_path)
         if not mp.exists():
             raise FileNotFoundError(
@@ -465,12 +467,20 @@ def v1_eval_thermo_forward(
     )
     constraints["g_ratio_slope"] = ratio_stats["max_slope"] - slope_limit
 
+    # C5: System power balance (indicated power must cover demanded shaft power)
+    # Approximation: one thermodynamic cycle per revolution for this model.
+    omega = float(ctx.rpm) * 2.0 * np.pi / 60.0
+    p_out_req = float(ctx.torque) * omega
+    p_indicated = max(float(W), 0.0) * float(ctx.rpm) / 60.0
+    constraints["g_power_balance"] = p_out_req - p_indicated
+
     # Pack into array in fixed order
     G_list = [
         constraints["g_eff_min"],
         constraints["g_eff_max"],
         constraints["g_p_max"],
         constraints["g_ratio_slope"],
+        constraints["g_power_balance"],
     ]
     G = np.array(G_list, dtype=np.float64)
 
@@ -509,6 +519,8 @@ def v1_eval_thermo_forward(
         "heat_release_width": params.heat_release_width,
         "requested_ratio_profile": requested_ratio_profile,
         "ratio_profile_stats": ratio_stats,
+        "p_out_required_W": float(p_out_req),
+        "p_indicated_W": float(p_indicated),
         "v1_port": True,
         "phase_driven": True,
         "constraints": constraints,  # Explicit map

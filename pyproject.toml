@@ -18,6 +18,7 @@ dependencies = [
 dev = ["pytest>=7.0", "ruff>=0.1", "mypy>=1.0"]
 casadi = ["casadi>=3.6"]
 deap = ["deap>=1.3"]
+orchestration = ["redis>=5.0", "weaviate-client>=4.0"]
 
 [project.scripts]
 larrak-run = "larrak2.cli.run:main"

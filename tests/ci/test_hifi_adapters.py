@@ -111,3 +111,9 @@ def test_calculix_parse(temp_dirs):
 
     res = runner.parse_results(run, "job1")
     assert res["max_stress"] == 250.0
+
+
+def test_calculix_missing_template_raises(tmp_path):
+    runner = CalculiXRunner(tmp_path / "missing_template.inp")
+    with pytest.raises(FileNotFoundError):
+        runner.generate_inp(tmp_path / "run", "job1", {"base_radius": 40.0})

@@ -9,13 +9,20 @@ import numpy as np
 import pytest
 
 from larrak2.core.archive_io import load_archive, save_archive
+from larrak2.core.constraints import get_constraint_names
 from larrak2.core.encoding import ENCODING_VERSION, N_TOTAL
+from larrak2.core.encoding import mid_bounds_candidate
+from larrak2.core.evaluator import evaluate_candidate
+from larrak2.core.types import EvalContext
 
 
 def _make_archive(tmp_path: Path, encoding_version: str):
+    ctx = EvalContext(rpm=2000.0, torque=100.0, fidelity=0, seed=1)
+    n_obj = int(evaluate_candidate(mid_bounds_candidate(), ctx).F.size)
+    n_constr = len(get_constraint_names(ctx.fidelity))
     X = np.zeros((1, N_TOTAL))
-    F = np.zeros((1, 3))
-    G = np.zeros((1, 12))
+    F = np.zeros((1, n_obj))
+    G = np.zeros((1, n_constr))
     save_archive(
         tmp_path,
         X,
@@ -25,8 +32,8 @@ def _make_archive(tmp_path: Path, encoding_version: str):
             "fidelity": 0,
             "seed": 1,
             "n_pareto": 1,
-            "n_constr": 12,
-            "n_obj": 3,
+            "n_constr": n_constr,
+            "n_obj": n_obj,
         },
     )
     # Overwrite encoding version

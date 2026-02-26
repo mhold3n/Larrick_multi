@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from larrak2.core.constraints import get_constraint_names
 from larrak2.core.encoding import mid_bounds_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
@@ -29,21 +30,26 @@ def test_mid_bounds_feasible():
 def test_constraint_sign_convention():
     """Test that constraint sign follows G <= 0 feasible convention.
 
-    For the toy model:
-    - G_thermo: compression duration, heat release width, jerk, ratio slope
-    - G_gear: ratio error, min radius, max radius, curvature, interference, thickness
+    Constraint dimensions must match centralized registry for the active fidelity.
     """
     ctx = EvalContext(rpm=3000.0, torque=200.0, fidelity=0, seed=42)
     x = mid_bounds_candidate()
 
     result = evaluate_candidate(x, ctx)
 
+    expected_constraints = get_constraint_names(ctx.fidelity)
+
     # Verify constraint array length and diag consistency
-    assert len(result.G) == 17, f"Expected 17 constraints, got {len(result.G)}"
+    assert len(result.G) == len(expected_constraints), (
+        f"Expected {len(expected_constraints)} constraints, got {len(result.G)}"
+    )
     constraints = result.diag.get("constraints", [])
-    assert len(constraints) == 17, "Constraint diagnostics should list all constraints"
+    assert len(constraints) == len(expected_constraints), (
+        "Constraint diagnostics should list all constraints"
+    )
     names = [c["name"] for c in constraints]
-    assert len(set(names)) == 17, "Constraint names should be unique"
+    assert names == expected_constraints, "Constraint order should match centralized registry"
+    assert len(set(names)) == len(expected_constraints), "Constraint names should be unique"
     # Scaled values should match returned G
     scaled_from_diag = [c["scaled"] for c in constraints]
     assert np.allclose(result.G, scaled_from_diag), "Scaled constraints mismatch diag"
@@ -55,6 +61,8 @@ def test_constraint_sign_convention():
         "rw_micropitting_sf",
         "rw_material_temp",
         "rw_cost_index",
+        "rw_life_damage_10k",
+        "rw_material_snap_dist",
     }
     assert rw_expected.issubset(set(names)), (
         f"Missing real-world constraints: {rw_expected - set(names)}"

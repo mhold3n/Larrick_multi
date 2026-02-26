@@ -125,6 +125,25 @@ python -m larrak2.cli.run_pareto --pop 64 --gen 50
 python -m larrak2.cli.run_pareto --fidelity 1 --pop 64 --gen 50
 ```
 
+### Dress Rehearsal (Pre-Analysis Gate)
+
+```bash
+# 1) Train NN surrogates (standalone pre-job)
+larrak-run train-surrogates --single-condition \
+  --openfoam-data data/openfoam_doe/results.jsonl \
+  --calculix-data data/calculix_doe/train.npz
+
+# 2) Run dress rehearsal (no NN training stage)
+larrak-run dress-rehearsal --pop 16 --gen 5 --cem-top 10
+```
+
+Outputs include:
+- `outputs/dress_rehearsal/dress_rehearsal_manifest.json`
+- `outputs/dress_rehearsal/cem_validation_report.txt`
+- `outputs/dress_rehearsal/cem_validation_report.json`
+
+Detailed process: `Docs/dress-rehearsal-process.md`
+
 ---
 
 ## 7. System Vision

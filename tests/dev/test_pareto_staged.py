@@ -86,7 +86,7 @@ def test_staged_outputs(temp_staged_dir):
 
     xa, fa, ga = a3.to_arrays()
     assert xa.shape[1] == N_TOTAL
-    assert fa.shape[1] == 3  # N_OBJ
+    assert fa.shape[1] >= 3
     assert ga.shape[1] == len(get_constraint_names(fidelity=2))
 
     # Check files exist

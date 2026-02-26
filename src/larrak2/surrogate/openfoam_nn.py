@@ -378,7 +378,10 @@ def load_artifact(path: str | Path) -> OpenFoamSurrogateArtifact:
     require_torch()
     assert torch is not None  # for type checkers
 
-    payload = torch.load(str(path), map_location="cpu")
+    try:
+        payload = torch.load(str(path), map_location="cpu", weights_only=False)
+    except TypeError:  # pragma: no cover - older torch versions
+        payload = torch.load(str(path), map_location="cpu")
     norm = Normalization(
         x_mean=np.asarray(payload["normalization"]["x_mean"], dtype=np.float64),
         x_std=np.asarray(payload["normalization"]["x_std"], dtype=np.float64),

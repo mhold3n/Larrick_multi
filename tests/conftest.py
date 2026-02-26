@@ -1,8 +1,9 @@
 """Pytest configuration for larrak2.
 
-We make fidelity=2 strict (OpenFOAM NN required). To keep the unit/integration
-tests self-contained and deterministic, we generate a tiny synthetic OpenFOAM NN
-artifact once per test session and point `LARRAK2_OPENFOAM_NN_PATH` at it.
+We make fidelity=2 strict (OpenFOAM + CalculiX NN required). To keep the
+unit/integration tests self-contained and deterministic, we generate tiny
+synthetic artifacts once per test session and point environment variables
+at them.
 """
 
 from __future__ import annotations
@@ -90,3 +91,63 @@ def _ensure_openfoam_nn_artifact_for_tests() -> None:
     save_artifact(artifact, model_path)
 
     os.environ["LARRAK2_OPENFOAM_NN_PATH"] = str(model_path)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_calculix_nn_artifact_for_tests() -> None:
+    if os.environ.get("LARRAK2_CALCULIX_NN_PATH"):
+        return
+
+    from larrak2.surrogate.calculix_nn import (
+        DEFAULT_FEATURE_KEYS,
+        DEFAULT_TARGET_KEYS,
+        save_artifact,
+        train_calculix_surrogate,
+    )
+
+    rng = np.random.default_rng(1)
+    n = 80
+    d_in = len(DEFAULT_FEATURE_KEYS)
+    d_out = len(DEFAULT_TARGET_KEYS)
+
+    X = np.zeros((n, d_in), dtype=np.float64)
+    key_to_col = {k: i for i, k in enumerate(DEFAULT_FEATURE_KEYS)}
+
+    def col(k: str) -> int:
+        return key_to_col[k]  # type: ignore[index]
+
+    X[:, col("rpm")] = rng.uniform(1000, 7000, size=n)
+    X[:, col("torque")] = rng.uniform(50, 400, size=n)
+    X[:, col("base_radius_mm")] = rng.uniform(25.0, 120.0, size=n)
+    X[:, col("face_width_mm")] = rng.uniform(8.0, 35.0, size=n)
+    X[:, col("module_mm")] = rng.uniform(1.0, 5.0, size=n)
+    X[:, col("pressure_angle_deg")] = rng.uniform(15.0, 30.0, size=n)
+    X[:, col("helix_angle_deg")] = rng.uniform(-20.0, 20.0, size=n)
+    X[:, col("profile_shift")] = rng.uniform(-0.5, 0.5, size=n)
+
+    stress = (
+        700.0
+        + 0.07 * X[:, col("rpm")]
+        + 0.9 * X[:, col("torque")]
+        + 120.0 / np.maximum(X[:, col("module_mm")], 0.5)
+        + 80.0 * np.abs(X[:, col("profile_shift")])
+        + 0.8 * np.abs(X[:, col("helix_angle_deg")])
+    )
+    Y = stress.reshape(n, d_out).astype(np.float64)
+
+    artifact = train_calculix_surrogate(
+        X,
+        Y,
+        feature_keys=DEFAULT_FEATURE_KEYS,
+        target_keys=DEFAULT_TARGET_KEYS,
+        hidden_layers=(32, 32),
+        seed=1,
+        epochs=200,
+        lr=5e-3,
+        val_frac=0.2,
+    )
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="larrak2_calculix_nn_test_"))
+    model_path = tmp_dir / "calculix_stress.pt"
+    save_artifact(artifact, model_path)
+    os.environ["LARRAK2_CALCULIX_NN_PATH"] = str(model_path)

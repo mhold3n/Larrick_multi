@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from larrak2.core.encoding import Candidate, GearParams, ThermoParams, encode_candidate
+from larrak2.core.encoding import Candidate, GearParams, RealWorldParams, ThermoParams, encode_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 
@@ -15,8 +15,14 @@ def _make_candidate(compression, expansion, hr_center, hr_width):
         heat_release_width=hr_width,
         lambda_af=1.0,
     )
-    gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7))
-    return encode_candidate(Candidate(thermo=thermo, gear=gear))
+    gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
+    rw = RealWorldParams(
+        surface_finish_level=0.5,
+        lube_mode_level=0.5,
+        material_quality_level=0.5,
+        coating_level=0.5,
+    )
+    return encode_candidate(Candidate(thermo=thermo, gear=gear, realworld=rw))
 
 
 def test_ratio_profile_extremes_are_finite():

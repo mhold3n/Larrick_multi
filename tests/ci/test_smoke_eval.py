@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from larrak2.core.constraints import get_constraint_names
 from larrak2.core.encoding import bounds, random_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
@@ -25,8 +26,13 @@ def test_smoke_eval_shapes():
         result = evaluate_candidate(x, ctx)
 
         # Check shapes
-        assert result.F.shape == (3,), f"Expected F shape (3,), got {result.F.shape}"
-        assert result.G.shape == (17,), f"Expected G shape (17,), got {result.G.shape}"
+        assert result.F.ndim == 1 and result.F.size >= 3, (
+            f"Expected 1D objective vector with >=3 axes, got {result.F.shape}"
+        )
+        expected_n_constr = len(get_constraint_names(ctx.fidelity))
+        assert result.G.shape == (expected_n_constr,), (
+            f"Expected G shape ({expected_n_constr},), got {result.G.shape}"
+        )
 
         # Loss should be non-negative
         loss_total = result.diag["metrics"]["loss_total"]
@@ -78,3 +84,6 @@ def test_smoke_eval_diag():
     gear_d = result.diag["gear"]
     assert "hertz_stress_max" in gear_d, "Missing hertz_stress_max in gear diag"
     assert "entrainment_velocity_mean" in gear_d, "Missing entrainment_velocity_mean in gear diag"
+    assert "radius_strategy" in gear_d, "Missing radius_strategy in gear diag"
+    assert "selected_strategy" in gear_d["radius_strategy"], "Missing selected radius strategy"
+    assert "stress_source" in gear_d["radius_strategy"], "Missing stress-source provenance"

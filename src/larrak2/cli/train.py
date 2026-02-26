@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from larrak2.training.workflows import (
+    train_calculix_workflow,
     train_gear_gbr_workflow,
     train_gear_nn_workflow,
     train_openfoam_workflow,
@@ -37,6 +38,12 @@ def main():
     add_nn_args(p_of)
     p_of.add_argument("--name", default="openfoam_breathing.pt")
 
+    # 1b. CalculiX NN
+    p_ccx = subparsers.add_parser("calculix", help="CalculiX Stress Neural Network Surrogate")
+    add_common_args(p_ccx)
+    add_nn_args(p_ccx)
+    p_ccx.add_argument("--name", default="calculix_stress.pt")
+
     # 2. Gear NN
     p_gear_nn = subparsers.add_parser("gear-nn", help="Gear Loss Neural Network")
     add_common_args(p_gear_nn)
@@ -59,6 +66,8 @@ def main():
     # Dispatch
     if args.model_type == "openfoam":
         train_openfoam_workflow(args)
+    elif args.model_type == "calculix":
+        train_calculix_workflow(args)
     elif args.model_type == "gear-nn":
         train_gear_nn_workflow(args)
     elif args.model_type == "gear-gbr":

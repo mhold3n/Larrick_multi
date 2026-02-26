@@ -25,12 +25,7 @@ class CalculiXRunner:
         target_inp = run_dir / f"{job_name}.inp"
 
         if not self.template_path.exists():
-            # If template missing, maybe write a stub for testing?
-            # Or raise.
-            # raise FileNotFoundError(f"Template {self.template_path} missing")
-            # For now, let's write a dummy one if missing so we can test the runner logic
-            print(f"Warning: Template {self.template_path} missing, using stub.")
-            content = "*NODE\n1, 0,0,0\n*ELEMENT\n*STEP\n*END STEP"
+            raise FileNotFoundError(f"CalculiX template not found: {self.template_path}")
         else:
             content = self.template_path.read_text()
 

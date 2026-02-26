@@ -56,6 +56,7 @@ class RealWorldSurrogateParams:
         lube_mode_level: 0→DRY, 0.33→SPLASH, 0.67→JET, 1→PHASE_GATED_JET
         material_quality_level: 0→9310, 0.5→CBS50NiL, 1→M50NiL
         coating_level: 0→NONE, 0.5→ta-C, 1→W-DLC/CrN duplex
+        hunting_level: 0→1-set, 0.5→4-set, 1→8-set pseudo-hunting
         oil_flow_level: 0→0.5 L/min, 1→10 L/min
         oil_supply_temp_level: 0→40°C, 1→120°C
         evacuation_level: 0→passive drain, 1→active scavenge
@@ -66,6 +67,7 @@ class RealWorldSurrogateParams:
     lube_mode_level: float = 0.7
     material_quality_level: float | None = None
     coating_level: float = 0.0
+    hunting_level: float = 0.0
     oil_flow_level: float = 0.5
     oil_supply_temp_level: float = 0.5
     evacuation_level: float = 0.5

@@ -27,6 +27,48 @@ N_REALWORLD = (
 )
 N_TOTAL = N_THERMO + N_GEAR + N_REALWORLD  # 22
 
+THERMO_VAR_NAMES = (
+    "compression_duration",
+    "expansion_duration",
+    "heat_release_center",
+    "heat_release_width",
+    "lambda_af",
+)
+
+GEAR_VAR_NAMES = (
+    "base_radius",
+    "pitch_coeff_0",
+    "pitch_coeff_1",
+    "pitch_coeff_2",
+    "pitch_coeff_3",
+    "pitch_coeff_4",
+    "pitch_coeff_5",
+    "pitch_coeff_6",
+    "face_width_mm",
+)
+
+REALWORLD_VAR_NAMES = (
+    "surface_finish_level",
+    "lube_mode_level",
+    "material_quality_level",
+    "coating_level",
+    "hunting_level",
+    "oil_flow_level",
+    "oil_supply_temp_level",
+    "evacuation_level",
+)
+
+
+@dataclass(frozen=True)
+class VariableMetadata:
+    """Metadata for one encoded decision variable."""
+
+    index: int
+    name: str
+    group: str
+    lower: float
+    upper: float
+
 
 @dataclass
 class ThermoParams:
@@ -270,6 +312,36 @@ def bounds() -> tuple[np.ndarray, np.ndarray]:
     xu = np.concatenate([thermo_ub, gear_ub, rw_ub])
 
     return xl, xu
+
+
+def variable_manifest() -> list[VariableMetadata]:
+    """Return ordered metadata for all encoded decision variables."""
+    xl, xu = bounds()
+    names = THERMO_VAR_NAMES + GEAR_VAR_NAMES + REALWORLD_VAR_NAMES
+    groups = (
+        ["thermo"] * len(THERMO_VAR_NAMES)
+        + ["gear"] * len(GEAR_VAR_NAMES)
+        + ["realworld"] * len(REALWORLD_VAR_NAMES)
+    )
+
+    return [
+        VariableMetadata(
+            index=i,
+            name=str(names[i]),
+            group=str(groups[i]),
+            lower=float(xl[i]),
+            upper=float(xu[i]),
+        )
+        for i in range(N_TOTAL)
+    ]
+
+
+def group_indices() -> dict[str, list[int]]:
+    """Return variable indices grouped by subsystem."""
+    out: dict[str, list[int]] = {}
+    for info in variable_manifest():
+        out.setdefault(info.group, []).append(info.index)
+    return out
 
 
 def random_candidate(rng: np.random.Generator | None = None) -> np.ndarray:

@@ -154,7 +154,7 @@ def _load_limit_stress_table() -> dict[str, float]:
     return _LIMIT_STRESS_CACHE
 
 
-def get_sigma_ref_for_route(route_id: str, cleanliness_proxy: float = 1.0) -> float:
+def get_sigma_ref_for_route(route_id: str, cleanliness_proxy: float = 0.5) -> float:
     """Return calibration-preserving sigma_ref for a material route.
 
     Scaling rule:
@@ -162,6 +162,7 @@ def get_sigma_ref_for_route(route_id: str, cleanliness_proxy: float = 1.0) -> fl
 
     where sigma_Hlim_baseline is the AISI_9310 value.
     f_cleanliness is a linear interpolation: 0.0 (air melt) → 0.8x, 1.0 (VIM-VAR) → 1.2x.
+    Default cleanliness is 0.5 (neutral factor 1.0x).
 
     Falls back to _SIGMA_REF_MPA if the dataset is empty (placeholder mode)
     and LARRAK_STRICT_DATA is not set.  Raises ValueError in strict mode.

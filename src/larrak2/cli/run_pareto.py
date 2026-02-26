@@ -56,6 +56,26 @@ def main(argv: list[str] | None = None) -> int:
         help="Optimization algorithm",
     )
     parser.add_argument(
+        "--constraint-phase",
+        type=str,
+        default="explore",
+        choices=["explore", "downselect"],
+        help="Constraint enforcement phase",
+    )
+    parser.add_argument(
+        "--tolerance-constraint-mode",
+        type=str,
+        default="capability_floor",
+        choices=["capability_floor", "stack_budget_max"],
+        help="tol_budget interpretation: capability floor or max stack budget",
+    )
+    parser.add_argument(
+        "--tolerance-threshold-mm",
+        type=float,
+        default=0.24,
+        help="Tolerance threshold in mm used by tol_budget",
+    )
+    parser.add_argument(
         "--partitions",
         type=int,
         default=12,
@@ -74,6 +94,38 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--intake-close-deg", type=float, default=0.0)
     parser.add_argument("--exhaust-open-deg", type=float, default=0.0)
     parser.add_argument("--exhaust-close-deg", type=float, default=0.0)
+    parser.add_argument(
+        "--openfoam-model-path",
+        type=str,
+        default="",
+        help="Path to OpenFOAM NN artifact (required for fidelity=2 if env var not set)",
+    )
+    parser.add_argument(
+        "--calculix-stress-mode",
+        type=str,
+        default="nn",
+        choices=["nn", "analytical"],
+        help="CalculiX stress evaluation mode",
+    )
+    parser.add_argument(
+        "--calculix-model-path",
+        type=str,
+        default="",
+        help="Path to CalculiX NN artifact when --calculix-stress-mode=nn",
+    )
+    parser.add_argument(
+        "--gear-loss-mode",
+        type=str,
+        default="physics",
+        choices=["physics", "nn"],
+        help="Gear-loss evaluation mode (first-principles physics or NN)",
+    )
+    parser.add_argument(
+        "--gear-loss-model-dir",
+        type=str,
+        default="",
+        help="Gear-loss NN model directory when --gear-loss-mode=nn",
+    )
 
     args = parser.parse_args(argv)
 
@@ -111,6 +163,14 @@ def main(argv: list[str] | None = None) -> int:
         fidelity=args.fidelity,
         seed=args.seed,
         breathing=breathing,
+        constraint_phase=args.constraint_phase,
+        tolerance_constraint_mode=args.tolerance_constraint_mode,
+        tolerance_threshold_mm=args.tolerance_threshold_mm,
+        openfoam_model_path=str(args.openfoam_model_path).strip() or None,
+        calculix_stress_mode=str(args.calculix_stress_mode),
+        calculix_model_path=str(args.calculix_model_path).strip() or None,
+        gear_loss_mode=str(args.gear_loss_mode),
+        gear_loss_model_dir=str(args.gear_loss_model_dir).strip() or None,
     )
 
     problem = ParetoProblem(ctx=ctx)
@@ -148,6 +208,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.verbose:
         print(f"Starting {args.algorithm.upper()}: pop={args.pop}, gen={args.gen}")
         print(f"Context: rpm={args.rpm}, torque={args.torque}, fidelity={args.fidelity}")
+        print(
+            "Constraint phase: "
+            f"{args.constraint_phase}, tol mode: {args.tolerance_constraint_mode}, "
+            f"tol threshold: {args.tolerance_threshold_mm:.3f} mm"
+        )
+        print(
+            "Surrogate modes: "
+            f"calculix={args.calculix_stress_mode}, gear_loss={args.gear_loss_mode}, "
+            f"openfoam_model={args.openfoam_model_path or 'env/default'}"
+        )
 
     # Run optimization
     t_start = time.perf_counter()
@@ -166,6 +236,23 @@ def main(argv: list[str] | None = None) -> int:
     X = result.X
     F = result.F
     G_result = getattr(result, "G", None)
+    X_pop = result.pop.get("X") if result.pop is not None else None
+    F_pop = result.pop.get("F") if result.pop is not None else None
+    G_pop = result.pop.get("G") if result.pop is not None else None
+
+    # Save final population arrays for downstream fallback workflows.
+    if X_pop is None:
+        np.save(output_dir / "final_pop_X.npy", np.array([]).reshape(0, problem.n_var))
+    else:
+        np.save(output_dir / "final_pop_X.npy", X_pop)
+    if F_pop is None:
+        np.save(output_dir / "final_pop_F.npy", np.array([]).reshape(0, problem.n_obj))
+    else:
+        np.save(output_dir / "final_pop_F.npy", F_pop)
+    if G_pop is None:
+        np.save(output_dir / "final_pop_G.npy", np.array([]).reshape(0, problem.N_CONSTR))
+    else:
+        np.save(output_dir / "final_pop_G.npy", G_pop)
 
     # Handle case where no solutions found
     if X is None or len(X) == 0:
@@ -197,14 +284,20 @@ def main(argv: list[str] | None = None) -> int:
     if n_pareto > 0 and F is not None:
         f_min = F.min(axis=0).tolist()
         f_max = F.max(axis=0).tolist()
-        best_eta_comb = float(1.0 - F[:, 0].min())
-        best_eta_exp = float(1.0 - F[:, 1].min())
-        best_eta_gear = float(1.0 - F[:, 2].min())
-        eta_total = (1.0 - F[:, 0]) * (1.0 - F[:, 1]) * (1.0 - F[:, 2])
-        best_eta_total = float(np.max(eta_total))
+        if F.shape[1] >= 3:
+            best_eta_comb = float(1.0 - F[:, 0].min())
+            best_eta_exp = float(1.0 - F[:, 1].min())
+            best_eta_gear = float(1.0 - F[:, 2].min())
+            eta_total = (1.0 - F[:, 0]) * (1.0 - F[:, 1]) * (1.0 - F[:, 2])
+            best_eta_total = float(np.max(eta_total))
+        else:
+            best_eta_comb = 0.0
+            best_eta_exp = 0.0
+            best_eta_gear = 0.0
+            best_eta_total = 0.0
     else:
-        f_min = [0.0, 0.0, 0.0]
-        f_max = [0.0, 0.0, 0.0]
+        f_min = [0.0] * int(problem.n_obj)
+        f_max = [0.0] * int(problem.n_obj)
         best_eta_comb = 0.0
         best_eta_exp = 0.0
         best_eta_gear = 0.0
@@ -212,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary = {
         "n_pareto": n_pareto,
+        "n_final_pop": int(X_pop.shape[0]) if X_pop is not None else 0,
         "n_evals": problem.n_evals,
         "elapsed_s": t_elapsed,
         "pop_size": args.pop,
@@ -219,13 +313,29 @@ def main(argv: list[str] | None = None) -> int:
         "rpm": args.rpm,
         "torque": args.torque,
         "fidelity": args.fidelity,
+        "constraint_phase": args.constraint_phase,
+        "tolerance_constraint_mode": args.tolerance_constraint_mode,
+        "tolerance_threshold_mm": args.tolerance_threshold_mm,
         "seed": args.seed,
+        "openfoam_model_path": args.openfoam_model_path,
+        "calculix_stress_mode": args.calculix_stress_mode,
+        "calculix_model_path": args.calculix_model_path,
+        "gear_loss_mode": args.gear_loss_mode,
+        "gear_loss_model_dir": args.gear_loss_model_dir,
         "encoding_version": ENCODING_VERSION,
         "model_versions": {
             "thermo_v1": MODEL_VERSION_THERMO_V1,
             "gear_v1": MODEL_VERSION_GEAR_V1,
         },
         "n_obj": problem.n_obj,
+        "objective_names": [
+            "eta_comb_gap",
+            "eta_exp_gap",
+            "eta_gear_gap",
+            "motion_law_penalty",
+            "life_damage_penalty",
+            "material_risk_penalty",
+        ][: int(problem.n_obj)],
         "n_constr": problem.N_CONSTR,
         "constraint_names": get_constraint_names(args.fidelity),
         "constraint_scales": get_constraint_scales(),

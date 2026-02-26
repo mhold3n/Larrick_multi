@@ -25,6 +25,7 @@ DEFAULT_SCALES: dict[str, float] = {
     "gear_min_thickness": 5.0,  # placeholder scaling
     "gear_contact_ratio_min": 1.0,
     "gear_self_intersection": 1.0,
+    "gear_stress_hotspot": 500.0,  # MPa headroom scale
     "tol_budget": 10.0,  # weighted penalty
     "tooling_cost": 1.0,  # weighted penalty
     # Real-world constraints
@@ -33,7 +34,9 @@ DEFAULT_SCALES: dict[str, float] = {
     "rw_micropitting_sf": 1.0,  # safety factor
     "rw_material_temp": 100.0,  # °C scale
     "rw_cost_index": 5.0,  # cost units
-    "rw_life_damage_10k": 1.0,  # dimensionless (D)
+    # life damage is compressed upstream with log10(D_total), so this stays dimensionless
+    "rw_life_damage_10k": 1.0,
+    "rw_material_snap_dist": 0.4,  # normalized material-route distance
 }
 
 DEFAULT_KIND: dict[str, str] = {
@@ -55,16 +58,20 @@ DEFAULT_KIND: dict[str, str] = {
     "gear_min_thickness": "hard",
     "gear_contact_ratio_min": "soft",
     "gear_self_intersection": "soft",
+    "gear_stress_hotspot": "hard",
     # Machining
-    "tol_budget": "hard",  # Per user requirement ("minimum of 0.5")
+    "tol_budget": "hard",
     "tooling_cost": "soft",
     # Real-world
-    "rw_lambda_min": "hard",  # Must achieve full EHL
-    "rw_scuff_margin": "hard",  # Must have positive margin
-    "rw_micropitting_sf": "hard",  # Must exceed 1.0
-    "rw_material_temp": "hard",  # Must survive service temp
+    # Strategic choice: material constraints are soft during geometry exploration.
+    # They are still tracked and reported, but do not block Pareto feasibility.
+    "rw_lambda_min": "soft",
+    "rw_scuff_margin": "soft",
+    "rw_micropitting_sf": "soft",
+    "rw_material_temp": "soft",
     "rw_cost_index": "soft",  # Cost is a soft preference
-    "rw_life_damage_10k": "hard",  # Must survive 10,000 h
+    "rw_life_damage_10k": "soft",
+    "rw_material_snap_dist": "soft",
 }
 
 DEFAULT_REASON: dict[str, str] = {
@@ -84,6 +91,7 @@ DEFAULT_REASON: dict[str, str] = {
     "gear_min_thickness": "tooth thickness below minimum",
     "gear_contact_ratio_min": "contact ratio below 1.0",
     "gear_self_intersection": "psi mapping non-monotonic (self-intersection risk)",
+    "gear_stress_hotspot": "radius strategy induces excessive local stress concentration",
     "tol_budget": "tolerance budget violation (requires tighter tolerances than allowed)",
     "tooling_cost": "excessive tooling cost (requires non-standard/micro tools)",
     # Real-world
@@ -93,6 +101,7 @@ DEFAULT_REASON: dict[str, str] = {
     "rw_material_temp": "operating temperature exceeds material service limit",
     "rw_cost_index": "combined material/surface/coating cost exceeds threshold",
     "rw_life_damage_10k": "accumulated damage exceeds 10,000 h service life",
+    "rw_material_snap_dist": "material-state request too far from feasible manufacturing routes",
 }
 
 
@@ -120,6 +129,7 @@ GEAR_CONSTRAINTS = [
     "gear_min_thickness",
     "gear_contact_ratio_min",
     "gear_self_intersection",
+    "gear_stress_hotspot",
 ]
 
 MACHINING_CONSTRAINTS = [
@@ -134,6 +144,17 @@ REALWORLD_CONSTRAINTS = [
     "rw_material_temp",
     "rw_cost_index",
     "rw_life_damage_10k",
+    "rw_material_snap_dist",
+]
+
+MATERIAL_CONSTRAINTS = [
+    "rw_lambda_min",
+    "rw_scuff_margin",
+    "rw_micropitting_sf",
+    "rw_material_temp",
+    "rw_cost_index",
+    "rw_life_damage_10k",
+    "rw_material_snap_dist",
 ]
 
 
@@ -151,6 +172,52 @@ def get_constraint_names(fidelity: int) -> list[str]:
 def get_constraint_scales() -> dict[str, float]:
     """Expose default constraint scales for downstream metadata."""
     return DEFAULT_SCALES.copy()
+
+
+def get_constraint_reasons() -> dict[str, str]:
+    """Expose default constraint rationale/reason text."""
+    return DEFAULT_REASON.copy()
+
+
+def get_constraint_kinds() -> dict[str, str]:
+    """Expose default hard/soft metadata for downstream diagnostics."""
+    return DEFAULT_KIND.copy()
+
+
+def get_constraint_kinds_for_phase(phase: str = "explore") -> dict[str, str]:
+    """Return constraint kinds for an optimization phase.
+
+    Phases:
+        - explore: soft manufacturability/material constraints to preserve geometry coverage
+        - downselect: promote manufacturability/material constraints to hard gates
+    """
+    kinds = DEFAULT_KIND.copy()
+
+    # Gear validity constraints are always hard. Softening these can mask
+    # true geometry errors and produce misleading downstream results.
+    for name in GEAR_CONSTRAINTS:
+        kinds[name] = "hard"
+
+    # Keep manufacturability feasibility hard in both phases.
+    kinds["tol_budget"] = "hard"
+
+    if phase == "explore":
+        # Explore mode softens material/lifetime only.
+        for name in MATERIAL_CONSTRAINTS:
+            kinds[name] = "soft"
+    elif phase == "downselect":
+        # Downselect mode enforces all material/lifetime constraints.
+        for name in MATERIAL_CONSTRAINTS:
+            kinds[name] = "hard"
+    else:
+        raise ValueError(f"Unsupported constraint phase '{phase}'. Use 'explore' or 'downselect'.")
+
+    return kinds
+
+
+def get_material_constraint_names() -> list[str]:
+    """Expose constraint names tied to material/lubrication behavior."""
+    return list(MATERIAL_CONSTRAINTS)
 
 
 @dataclass
@@ -171,16 +238,23 @@ def combine_constraints(
     thermo_names: Sequence[str],
     gear_names: Sequence[str],
     scale_overrides: Mapping[str, float] | None = None,
+    kind_overrides: Mapping[str, str] | None = None,
     realworld_G: Sequence[float] | None = None,
     realworld_names: Sequence[str] | None = None,
 ) -> tuple[np.ndarray, list[dict]]:
     """Merge thermo + gear + realworld constraints with scaling and reason codes.
 
+    Hard vs soft enforcement:
+        - hard: G_i = scaled raw value (positive => infeasible)
+        - soft: G_i = min(scaled raw value, 0.0) so it never blocks feasibility
+          while retaining positive violation in diagnostics.
+
     Returns:
-        G_scaled: np.ndarray, concatenated constraints (scaled) with sign convention G<=0 feasible.
-        diag_list: list of dicts with raw/scaled/name.
+        G_scaled: np.ndarray, effective constraints used by optimizers.
+        diag_list: list of dicts with raw and scaled diagnostics.
     """
     scale_overrides = scale_overrides or {}
+    kind_overrides = kind_overrides or {}
 
     all_names = list(thermo_names) + list(gear_names)
     all_raw = list(thermo_G) + list(gear_G)
@@ -200,16 +274,25 @@ def combine_constraints(
     for i, (name, raw) in enumerate(zip(all_names, all_raw)):
         scale = float(scale_overrides.get(name, DEFAULT_SCALES.get(name, 1.0)))
         scale = scale if scale != 0 else 1.0
-        scaled = raw / scale
-        G_scaled[i] = scaled
+        kind = str(kind_overrides.get(name, DEFAULT_KIND.get(name, "hard")))
+        scaled_raw = raw / scale
+        scaled_effective = min(scaled_raw, 0.0) if kind == "soft" else scaled_raw
+        soft_violation = max(scaled_raw, 0.0) if kind == "soft" else 0.0
+
+        G_scaled[i] = scaled_effective
         diag_list.append(
             {
                 "name": name,
                 "raw": float(raw),
                 "scale": scale,
-                "scaled": float(scaled),
-                "feasible": bool(scaled <= 0.0),
-                "kind": DEFAULT_KIND.get(name, "hard"),
+                # Raw scaled value before hard/soft policy.
+                "scaled_raw": float(scaled_raw),
+                # Effective value after hard/soft policy (this is what goes to G).
+                "scaled": float(scaled_effective),
+                "soft_violation": float(soft_violation),
+                "feasible": bool(scaled_effective <= 0.0),
+                "kind": kind,
+                "material_constraint": name in MATERIAL_CONSTRAINTS,
                 "reason": DEFAULT_REASON.get(name, ""),
             }
         )

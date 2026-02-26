@@ -20,8 +20,8 @@ class ParetoProblem(Problem):
     Uses evaluate_candidate as the underlying evaluation function.
     """
 
-    # Number of objectives (efficiency, loss, max_planet_radius)
-    N_OBJ = 3
+    # Objective count is inferred from canonical evaluator output.
+    N_OBJ = 0
 
     def __init__(
         self,
@@ -37,6 +37,13 @@ class ParetoProblem(Problem):
         xl, xu = bounds()
 
         self.N_CONSTR = len(get_constraint_names(ctx.fidelity))
+
+        # Infer objective dimensionality from the canonical evaluator.
+        x_probe = (np.asarray(xl, dtype=np.float64) + np.asarray(xu, dtype=np.float64)) * 0.5
+        probe = evaluate_candidate(x_probe, ctx)
+        self.N_OBJ = int(probe.F.size)
+        if self.N_OBJ <= 0:
+            raise ValueError("evaluate_candidate returned no objectives")
 
         super().__init__(
             n_var=N_TOTAL,

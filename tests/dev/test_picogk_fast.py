@@ -22,7 +22,7 @@ def test_picogk_single_performance():
     """Test performance of a single scan point (fast check)."""
     logger.info("Starting PicoGK performance test")
 
-    gear = GearParams(base_radius=15.0, pitch_coeffs=np.zeros(7))
+    gear = GearParams(base_radius=15.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
     proc = ManufacturingProcessParams(kerf_mm=0.2, overcut_mm=0.05, min_ligament_mm=0.3)
 
     durations = np.array([45.0])

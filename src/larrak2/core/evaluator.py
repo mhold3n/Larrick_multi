@@ -18,6 +18,7 @@ Flow:
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Sequence
 
@@ -29,6 +30,7 @@ from ..core.constraints import (
     THERMO_CONSTRAINTS_FID0,
     THERMO_CONSTRAINTS_FID1,
     combine_constraints,
+    get_constraint_kinds_for_phase,
 )
 from ..gear.litvin_core import eval_gear
 from ..gear.manufacturability_limits import (
@@ -51,7 +53,14 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
 
     Returns:
         EvalResult with:
-            F: Objectives [1-η_comb, 1-η_exp, 1-η_gear] (minimize)
+            F: Objectives [
+                1-η_comb,
+                1-η_exp,
+                1-η_gear,
+                motion_law_penalty,
+                life_damage_penalty,
+                material_risk_penalty,
+            ] (minimize)
             G: Constraints (G <= 0 feasible)
             diag: Diagnostics dict
     """
@@ -123,8 +132,9 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     t_gear = time.perf_counter() - t_gear_start
 
     # ===================================================================
-    # Objectives (minimize): three efficiency gaps
+    # Objective foundations
     # ===================================================================
+    # First three axes remain the efficiency gaps:
     #   F[0] = 1 - η_comb  (chemical -> released heat)
     #   F[1] = 1 - η_exp   (released heat -> work)
     #   F[2] = 1 - η_gear  (piston/mech power -> output power)
@@ -140,43 +150,20 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     eta_comb = float(np.clip(eta_comb, 0.0, 1.0))
     eta_exp = float(np.clip(eta_exp, 0.0, 1.0))
 
-    # Fidelity 2+: Apply surrogate corrections (legacy residual surrogates)
-    delta_eff = 0.0
-    delta_loss = 0.0
     loss_corrected = gear_result.loss_total
-    surrogate_meta: dict[str, object] = {"surrogate_used": False}
-
-    # Legacy residual surrogates (sklearn) are disabled when OpenFOAM NN is active,
-    # since their semantics don't match the new efficiency decomposition.
-    enable_residual = ctx.fidelity >= 2 and not bool(thermo_diag.get("openfoam_nn_used", False))
-
-    if enable_residual:
-        from larrak2.surrogate.inference import get_surrogate_engine
-
-        engine = get_surrogate_engine()
-        delta_eff, delta_loss, meta = engine.predict_corrections(x)
-
-        # Interpret delta_eff as an additive correction to η_exp (bounded)
-        eta_exp = float(np.clip(eta_exp + float(delta_eff), 0.0, 1.0))
-
-        # Gear loss correction directly impacts η_gear
-        loss_corrected = float(loss_corrected + float(delta_loss))
-
-        surrogate_meta = {
-            "surrogate_used": True,
-            "delta_eff": float(delta_eff),
-            "delta_loss": float(delta_loss),
-            "version_surrogate": "SurrogateEngine_v1",
-            "active_models": meta.get("surrogates_active", []),
-            "uncertainty": meta.get("uncertainty", {}),
-        }
+    surrogate_meta: dict[str, object] = {
+        "surrogate_used": False,
+        "residual_correction_used": False,
+        "residual_correction_engine": "disabled",
+        "openfoam_model_path": ctx.openfoam_model_path or os.environ.get("LARRAK2_OPENFOAM_NN_PATH", ""),
+        "calculix_stress_mode": ctx.calculix_stress_mode,
+        "gear_loss_mode": ctx.gear_loss_mode,
+    }
 
     omega = float(ctx.rpm) * 2.0 * np.pi / 60.0
     P_out = float(ctx.torque) * omega
     denom = max(P_out + loss_corrected, 1e-12)
     eta_gear = float(np.clip(P_out / denom, 0.0, 1.0)) if P_out > 0 else 1.0
-
-    F = np.array([1.0 - eta_comb, 1.0 - eta_exp, 1.0 - eta_gear], dtype=np.float64)
 
     # ===================================================================
     # Machining Cost & Constraints
@@ -215,9 +202,12 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     tol_req, tol_penalty = calculate_tolerance_budget(
         min_ligament_mm=t_min_proxy,
         min_curvature_mm=min_curvature,
-        aspect_ratio=2.0,
+        # Dynamic proxy instead of fixed constant to keep machining logic coupled
+        # to candidate geometry. This can be replaced by a richer geometric AR.
+        aspect_ratio=float(candidate.gear.face_width_mm / max(candidate.gear.base_radius, 1e-6)),
         torque_nm=float(ctx.torque),
-        budget_mm=0.5,
+        budget_mm=float(ctx.tolerance_threshold_mm),
+        mode=ctx.tolerance_constraint_mode,
     )
 
     # Tooling penalty (soft constraint for non-standard / expensive tools)
@@ -242,6 +232,7 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         lube_mode_level=candidate.realworld.lube_mode_level,
         material_quality_level=candidate.realworld.material_quality_level,
         coating_level=candidate.realworld.coating_level,
+        hunting_level=candidate.realworld.hunting_level,
         oil_flow_level=candidate.realworld.oil_flow_level,
         oil_supply_temp_level=candidate.realworld.oil_supply_temp_level,
         evacuation_level=candidate.realworld.evacuation_level,
@@ -426,6 +417,36 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     t_rw = time.perf_counter() - t_rw_start
 
     # ===================================================================
+    # Objectives (6D): efficiency + motion-law + lifetime + material risk
+    # ===================================================================
+    ratio_stats = thermo_diag.get("ratio_profile_stats", {})
+    ratio_slope = float(ratio_stats.get("max_slope", 0.0))
+    ratio_jerk = float(ratio_stats.get("max_jerk", 0.0))
+    slope_limit_used = float(thermo_diag.get("ratio_slope_limit_used", dynamic_slope_limit))
+    slope_util = ratio_slope / max(slope_limit_used, 1e-9)
+    jerk_util = ratio_jerk / 1e6
+    motion_law_penalty = float(0.6 * slope_util + 0.4 * jerk_util)
+
+    life_damage_penalty = float(np.log10(1.0 + max(life_damage_total, 0.0)))
+
+    temp_shortfall = max(0.0, -float(rw_result.material_temp_margin_C))
+    snap_norm = max(0.0, float(min_snap_dist)) / 0.4
+    cost_norm = max(0.0, float(rw_result.total_cost_index) - 1.0) / 5.0
+    material_risk_penalty = float(temp_shortfall / 100.0 + 0.5 * snap_norm + 0.25 * cost_norm)
+
+    F = np.array(
+        [
+            1.0 - eta_comb,
+            1.0 - eta_exp,
+            1.0 - eta_gear,
+            motion_law_penalty,
+            life_damage_penalty,
+            material_risk_penalty,
+        ],
+        dtype=np.float64,
+    )
+
+    # ===================================================================
     # Combine all constraints
     # ===================================================================
     # Thermo constraint names from centralized registry
@@ -437,11 +458,13 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     gear_names_list = list(GEAR_CONSTRAINTS) + machining_names
 
     # Combine thermo + gear (incl. machining) + realworld constraints
+    constraint_kinds = get_constraint_kinds_for_phase(ctx.constraint_phase)
     G, constraint_diag = combine_constraints(
         thermo_G=thermo_G,
         gear_G=gear_G_list,
         thermo_names=thermo_cnames,
         gear_names=gear_names_list,
+        kind_overrides=constraint_kinds,
         realworld_G=rw_G,
         realworld_names=rw_names,
     )
@@ -499,6 +522,30 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             "eta_gear": eta_gear,
             "loss_total": loss_corrected,
             "dynamic_slope_limit": dynamic_slope_limit,
+        },
+        "objectives": {
+            "names": [
+                "eta_comb_gap",
+                "eta_exp_gap",
+                "eta_gear_gap",
+                "motion_law_penalty",
+                "life_damage_penalty",
+                "material_risk_penalty",
+            ],
+            "values": F.tolist(),
+            "motion_law": {
+                "max_slope": ratio_slope,
+                "max_jerk": ratio_jerk,
+                "slope_limit_used": slope_limit_used,
+                "slope_utilization": slope_util,
+                "jerk_utilization": jerk_util,
+            },
+            "life_damage_total": life_damage_total,
+            "material": {
+                "temp_shortfall_C": temp_shortfall,
+                "snap_distance_norm": snap_norm,
+                "cost_index_norm": cost_norm,
+            },
         },
         "versions": {
             "thermo": MODEL_VERSION_THERMO_V1,

@@ -9,10 +9,12 @@ Constraints:
     rw_micropitting_sf:  Micropitting safety factor S_λ ≥ 1.0
     rw_material_temp:    Material service temp − operating temp ≥ 0 °C
     rw_cost_index:       Soft penalty if cost exceeds threshold
-    rw_life_damage_10k:  D_total ≤ 1.0 (10,000 h service life)
+    rw_life_damage_10k:  log10(D_total) ≤ 0.0 (10,000 h service life)
 """
 
 from __future__ import annotations
+
+import numpy as np
 
 from larrak2.realworld.surrogates import RealWorldSurrogateResult
 
@@ -39,6 +41,7 @@ def compute_realworld_constraints(
     result: RealWorldSurrogateResult,
     operating_temp_C: float = 200.0,
     life_damage_total: float = 0.0,
+    min_snap_distance: float | None = None,
 ) -> tuple[list[float], list[str]]:
     """Convert surrogate results into G-vector constraints.
 
@@ -71,11 +74,17 @@ def compute_realworld_constraints(
     cost_violation = max(0.0, result.total_cost_index - _COST_THRESHOLD)
     G.append(cost_violation)
 
-    # 6. Life damage D_total ≤ 1.0 → G = D_total − 1.0 (negative when D < 1)
-    G.append(life_damage_total - 1.0)
+    # 6. Life damage D_total ≤ 1.0.
+    # Use log compression so large positive violations do not numerically
+    # dominate the rest of the optimization while preserving feasibility:
+    #   D_total <= 1  <=>  log10(D_total) <= 0
+    D_total = max(float(life_damage_total), 1e-12)
+    G.append(float(np.log10(D_total)))
 
     # 7. Material Snapping Distance penalty → G = snap_dist - d_max
-    dist = getattr(result, "min_snap_distance", 0.0)
+    dist = float(min_snap_distance) if min_snap_distance is not None else getattr(
+        result, "min_snap_distance", 0.0
+    )
     G.append(dist - _SNAP_DIST_MAX)
 
     return G, list(REALWORLD_CONSTRAINT_NAMES)

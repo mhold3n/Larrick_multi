@@ -6,7 +6,6 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 # OpenFOAM Imports
 try:
@@ -14,9 +13,24 @@ try:
         DEFAULT_FEATURE_KEYS,
         DEFAULT_TARGET_KEYS,
         load_dataset_json,
+        load_dataset_jsonl,
         load_dataset_npz,
         save_artifact,
         train_openfoam_surrogate,
+    )
+except ImportError:
+    pass
+
+# CalculiX Imports
+try:
+    from larrak2.surrogate.calculix_nn import (
+        DEFAULT_FEATURE_KEYS as DEFAULT_CCX_FEATURE_KEYS,
+        DEFAULT_TARGET_KEYS as DEFAULT_CCX_TARGET_KEYS,
+        load_dataset_json as load_ccx_dataset_json,
+        load_dataset_jsonl as load_ccx_dataset_jsonl,
+        load_dataset_npz as load_ccx_dataset_npz,
+        save_artifact as save_ccx_artifact,
+        train_calculix_surrogate,
     )
 except ImportError:
     pass
@@ -54,9 +68,15 @@ def train_openfoam_workflow(args: argparse.Namespace):
         X, Y = load_dataset_json(
             data_path, feature_keys=DEFAULT_FEATURE_KEYS, target_keys=DEFAULT_TARGET_KEYS
         )
+    elif suf == ".jsonl":
+        X, Y = load_dataset_jsonl(
+            data_path, feature_keys=DEFAULT_FEATURE_KEYS, target_keys=DEFAULT_TARGET_KEYS
+        )
     elif suf == ".npz":
         X, Y = load_dataset_npz(data_path)
     elif suf == ".parquet":
+        import pandas as pd
+
         df = pd.read_parquet(data_path)
         X = df[list(DEFAULT_FEATURE_KEYS)].to_numpy(dtype=np.float64)
         Y = df[list(DEFAULT_TARGET_KEYS)].to_numpy(dtype=np.float64)
@@ -85,9 +105,62 @@ def train_openfoam_workflow(args: argparse.Namespace):
     print(f"Saved to {out_path}")
 
 
+def train_calculix_workflow(args: argparse.Namespace):
+    """Workflow for CalculiX NN training."""
+    print("Starting CalculiX NN Training Workflow...")
+    data_path = Path(args.data)
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    suf = data_path.suffix.lower()
+    if suf == ".json":
+        X, Y = load_ccx_dataset_json(
+            data_path,
+            feature_keys=DEFAULT_CCX_FEATURE_KEYS,
+            target_keys=DEFAULT_CCX_TARGET_KEYS,
+        )
+    elif suf == ".jsonl":
+        X, Y = load_ccx_dataset_jsonl(
+            data_path,
+            feature_keys=DEFAULT_CCX_FEATURE_KEYS,
+            target_keys=DEFAULT_CCX_TARGET_KEYS,
+        )
+    elif suf == ".npz":
+        X, Y = load_ccx_dataset_npz(data_path)
+    elif suf == ".parquet":
+        import pandas as pd
+
+        df = pd.read_parquet(data_path)
+        X = df[list(DEFAULT_CCX_FEATURE_KEYS)].to_numpy(dtype=np.float64)
+        Y = df[list(DEFAULT_CCX_TARGET_KEYS)].to_numpy(dtype=np.float64)
+    else:
+        raise ValueError(f"Unsupported format: {suf}")
+
+    hidden_layers = tuple(int(s) for s in args.hidden.split(",")) if args.hidden else (64, 64)
+
+    artifact = train_calculix_surrogate(
+        X,
+        Y,
+        feature_keys=DEFAULT_CCX_FEATURE_KEYS,
+        target_keys=DEFAULT_CCX_TARGET_KEYS,
+        hidden_layers=hidden_layers,
+        seed=args.seed,
+        epochs=args.epochs,
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+        val_frac=0.2,
+    )
+
+    out_path = outdir / args.name
+    save_ccx_artifact(artifact, out_path)
+    print(f"Saved to {out_path}")
+
+
 def train_gear_nn_workflow(args: argparse.Namespace):
     """Workflow for Gear Loss NN training."""
     print("Starting Gear NN Training Workflow...")
+    import pandas as pd
+
     df = pd.read_parquet(args.data)
 
     # Columns logic (from Phase 2)

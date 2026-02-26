@@ -4,6 +4,9 @@ import numpy as np
 import pytest
 
 from larrak2.core.encoding import (
+    N_GEAR,
+    N_REALWORLD,
+    N_THERMO,
     N_TOTAL,
     Candidate,
     GearParams,
@@ -42,7 +45,9 @@ def test_roundtrip_consistency():
     # Encode
     x = encode_candidate(candidate)
     assert len(x) == N_TOTAL, f"Expected {N_TOTAL} variables, got {len(x)}"
-    assert N_TOTAL == 18, f"N_TOTAL should be 18, got {N_TOTAL}"
+    assert N_TOTAL == (N_THERMO + N_GEAR + N_REALWORLD), (
+        f"N_TOTAL should equal N_THERMO+N_GEAR+N_REALWORLD, got {N_TOTAL}"
+    )
 
     # Decode
     decoded = decode_candidate(x)
@@ -163,7 +168,7 @@ def test_realworld_params_to_from_array():
     )
 
     arr = original.to_array()
-    assert len(arr) == 4
+    assert len(arr) == N_REALWORLD
 
     recovered = RealWorldParams.from_array(arr)
     assert recovered.surface_finish_level == original.surface_finish_level
@@ -173,26 +178,30 @@ def test_realworld_params_to_from_array():
 
 
 def test_decision_vector_layout():
-    """Verify the 18-variable layout: x[0:5] thermo, x[5:14] gear, x[14:18] realworld."""
+    """Verify vector layout: thermo, then gear, then realworld segments."""
     x = mid_bounds_candidate()
-    assert len(x) == 18
+    assert len(x) == N_TOTAL
 
     candidate = decode_candidate(x)
 
-    # Thermo occupies x[0:5]
-    np.testing.assert_array_almost_equal(candidate.thermo.to_array(), x[0:5])
+    # Thermo occupies x[0:N_THERMO]
+    np.testing.assert_array_almost_equal(candidate.thermo.to_array(), x[0:N_THERMO])
 
-    # Gear occupies x[5:14] (base_radius + 7 coeffs + face_width)
-    np.testing.assert_array_almost_equal(candidate.gear.to_array(), x[5:14])
+    # Gear occupies x[N_THERMO:N_THERMO+N_GEAR]
+    np.testing.assert_array_almost_equal(candidate.gear.to_array(), x[N_THERMO : N_THERMO + N_GEAR])
 
-    # Realworld occupies x[14:18]
-    np.testing.assert_array_almost_equal(candidate.realworld.to_array(), x[14:18])
+    # Realworld occupies x[N_THERMO+N_GEAR:N_TOTAL]
+    np.testing.assert_array_almost_equal(
+        candidate.realworld.to_array(), x[N_THERMO + N_GEAR : N_TOTAL]
+    )
 
     # Face width bounds
     xl, xu = bounds()
-    assert xl[13] == 4.0, "Face width lower bound should be 4.0 mm"
-    assert xu[13] == 14.0, "Face width upper bound should be 14.0 mm (gear body z-height)"
+    face_width_idx = N_THERMO + N_GEAR - 1
+    assert xl[face_width_idx] == 4.0, "Face width lower bound should be 4.0 mm"
+    assert xu[face_width_idx] == 14.0, "Face width upper bound should be 14.0 mm (gear body z-height)"
 
     # Realworld bounds
-    assert np.all(xl[14:18] == 0.0), "Realworld lower bounds should be 0.0"
-    assert np.all(xu[14:18] == 1.0), "Realworld upper bounds should be 1.0"
+    rw_slice = slice(N_THERMO + N_GEAR, N_TOTAL)
+    assert np.all(xl[rw_slice] == 0.0), "Realworld lower bounds should be 0.0"
+    assert np.all(xu[rw_slice] == 1.0), "Realworld upper bounds should be 1.0"

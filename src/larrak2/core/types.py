@@ -56,10 +56,41 @@ class EvalContext:
     loss_coeffs: dict[str, tuple[float, ...]] | None = None
     gear_process_params: dict[str, float] | None = None
     material_properties: Any | None = None
+    constraint_phase: str = "explore"
+    tolerance_constraint_mode: str = "capability_floor"
+    tolerance_threshold_mm: float = 0.24
+    openfoam_model_path: str | None = None
+    calculix_stress_mode: str = "nn"
+    calculix_model_path: str | None = None
+    gear_loss_mode: str = "physics"
+    gear_loss_model_dir: str | None = None
 
     def __post_init__(self) -> None:
         if self.fidelity not in (0, 1, 2):
             raise ValueError(f"fidelity must be 0, 1, or 2, got {self.fidelity}")
+        if self.constraint_phase not in {"explore", "downselect"}:
+            raise ValueError(
+                f"constraint_phase must be 'explore' or 'downselect', got {self.constraint_phase}"
+            )
+        if self.tolerance_constraint_mode not in {"capability_floor", "stack_budget_max"}:
+            raise ValueError(
+                "tolerance_constraint_mode must be 'capability_floor' or 'stack_budget_max', "
+                f"got {self.tolerance_constraint_mode}"
+            )
+        if self.tolerance_threshold_mm <= 0:
+            raise ValueError(
+                f"tolerance_threshold_mm must be > 0, got {self.tolerance_threshold_mm}"
+            )
+        if self.calculix_stress_mode not in {"nn", "analytical"}:
+            raise ValueError(
+                "calculix_stress_mode must be 'nn' or 'analytical', "
+                f"got {self.calculix_stress_mode}"
+            )
+        if self.gear_loss_mode not in {"physics", "nn"}:
+            raise ValueError(
+                "gear_loss_mode must be 'physics' or 'nn', "
+                f"got {self.gear_loss_mode}"
+            )
 
 
 @dataclass

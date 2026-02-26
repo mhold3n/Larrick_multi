@@ -14,6 +14,8 @@ Outputs:
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -40,6 +42,7 @@ RATIO_ERROR_TOL = 5.0  # 500% max ratio error (relaxed for toy physics)
 MIN_RADIUS = 5.0  # mm
 MAX_RADIUS = 100.0  # mm
 MAX_CURVATURE = 0.5  # 1/mm
+STRESS_HOTSPOT_LIMIT_MPA = 1600.0
 
 
 @dataclass
@@ -143,6 +146,239 @@ def _compute_curvature(r: np.ndarray, theta: np.ndarray) -> np.ndarray:
     return num / denom
 
 
+def _mean_pressure_angle_deg(gear_diag: dict[str, Any]) -> float:
+    phi = gear_diag.get("pressure_angle_rad")
+    if phi is None:
+        return 20.0
+    arr = np.asarray(phi, dtype=np.float64)
+    finite = arr[np.isfinite(arr)]
+    if finite.size == 0:
+        return 20.0
+    return float(np.clip(np.degrees(np.mean(finite)), 10.0, 40.0))
+
+
+def _evaluate_radius_strategy_stress(
+    *,
+    params: GearParams,
+    i_req_profile: np.ndarray,
+    ctx: EvalContext,
+    gear_diag: dict[str, Any],
+) -> dict[str, Any]:
+    """Assess planet/ring/shared radius adaptation strategies via stress risk.
+
+    The selected strategy remains a single choice, but diagnostics are expanded so
+    the optimizer and downselect stages can use explicit advisory reasons.
+    """
+
+    def _analytical_stress_proxy(
+        *,
+        hertz_base_mpa: float,
+        planet_mean_mm: float,
+        planet_mm: float,
+        ring_delta: float,
+        planet_delta: float,
+        ratio_residual: float,
+    ) -> float:
+        return float(
+            hertz_base_mpa
+            * (planet_mean_mm / max(planet_mm, 1e-9))
+            * (1.0 + 0.45 * ring_delta + 0.25 * planet_delta + 0.9 * ratio_residual)
+        )
+
+    r_planet = np.asarray(gear_diag.get("r_planet", [params.base_radius]), dtype=np.float64)
+    planet_mean = float(np.mean(np.maximum(r_planet, 1e-6)))
+    ring_nominal = float(gear_diag.get("r_ring", 80.0))
+    ratio_target = float(np.mean(np.maximum(np.asarray(i_req_profile, dtype=np.float64), 1e-6)))
+
+    baseline_ratio = ring_nominal / max(planet_mean, 1e-6)
+    ratio_factor = ratio_target / max(baseline_ratio, 1e-6)
+    shared_factor = float(np.sqrt(max(ratio_factor, 1e-9)))
+
+    strategies = [
+        {"name": "planet_only", "ring_mm": ring_nominal, "planet_mm": ring_nominal / ratio_target},
+        {"name": "ring_only", "ring_mm": ratio_target * planet_mean, "planet_mm": planet_mean},
+        {
+            "name": "shared_ring_planet",
+            "ring_mm": ring_nominal * shared_factor,
+            "planet_mm": planet_mean / max(shared_factor, 1e-9),
+        },
+    ]
+
+    hertz_base = float(gear_diag.get("hertz_stress_max", 1200.0))
+    p_angle_deg = _mean_pressure_angle_deg(gear_diag)
+    calc_mode = str(getattr(ctx, "calculix_stress_mode", "nn"))
+    ctx_model_path = getattr(ctx, "calculix_model_path", None)
+    model_path_str = str(ctx_model_path).strip() if isinstance(ctx_model_path, str) else ""
+    if not model_path_str:
+        model_path_str = os.environ.get("LARRAK2_CALCULIX_NN_PATH", "models/calculix_nn/calculix_stress.pt")
+    model_path = Path(model_path_str)
+    calc_surrogate = None
+
+    if calc_mode == "nn":
+        if not model_path.exists():
+            raise FileNotFoundError(
+                "CalculiX NN surrogate is required but missing: "
+                f"'{model_path}'. Run `larrak-run train-surrogates` first or run with "
+                "--calculix-stress-mode analytical for an explicit physics-only bypass."
+            )
+        try:
+            from ..surrogate.calculix_nn import get_calculix_surrogate
+
+            calc_surrogate = get_calculix_surrogate(model_path)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to load CalculiX NN surrogate from '{model_path}'."
+            ) from e
+    elif calc_mode != "analytical":
+        raise ValueError(f"Unsupported calculix_stress_mode '{calc_mode}'")
+
+    rows: list[dict[str, Any]] = []
+    for row in strategies:
+        ring_mm = float(max(row["ring_mm"], 1e-6))
+        planet_mm = float(max(row["planet_mm"], 1e-6))
+        produced_ratio = ring_mm / planet_mm
+        ratio_residual = abs(produced_ratio - ratio_target) / max(ratio_target, 1e-9)
+        ring_delta = abs(ring_mm - ring_nominal) / max(ring_nominal, 1e-9)
+        planet_delta = abs(planet_mm - planet_mean) / max(planet_mean, 1e-9)
+        radius_shift = ring_delta + planet_delta
+        balance_delta = abs(ring_delta - planet_delta)
+
+        if calc_surrogate is not None:
+            module_mm = max(0.5, planet_mm / 20.0)
+            features = {
+                "rpm": float(ctx.rpm),
+                "torque": float(ctx.torque),
+                "base_radius_mm": planet_mm,
+                "face_width_mm": float(params.face_width_mm),
+                "module_mm": float(module_mm),
+                "pressure_angle_deg": float(p_angle_deg),
+                "helix_angle_deg": 0.0,
+                "profile_shift": float(np.clip(ring_delta - planet_delta, -1.0, 1.0)),
+            }
+            try:
+                stress_pred = float(calc_surrogate.predict_one(features)["max_stress"])
+            except Exception as e:
+                raise RuntimeError(
+                    "CalculiX NN inference failed while evaluating radius strategies. "
+                    f"Strategy='{row['name']}', features={features}"
+                ) from e
+            stress_source = "calculix_nn"
+        else:
+            stress_pred = _analytical_stress_proxy(
+                hertz_base_mpa=hertz_base,
+                planet_mean_mm=planet_mean,
+                planet_mm=planet_mm,
+                ring_delta=ring_delta,
+                planet_delta=planet_delta,
+                ratio_residual=ratio_residual,
+            )
+            stress_source = "analytical_proxy"
+
+        stress_util = float(stress_pred / STRESS_HOTSPOT_LIMIT_MPA)
+        score_components = {
+            "stress_util": stress_util,
+            "ratio_residual": float(ratio_residual),
+            "radius_shift": float(radius_shift),
+            "balance_delta": float(balance_delta),
+        }
+        score = float(
+            6.0 * score_components["stress_util"]
+            + 4.0 * score_components["ratio_residual"]
+            + 1.2 * score_components["radius_shift"]
+            + 0.8 * score_components["balance_delta"]
+        )
+
+        reasons: list[str] = []
+        if stress_util > 1.2:
+            reasons.append("stress exceeds hotspot limit by more than 20%")
+        elif stress_util > 1.0:
+            reasons.append("stress exceeds hotspot limit")
+        elif stress_util > 0.9:
+            reasons.append("stress is near hotspot limit")
+        if ratio_residual > 0.05:
+            reasons.append("ratio mismatch remains high")
+        if radius_shift > 0.35:
+            reasons.append("large radius migration required")
+        if balance_delta > 0.2:
+            reasons.append("unbalanced ring/planet adjustment increases concentration risk")
+        if not reasons:
+            reasons.append("balanced stress and ratio tracking margin")
+
+        severity = "nominal"
+        if stress_util > 1.2 or ratio_residual > 0.1:
+            severity = "critical"
+        elif stress_util > 1.0 or ratio_residual > 0.05:
+            severity = "high"
+        elif stress_util > 0.9 or radius_shift > 0.3:
+            severity = "watch"
+
+        rows.append(
+            {
+                "strategy": str(row["name"]),
+                "ring_radius_mm": ring_mm,
+                "planet_radius_mm": planet_mm,
+                "ratio_target": ratio_target,
+                "ratio_produced": produced_ratio,
+                "ratio_residual": float(ratio_residual),
+                "stress_pred_mpa": float(stress_pred),
+                "stress_source": stress_source,
+                "score_components": score_components,
+                "score": score,
+                "severity": severity,
+                "advisory_reasons": reasons,
+                "avoid_at_all_costs": bool(severity == "critical"),
+            }
+        )
+
+    rows_sorted = sorted(rows, key=lambda r: float(r["score"]))
+    selected = rows_sorted[0]
+
+    stress_vals = np.array([float(r["stress_pred_mpa"]) for r in rows], dtype=np.float64)
+    stress_median = float(np.median(stress_vals))
+    band_abs = 0.2 * max(abs(stress_median), 1e-9)
+    inlier_mask = np.abs(stress_vals - stress_median) <= band_abs
+    if not np.any(inlier_mask):
+        inlier_mask = np.ones_like(stress_vals, dtype=bool)
+    inlier_vals = stress_vals[inlier_mask]
+
+    selected_idx = next(i for i, r in enumerate(rows) if r["strategy"] == selected["strategy"])
+    selected_is_outlier = not bool(inlier_mask[selected_idx])
+    gate_stress = (
+        float(np.median(inlier_vals))
+        if selected_is_outlier
+        else float(selected["stress_pred_mpa"])
+    )
+    omitted = [rows[i]["strategy"] for i in range(len(rows)) if not bool(inlier_mask[i])]
+
+    avoid_list = [str(r["strategy"]) for r in rows_sorted if bool(r["avoid_at_all_costs"])]
+    reject_list = [str(r["strategy"]) for r in rows_sorted[1:]]
+
+    return {
+        "calculix_stress_mode": calc_mode,
+        "model_used": bool(calc_surrogate is not None),
+        "model_path": str(model_path),
+        "strategies": rows_sorted,
+        "selected_strategy": str(selected["strategy"]),
+        "selected_stress_mpa": float(selected["stress_pred_mpa"]),
+        "selected_gate_stress_mpa": float(gate_stress),
+        "selected_is_outlier_for_gate": bool(selected_is_outlier),
+        "stress_median_mpa": float(stress_median),
+        "stress_inlier_band_pct": 20.0,
+        "stress_source": str(selected["stress_source"]),
+        "selected_ring_radius_mm": float(selected["ring_radius_mm"]),
+        "selected_planet_radius_mm": float(selected["planet_radius_mm"]),
+        "selected_ratio_residual": float(selected["ratio_residual"]),
+        "selected_advisory_reasons": list(selected["advisory_reasons"]),
+        "avoid_at_all_costs": avoid_list,
+        "rejected_strategies": reject_list,
+        "omitted_outlier_strategies_for_gate": omitted,
+        "gate_rule": {
+            "description": "hard gate uses selected strategy stress unless that stress is >20% away from median across strategies",
+            "gate_stress_mpa": float(gate_stress),
+        },
+    }
+
+
 def eval_gear(
     params: GearParams,
     i_req_profile: np.ndarray,
@@ -171,57 +407,89 @@ def eval_gear(
         # Start with V1 values
         loss_total = v1_result.loss_total
         ledger = v1_result.ledger
-        diag_update = {}
+        diag_update = {"gear_loss_mode": str(getattr(ctx, "gear_loss_mode", "physics"))}
 
-        # Fidelity 2+: Surrogate Loss Override
+        # Fidelity 2+: Optional NN gear-loss path (no implicit fallback).
         if ctx.fidelity >= 2:
-            try:
-                # Load surrogate (lazy singleton)
-                # For CI/Testing, this function can be patched to return a mock
-                surrogate = get_gear_surrogate("models/gear_surrogate_v1")
+            gear_loss_mode = str(getattr(ctx, "gear_loss_mode", "physics"))
+            if gear_loss_mode == "nn":
+                ctx_model_dir = getattr(ctx, "gear_loss_model_dir", None)
+                model_dir_str = str(ctx_model_dir).strip() if isinstance(ctx_model_dir, str) else ""
+                if not model_dir_str:
+                    model_dir_str = os.environ.get("LARRAK2_GEAR_LOSS_NN_DIR", "models/gear_surrogate_v1")
+                model_dir = Path(model_dir_str)
+                if not model_dir.exists():
+                    raise FileNotFoundError(
+                        "Gear-loss NN mode selected but model directory is missing: "
+                        f"'{model_dir}'. Provide --gear-loss-model-dir or switch "
+                        "--gear-loss-mode physics."
+                    )
+                try:
+                    surrogate = get_gear_surrogate(model_dir)
+                    preds = surrogate.predict(
+                        rpm=float(ctx.rpm),
+                        torque=float(ctx.torque),
+                        base_radius=float(params.base_radius),
+                        coeffs=list(params.pitch_coeffs),
+                        face_width=float(params.face_width_mm),
+                    )
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Gear-loss NN inference failed for model directory '{model_dir}'."
+                    ) from e
 
-                # Predict (Assumes surrogate outputs Energy in Joules per Cycle)
-                preds = surrogate.predict(
-                    rpm=float(ctx.rpm),
-                    torque=float(ctx.torque),
-                    base_radius=float(params.base_radius),
-                    coeffs=list(params.pitch_coeffs),
-                    face_width=float(params.face_width_mm),
-                )
+                loss_work_J = float(preds["loss_total"])
+                mesh_work_J = float(preds["loss_mesh"])
+                bearing_work_J = float(preds["loss_bearing"])
+                churning_work_J = float(preds["loss_churning"])
 
-                loss_work_J = preds["loss_total"]
-                mesh_work_J = preds["loss_mesh"]
-                bearing_work_J = preds["loss_bearing"]
-                churning_work_J = preds["loss_churning"]
-
-                # Update Power (Watts) = Energy (J) * Cycles/sec
                 cycles_per_sec = float(ctx.rpm) / 60.0
                 loss_total = loss_work_J * cycles_per_sec
 
-                diag_update = {"gear_surrogate_used": True, "preds": preds}
+                diag_update.update(
+                    {
+                        "gear_surrogate_used": True,
+                        "gear_loss_model_dir": str(model_dir),
+                        "preds": preds,
+                    }
+                )
 
-                # Update Ledger
                 if ledger:
                     ledger = EnergyLedger(
                         W_out_shaft=ledger.W_out_shaft,
                         W_loss_mesh=mesh_work_J,
                         W_loss_bearing=bearing_work_J,
                         W_loss_churning=churning_work_J,
-                        # Other fields remain default/0 or lost if not copied,
-                        # but EnergyLedger is simple.
                     )
+            elif gear_loss_mode == "physics":
+                diag_update["gear_surrogate_used"] = False
+            else:
+                raise ValueError(f"Unsupported gear_loss_mode '{gear_loss_mode}'")
 
-            except (ImportError, FileNotFoundError, ValueError):
-                # Fallback to V1 if surrogate fails
-                pass
+        stress_strategy = _evaluate_radius_strategy_stress(
+            params=params,
+            i_req_profile=i_req_profile,
+            ctx=ctx,
+            gear_diag=v1_result.diag,
+        )
+        g_stress_hotspot = (
+            float(stress_strategy["selected_gate_stress_mpa"]) - STRESS_HOTSPOT_LIMIT_MPA
+        )
+        G_aug = np.concatenate([np.asarray(v1_result.G, dtype=np.float64), [g_stress_hotspot]])
 
         return GearResult(
             ratio_error_mean=v1_result.ratio_error_mean,
             ratio_error_max=v1_result.ratio_error_max,
             max_planet_radius=v1_result.max_planet_radius,
             loss_total=loss_total,
-            G=v1_result.G,
-            diag={**v1_result.diag, **diag_update},
+            G=G_aug,
+            diag={
+                **v1_result.diag,
+                **diag_update,
+                "radius_strategy": stress_strategy,
+                "stress_hotspot_limit_mpa": STRESS_HOTSPOT_LIMIT_MPA,
+                "stress_hotspot_gate_mpa": float(stress_strategy["selected_gate_stress_mpa"]),
+            },
             ledger=ledger,
         )
 
@@ -344,6 +612,21 @@ def eval_gear(
     g_self_int = 0.1 if self_intersection else -0.1
     constraints.append(g_self_int)
 
+    stress_strategy = _evaluate_radius_strategy_stress(
+        params=params,
+        i_req_profile=i_req_profile,
+        ctx=ctx,
+        gear_diag={
+            "r_planet": r_planet,
+            "r_ring": r_ring,
+            "hertz_stress_max": hertz_stress_max,
+        },
+    )
+    g_stress_hotspot = (
+        float(stress_strategy["selected_gate_stress_mpa"]) - STRESS_HOTSPOT_LIMIT_MPA
+    )
+    constraints.append(g_stress_hotspot)
+
     G = np.array(constraints, dtype=np.float64)
 
     # Diagnostics
@@ -373,6 +656,9 @@ def eval_gear(
         "interference_flag": interference_flag,
         "contact_ratio": contact_ratio,
         "self_intersection": self_intersection,
+        "radius_strategy": stress_strategy,
+        "stress_hotspot_limit_mpa": STRESS_HOTSPOT_LIMIT_MPA,
+        "stress_hotspot_gate_mpa": float(stress_strategy["selected_gate_stress_mpa"]),
     }
 
     # Populate Energy Ledger (Toy Mode)

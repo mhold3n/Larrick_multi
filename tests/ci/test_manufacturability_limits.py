@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from larrak2.core.encoding import Candidate, GearParams, ThermoParams, encode_candidate
+from larrak2.core.encoding import Candidate, GearParams, RealWorldParams, ThermoParams, encode_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 from larrak2.gear.manufacturability_limits import (
@@ -19,12 +19,18 @@ def _candidate() -> np.ndarray:
         heat_release_width=25.0,
         lambda_af=1.0,
     )
-    gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7))
-    return encode_candidate(Candidate(thermo=thermo, gear=gear))
+    gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
+    rw = RealWorldParams(
+        surface_finish_level=0.5,
+        lube_mode_level=0.5,
+        material_quality_level=0.5,
+        coating_level=0.5,
+    )
+    return encode_candidate(Candidate(thermo=thermo, gear=gear, realworld=rw))
 
 
 def test_ratio_rate_limit_envelope_is_finite_and_cached():
-    gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7))
+    gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
     proc = ManufacturingProcessParams(kerf_mm=0.2, overcut_mm=0.05, min_ligament_mm=0.3)
     durations = np.array([45.0, 90.0])
 
@@ -56,10 +62,10 @@ def test_evaluator_uses_manufacturability_limit_for_thermo_constraint():
     res = evaluate_candidate(x, tight_ctx)
 
     thermo_diag = res.diag["thermo"]
-    limits_diag = res.diag["manufacturability_limits"]
+    metrics_diag = res.diag["metrics"]
 
     assert thermo_diag["ratio_slope_limit_source"] == "manufacturability"
     assert np.isfinite(thermo_diag["ratio_slope_limit_used"])
     assert thermo_diag["ratio_slope_limit_used"] <= 2.0  # bounded by legacy static constant
-    assert np.isfinite(limits_diag["applied_ratio_slope_limit"])
-    assert limits_diag["applied_ratio_slope_limit"] == thermo_diag["ratio_slope_limit_used"]
+    assert np.isfinite(metrics_diag["dynamic_slope_limit"])
+    assert metrics_diag["dynamic_slope_limit"] == thermo_diag["ratio_slope_limit_used"]

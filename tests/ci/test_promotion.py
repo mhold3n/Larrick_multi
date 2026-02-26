@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from larrak2.core.constraints import get_constraint_names
 from larrak2.core.encoding import N_TOTAL, random_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
@@ -44,10 +45,10 @@ def test_promotion_manager_workflow(temp_archive_dir):
     # 1. Create dummy population
     rng = np.random.default_rng(1)
     X = rng.random((20, N_TOTAL))
-    F1 = rng.random((20, 3))
+    F1 = rng.random((20, 6))
     # Make F1 look like pareto (sorted by first obj)
     F1 = F1[np.argsort(F1[:, 0])]
-    G1 = np.zeros((20, 7))  # Feasible
+    G1 = np.zeros((20, len(get_constraint_names(1))))  # Feasible
 
     # 2. Ingest
     pm.ingest_population(X, F1, G1, fidelity=1)
@@ -69,10 +70,11 @@ def test_promotion_manager_workflow(temp_archive_dir):
     from larrak2.core.types import EvalResult
 
     with patch("larrak2.promote.manager.evaluate_candidate") as mock_eval:
+        n_constr_hi = len(get_constraint_names(ctx_fid2.fidelity))
         # returns dummy result
         mock_eval.return_value = EvalResult(
-            F=np.array([-0.5, 10.0, 50.0]),
-            G=np.zeros(7),  # feasible
+            F=np.array([-0.5, 10.0, 50.0, 1.0, 1.0, 1.0]),
+            G=np.zeros(n_constr_hi),  # feasible
             diag={"versions": {"surrogate_used": True}},
         )
 
@@ -95,7 +97,7 @@ def test_promotion_manager_workflow(temp_archive_dir):
 
 
 def test_evaluator_fidelity_2_structure():
-    """Test that fidelity=2 returns corrected objectives."""
+    """Test that fidelity=2 returns expected metadata structure."""
     ctx = EvalContext(rpm=3000, torque=200, fidelity=2, seed=42)
     x = random_candidate(np.random.default_rng(2))
 
@@ -103,5 +105,7 @@ def test_evaluator_fidelity_2_structure():
 
     # Check metadata
     assert "versions" in res.diag
-    # With OpenFOAM NN enabled, legacy residual surrogates are disabled by design.
-    assert res.diag["versions"]["surrogate_used"] is False
+    assert "thermo" in res.diag["versions"]
+    assert "gear" in res.diag["versions"]
+    assert "surrogate" in res.diag
+    assert "surrogate_used" in res.diag["surrogate"]

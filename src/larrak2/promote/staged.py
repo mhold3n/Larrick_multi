@@ -46,8 +46,8 @@ class StagedWorkflow:
         problem = ParetoProblem(ctx)
 
         # NSGA-III Setup
-        # Assuming 3 objectives for Larrak2
-        ref_dirs = get_reference_directions("das-dennis", 3, n_partitions=12)
+        n_partitions = 12 if problem.n_obj <= 3 else 2
+        ref_dirs = get_reference_directions("das-dennis", problem.n_obj, n_partitions=n_partitions)
 
         # Ensure pop size >= ref dirs
         actual_pop = max(pop_size, len(ref_dirs))
@@ -115,7 +115,8 @@ class StagedWorkflow:
         ctx = EvalContext(rpm=self.rpm, torque=self.torque, fidelity=2, seed=self.seed)
         problem = ParetoProblem(ctx)
 
-        ref_dirs = get_reference_directions("das-dennis", 3, n_partitions=12)
+        n_partitions = 12 if problem.n_obj <= 3 else 2
+        ref_dirs = get_reference_directions("das-dennis", problem.n_obj, n_partitions=n_partitions)
         actual_pop = max(pop_size, len(ref_dirs))
 
         # Initial Population Injection

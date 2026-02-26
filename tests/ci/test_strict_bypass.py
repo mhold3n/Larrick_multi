@@ -18,7 +18,7 @@ class TestStrictBypass:
     @pytest.fixture
     def high_amp_params(self):
         """Parameters designed to fail the strict derivative check (d>10)."""
-        gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7))
+        gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
         process = ManufacturingProcessParams()
         durations = np.array([5.0])
         amps = np.array([2.0])
@@ -42,7 +42,7 @@ class TestStrictBypass:
         """When Oracle is ON, strict checks are bypassed."""
         # Override params with safer ones that pass monotonicity but fail derivative check
         # Amp=1.0, Dur=1.0 deg => d_ratio ~ 180 > 10. Ratio in [2.0, 3.0] (Safe)
-        gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7))
+        gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
         process = ManufacturingProcessParams()
         dur = np.array([1.0])
         amps = np.array([1.0])

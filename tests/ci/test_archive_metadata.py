@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from larrak2.cli.run_pareto import main as pareto_main
+from larrak2.core.constraints import get_constraint_names
 from larrak2.core.encoding import ENCODING_VERSION
 
 
@@ -39,7 +40,9 @@ def test_summary_contains_versions():
 
         assert summary["encoding_version"] == ENCODING_VERSION
         assert "model_versions" in summary and "thermo_v1" in summary["model_versions"]
-        assert summary["n_obj"] == 3
-        assert summary["n_constr"] == 12
-        assert summary["constraint_names"] and len(summary["constraint_names"]) == 12
+        assert summary["n_obj"] >= 3
+        assert summary["n_obj"] == len(summary.get("objective_names", []))
+        expected_constraints = get_constraint_names(int(summary["fidelity"]))
+        assert summary["n_constr"] == len(expected_constraints)
+        assert summary["constraint_names"] == expected_constraints
         assert "constraint_scales" in summary

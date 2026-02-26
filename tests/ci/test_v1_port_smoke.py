@@ -8,6 +8,7 @@ These tests verify that the v1 port produces valid results:
 
 import numpy as np
 
+from larrak2.core.constraints import get_constraint_names
 from larrak2.core.encoding import mid_bounds_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
@@ -23,12 +24,17 @@ class TestV1PortSmoke:
 
         result = evaluate_candidate(x, ctx)
 
-        # F should be finite (3 objectives)
-        assert result.F.shape == (3,), f"Expected F.shape=(3,), got {result.F.shape}"
+        # F should be finite (multi-objective vector)
+        assert result.F.ndim == 1 and result.F.size >= 3, (
+            f"Expected 1D objective vector with >=3 axes, got {result.F.shape}"
+        )
         assert np.all(np.isfinite(result.F)), f"F contains non-finite values: {result.F}"
 
-        # G should be finite (13 constraints at fidelity=1 due to system power balance constraint)
-        assert result.G.shape == (13,), f"Expected G.shape=(13,), got {result.G.shape}"
+        # G should match centralized constraint registry for fidelity=1
+        expected_n_constr = len(get_constraint_names(ctx.fidelity))
+        assert result.G.shape == (expected_n_constr,), (
+            f"Expected G.shape=({expected_n_constr},), got {result.G.shape}"
+        )
         assert np.all(np.isfinite(result.G)), f"G contains non-finite values: {result.G}"
 
     def test_fidelity_1_diag_contains_v1_flag(self):
@@ -54,8 +60,8 @@ class TestV1PortSmoke:
         result = evaluate_candidate(x, ctx)
 
         # Should produce valid results
-        assert result.F.shape == (3,)
-        assert result.G.shape == (12,)
+        assert result.F.ndim == 1 and result.F.size >= 3
+        assert result.G.shape == (len(get_constraint_names(ctx.fidelity)),)
         assert np.all(np.isfinite(result.F))
         assert np.all(np.isfinite(result.G))
 

@@ -94,8 +94,14 @@ def calculate_tolerance_budget(
     aspect_ratio: float = 1.0,
     torque_nm: float = 100.0,
     budget_mm: float = 0.5,
+    mode: str = "capability_floor",
+    penalty_weight: float = 10.0,
 ) -> tuple[float, float]:
-    """Calculate required tolerance and penalty if budget violated.
+    """Calculate required tolerance and penalty.
+
+    Modes:
+        - capability_floor: violate when total_req < budget_mm
+        - stack_budget_max: violate when total_req > budget_mm
 
     Returns:
         (total_required_tolerance, penalty)
@@ -116,10 +122,14 @@ def calculate_tolerance_budget(
     else:
         t_prof_lig = 0.1
 
-    # Curvature (Small tools deflect -> need tight control? Or just expensive?)
-    # Actually small curvature drives tolerance because small deviations matter more?
-    # Let's say curvature doesn't drive tolerance as hard as ligament.
-    t_prof = t_prof_lig
+    # Curvature-driven profile tolerance term.
+    # Tighter curvature (smaller radius) generally demands tighter tolerance.
+    curv = float(max(min_curvature_mm, 0.1))
+    curv_norm = min(max((curv - 0.1) / 1.9, 0.0), 1.0)  # 0.1 mm -> 0, 2.0 mm -> 1
+    t_prof_curv = 0.005 + (0.1 - 0.005) * curv_norm
+
+    # Required profile tolerance is controlled by the tightest feature.
+    t_prof = min(t_prof_lig, t_prof_curv)
 
     # 2. Thickness Tolerance
     # Aspect ratio > 10 -> warp -> tight flatness.
@@ -143,19 +153,14 @@ def calculate_tolerance_budget(
     total_req = t_prof + t_thick + t_bore
 
     # Penalty
-    if total_req < budget_mm:
-        # If required is Small (e.g. 0.1), and budget is 0.5.
-        # Wait.
-        # Requirement: "all tolerances must add to this value ... failing the minimum of 0.5".
-        # User said: "minimize where necessary ... basically say 'total tolerance budget MINIMUM 0.5'".
-        # "Our total variation is 0.31, failing the minimum of 0.5".
-        # So we want Total_Req >= 0.5.
-        # If Total_Req = 0.3 (tight), we fail.
-        # We want Looser tolerances (Total_Req = 0.8).
-
-        # So Penalty if Total_Req < Budget.
-        penalty = (budget_mm - total_req) * 10.0  # Weight
+    if mode == "capability_floor":
+        penalty = max(0.0, budget_mm - total_req) * float(penalty_weight)
+    elif mode == "stack_budget_max":
+        penalty = max(0.0, total_req - budget_mm) * float(penalty_weight)
     else:
-        penalty = 0.0
+        raise ValueError(
+            f"Unsupported tolerance budget mode '{mode}'. "
+            "Use 'capability_floor' or 'stack_budget_max'."
+        )
 
     return total_req, penalty

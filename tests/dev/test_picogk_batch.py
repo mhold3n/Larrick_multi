@@ -22,7 +22,7 @@ def test_picogk_batch_performance():
     """Performance test for PicoGK batch processing."""
     print(f"Testing Batch Architecture with ORACLE={os.environ.get('LARRAK_PICOGK_ORACLE', '0')}")
 
-    gear = GearParams(base_radius=15.0, pitch_coeffs=np.zeros(7))
+    gear = GearParams(base_radius=15.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
     proc = ManufacturingProcessParams(kerf_mm=0.2, overcut_mm=0.05, min_ligament_mm=0.3)
 
     durations = np.array([10.0, 20.0, 30.0, 45.0, 60.0])

@@ -77,9 +77,13 @@ def validate_candidates(
         ValidationReport with ranked candidates.
     """
     from ..cem.evaluator import CEMEvalParams, evaluate_cem
+    from ..cem.lubrication import LubricationParams, mode_from_level
+    from ..cem.post_processing import coating_from_level
+    from ..cem.surface_finish import tier_from_level
     from ..core.encoding import ENCODING_VERSION, N_TOTAL, decode_candidate
     from ..realworld.surrogates import (
         RealWorldSurrogateParams,
+        _material_from_level,
         evaluate_realworld_surrogates,
     )
 
@@ -108,11 +112,19 @@ def validate_candidates(
         surr_result = evaluate_realworld_surrogates(surr_params)
 
         # --- Full CEM evaluation ---
+        lube_mode = mode_from_level(rw.lube_mode_level)
+        flow_rate = 0.5 + rw.oil_flow_level * 9.5
+        supply_temp = 40.0 + rw.oil_supply_temp_level * 80.0
+
         cem_params = CEMEvalParams(
-            surface_finish_level=rw.surface_finish_level,
-            lube_mode_level=rw.lube_mode_level,
-            material_quality_level=rw.material_quality_level,
-            coating_level=rw.coating_level,
+            material=_material_from_level(rw.material_quality_level),
+            surface_finish=tier_from_level(rw.surface_finish_level),
+            lubrication=LubricationParams(
+                mode=lube_mode,
+                supply_temp_C=supply_temp,
+                flow_rate_L_min=flow_rate,
+            ),
+            coating=coating_from_level(rw.coating_level),
         )
         cem_result = evaluate_cem(cem_params)
 
