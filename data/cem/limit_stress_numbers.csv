@@ -1,0 +1,6 @@
+route_id,material_group,sigma_Hlim_MPa,hardness_hrc_min,hardness_hrc_max
+AISI_9310,carburized_steel,1500.0,58.0,62.0
+Pyrowear_53,carburized_steel,1700.0,60.0,63.0
+CBS50_NiL,high_alloy_steel,1850.0,60.0,64.0
+M50NiL,high_alloy_steel,2000.0,61.0,65.0
+Ferrium_C64,high_alloy_steel,1900.0,61.0,65.0

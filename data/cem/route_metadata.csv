@@ -1,0 +1,6 @@
+route_id,process_family,case_hardness_hrc_nom,core_toughness_KIC_MPa_m05,max_service_temp_C,cleanliness_grade_proxy,quality_grade,provenance
+AISI_9310,carburized,60.0,45.0,150.0,0.30,baseline,reference_literature
+Pyrowear_53,carburized,61.0,60.0,200.0,0.50,premium,datasheet
+CBS50_NiL,carburized,62.0,80.0,315.0,0.80,premium,datasheet
+M50NiL,nitrided,63.0,90.0,400.0,0.90,aerospace,datasheet
+Ferrium_C64,carburized,64.0,85.0,450.0,0.85,aerospace,datasheet

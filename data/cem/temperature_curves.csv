@@ -1,0 +1,17 @@
+route_id,property,temp_c,value
+AISI_9310,youngs_modulus_GPa,25.0,205.0
+AISI_9310,youngs_modulus_GPa,150.0,200.0
+AISI_9310,k_W_mK,25.0,44.5
+AISI_9310,k_W_mK,150.0,40.0
+AISI_9310,rho_kg_m3,25.0,7850.0
+AISI_9310,rho_kg_m3,150.0,7820.0
+AISI_9310,cp_J_kgK,25.0,475.0
+AISI_9310,cp_J_kgK,150.0,520.0
+Pyrowear_53,youngs_modulus_GPa,25.0,200.0
+Pyrowear_53,youngs_modulus_GPa,150.0,196.0
+CBS50_NiL,youngs_modulus_GPa,25.0,195.0
+CBS50_NiL,youngs_modulus_GPa,150.0,191.0
+M50NiL,youngs_modulus_GPa,25.0,202.0
+M50NiL,youngs_modulus_GPa,150.0,198.0
+Ferrium_C64,youngs_modulus_GPa,25.0,207.0
+Ferrium_C64,youngs_modulus_GPa,150.0,203.0

@@ -7,7 +7,13 @@ outputs/
 runs/
 
 # Large Data
-data/
+data/*
+!data/cem/
+data/cem/*
+!data/cem/limit_stress_numbers.csv
+!data/cem/material_route_cloud.csv
+!data/cem/route_metadata.csv
+!data/cem/temperature_curves.csv
 models/
 openfoam_templates/
 
