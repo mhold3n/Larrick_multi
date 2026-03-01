@@ -2,4 +2,6 @@
 
 from __future__ import annotations
 
-__all__ = []
+from .candidate_store import CandidateEntry, CandidateStore
+
+__all__ = ["CandidateEntry", "CandidateStore"]

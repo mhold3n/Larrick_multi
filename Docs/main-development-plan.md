@@ -1,0 +1,202 @@
+# Main Development Plan: Hard-First Compute/Optimize/Solve (Canonical)
+
+Status: active  
+Last updated: 2026-03-01  
+Scope: backend-only (`src/larrak2`), no GUI/dashboard migration
+
+This is the single source of truth for development priorities.  
+Any previous plan doc is superseded by this file.
+
+## 0. Consolidation Record
+
+The following superseded plan documents were intentionally removed and folded into this canonical plan:
+
+1. `Docs/deep-research-report.md`
+2. `Docs/deep-research-report 2.md`
+3. `Docs/deep-research-report 3.md`
+4. `Docs/dress-rehearsal-process.md`
+5. `Docs/merge_wave1_manifest.md`
+6. `Docs/freepiston/drafts/implementation_outline_missing_features.md`
+7. `Docs/freepiston/drafts/op_engine_hybrid_architecture.md`
+8. `Docs/freepiston/drafts/wall_function_full_goals_plan.md`
+9. `Docs/freepiston/drafts/wall_function_full_goals_summary.md`
+10. `Docs/freepiston/drafts/wall_function_gap_analysis.md`
+11. `Docs/freepiston/drafts/wall_function_implementation_timeline.md`
+12. `Docs/freepiston/drafts/project_status/summary.md`
+
+## 1. Non-Negotiable Program Rules
+
+1. A sprint does not pass if it only works with toy physics (`fidelity=0`) or placeholder constants.
+2. Full decision dimensionality must be preserved end-to-end (`N_TOTAL` unchanged). Refinement may optimize slices, but vectors stay full width.
+3. All terminal artifacts must be written under `outputs/` and categorized by purpose. No runtime artifact writes to deprecated `models/` or `src/`.
+4. Downselect/release gates require explicit material/tribology/lifetime checks, not proxy-only scoring.
+5. CI pass is necessary but not sufficient; physical validity gates below must pass.
+
+## 2. Target Pipeline (Explore -> Exploit -> Lifetime)
+
+1. Stage A `Explore` (pymoo):
+   Full-vector multi-objective search over motion law + geometry + real-world controls.
+2. Stage B `Exploit` (CasADi/Ipopt):
+   Candidate-level local refinement on sensitivity-ranked active subsets with frozen baseline variables and trust region.
+3. Stage C `Lifetime/Material`:
+   Phase-resolved tribology + life damage + material route iteration on refined candidates.
+4. Stage D `Truth Loop`:
+   OpenFOAM/CalculiX truth runs + surrogate retraining + re-ranking.
+
+## 3. Current Code Snapshot: What Exists vs Hard Gaps
+
+| Area | Present in codebase | Hard gap to close |
+| --- | --- | --- |
+| Two-stage plumbing | `src/larrak2/pipelines/explore_exploit.py`, `src/larrak2/optimization/candidate_store.py` | Needs strict fidelity gating and stronger high-fidelity objective parity |
+| CasADi refinement | `src/larrak2/adapters/casadi_refine.py`, `src/larrak2/optimization/slicing/*` | Current IPOPT path solves a local linearized slice model, not a true nonlinear high-fidelity NLP |
+| Thermo core | `src/larrak2/thermo/motionlaw.py` | `src/larrak2/thermo/combustion.py` and `src/larrak2/thermo/scavenging.py` remain placeholder-level |
+| Tribology/material | `src/larrak2/cem/*`, `src/larrak2/realworld/*` | Core coefficients/tables still placeholder-biased and sparsely populated; fallback behavior can mask missing physics |
+| Lifetime model | `src/larrak2/realworld/life_damage.py` | Simplified Miner proxy needs calibrated SN/stress models and route-specific validation |
+| Surrogate workflows | `src/larrak2/training/workflows.py`, `src/larrak2/surrogate/*` | Need uncertainty-aware quality gates and stronger dataset contracts per operating regime |
+| Orchestration backend | `src/larrak2/orchestration/*`, CLI `orchestrate` | Truth trigger policy still manual/off only; automation policy deferred |
+
+## 4. Hard Missing Components (By Module Class)
+
+### 4.1 Equations and Physics Models
+
+1. Thermodynamics and combustion:
+   Replace placeholder combustion/scavenging logic with physically coupled cycle modeling (mass, energy, and gas exchange closure).
+2. Gear/contact mechanics:
+   Preserve phase-resolved contact stress, sliding, entrainment, and load paths with robust handling of misalignment and thermal distortion.
+3. Tribology:
+   Replace placeholder EHL/scuff/micropitting constants with dataset-backed correlations over temperature, speed, load, and finish/coating regimes.
+4. Lifetime:
+   Upgrade from simplified stress-ratio damage proxy to calibrated life model tied to route/material process families and lubrication state.
+
+### 4.2 Data Contracts (Non-Optional)
+
+1. `data/cem/*.csv` must be treated as required scientific inputs, not optional decoration.
+2. Each table needs explicit schema, units, provenance, and minimum operating-envelope coverage.
+3. Missing/empty critical tables must fail strict modes (CI downselect/release), not silently fallback.
+4. OpenFOAM/CalculiX training corpora need condition-space coverage metadata and versioned manifests.
+
+### 4.3 Surrogate Requirements
+
+1. Surrogates must ship with:
+   train/val/test metrics by condition slice, OOD diagnostics, and artifact version metadata.
+2. Promotion to production mode requires bounded error against truth solvers in target operating windows.
+3. Surrogate outputs used in optimization must expose confidence/uncertainty for orchestration decisions.
+
+### 4.4 Optimization/Solver Requirements
+
+1. Keep full-vector representation always; only active subset is decision variable in local solve.
+2. CasADi path must solve true slice NLP (not linearized surrogate of the NLP) with explicit constraints and trust region.
+3. Refinement metadata must always include active/frozen sets, backend used, solver status, and fallback reason.
+4. SciPy fallback remains for robustness, but cannot be the default pass path for high-fidelity milestones.
+
+### 4.5 Artifact and Reproducibility Requirements
+
+1. Runtime artifacts live under `outputs/` only:
+   `outputs/artifacts/surrogates/*`, `outputs/explore_exploit/*`, `outputs/orchestration/*`, etc.
+2. Any generated cache/model under `src/` is a bug and must be relocated.
+3. Every workflow run must emit manifest + config + key metrics for replay.
+
+## 5. Hard-First Execution Plan
+
+### Phase 0 (Now): Documentation and Policy Lock
+
+1. Canonicalize to this doc.
+2. Remove stale/completed/superseded plan docs.
+3. Point README references to this file.
+
+Exit criteria:
+
+1. No competing roadmap docs remain in active `Docs/` planning surface.
+2. Team uses one gate definition for sprint completion.
+
+### Phase 1: Data and Constraint Integrity
+
+1. Expand CEM datasets from minimal placeholders to envelope-complete tables.
+2. Enable strict data mode in CI for downselect/release test tracks.
+3. Remove silent fallback reads for critical material/tribology terms.
+
+Exit criteria:
+
+1. Missing critical dataset columns/keys fail fast.
+2. Material-route and temperature-curve coverage spans intended operating envelope.
+
+### Phase 2: True CasADi Exploit Solve
+
+1. Replace linearized slice NLP approximation with true nonlinear slice refinement.
+2. Keep sensitivity-ranked active-set selection with group-floor enforcement.
+3. Enforce trust-region bounded updates relative to Pareto seed.
+
+Exit criteria:
+
+1. At least one CasADi/Ipopt-success refinement in CI/dev smoke with full-width vector output.
+2. Fallback path is tested and annotated (`backend_used="scipy_fallback"`).
+
+### Phase 3: Physics Hardening for Lifetime Decisions
+
+1. Replace placeholder thermo/combustion/scavenging models used for downselect metrics.
+2. Calibrate tribology and lifetime models against route-specific data and truth checks.
+3. Promote material/lifetime constraints to hard for downselect.
+
+Exit criteria:
+
+1. No placeholder constants are used in downselect path.
+2. Lifetime/material metrics are traceable to concrete datasets and equations.
+
+### Phase 4: Truth-in-the-Loop Surrogate Governance
+
+1. Run controlled OpenFOAM/CalculiX truth campaigns for targeted regions.
+2. Retrain surrogates with uncertainty tracking and versioned manifests.
+3. Tie orchestration decisions to confidence + budget policies.
+
+Exit criteria:
+
+1. Surrogates meet quality thresholds against truth data.
+2. Orchestration records provenance of decisions and truth evaluations.
+
+### Phase 5: Final Candidate Lifetime/Material Iteration
+
+1. Multi-route material/coating iteration on refined candidates.
+2. Produce final candidate package:
+   geometry/motion settings, lifetime risk envelope, material requirements, and evidence artifacts.
+
+Exit criteria:
+
+1. Final candidate selected using hardened physics and validated data only.
+2. No pass conditions rely on toy proxies.
+
+## 6. Gate Framework (Anti-Toy-Physics)
+
+A sprint marked complete must satisfy all relevant gates:
+
+1. Fidelity gate:
+   no release/downselect approval from fidelity-0-only runs.
+2. Data gate:
+   required CEM datasets present, schema-valid, and non-empty for used routes.
+3. Solver gate:
+   CasADi/Ipopt refinement success demonstrated on target scenarios; fallback path explicit.
+4. Physics gate:
+   placeholder-only modules not used for final decision metrics.
+5. Artifact gate:
+   manifests + outputs written to `outputs/` with reproducible run config.
+
+## 7. Integrated Dress-Rehearsal Contract
+
+Dress rehearsal remains the pre-analysis gate and is now governed by this doc:
+
+1. Train surrogates pre-job (`train-surrogates`) using provided or DOE-generated datasets.
+2. Verify required surrogate artifacts exist for requested fidelity/modes.
+3. Run unit tests unless explicitly skipped for smoke-only runs.
+4. Run coarse optimization sweep and require minimum Pareto output.
+5. Run CEM validation on promoted candidates and enforce feasibility minimum.
+6. Use `dress_rehearsal_manifest.json` `ready_for_quality_analysis` as final gate signal.
+
+## 8. Completed Baseline (Do Not Re-Plan)
+
+The following migration foundation is already integrated and should not be treated as open planning work:
+
+1. Legacy IPOPT/CasADi stack port into `src/larrak2/optimization/*`.
+2. Surrogate HiFi core port into `src/larrak2/surrogate/hifi/*` and `src/larrak2/training/*`.
+3. Backend orchestration package and CLI `orchestrate` integration.
+4. Explore/exploit candidate-store and slice-refinement plumbing.
+
+Future work should extend these modules, not reintroduce parallel duplicate frameworks.

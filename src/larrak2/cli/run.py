@@ -18,6 +18,7 @@ from larrak2.analysis.workflows import diagnostic_workflow, sensitivity_workflow
 from larrak2.cli.run_workflows import (
     run_active_learning_workflow,
     run_dress_rehearsal_workflow,
+    run_explore_exploit_workflow,
     run_openfoam_doe_workflow,
     run_orchestrate_workflow,
     run_pareto_grid_workflow,
@@ -356,6 +357,60 @@ def main() -> int:
         help="Gear-loss NN model directory when --gear-loss-mode=nn",
     )
 
+    # --- Explore -> Exploit ---
+    ee = subparsers.add_parser(
+        "explore-exploit",
+        help="Two-stage pipeline: Pareto explore then CasADi slice refinement",
+    )
+    ee.add_argument("--pareto-dir", type=str, default="outputs/diagnostic_results")
+    ee.add_argument("--outdir", type=str, default="outputs/explore_exploit")
+    ee.add_argument("--run-explore", action="store_true")
+    ee.add_argument("--pop", type=int, default=64)
+    ee.add_argument("--gen", type=int, default=50)
+    ee.add_argument("--rpm", type=float, default=3000.0)
+    ee.add_argument("--torque", type=float, default=200.0)
+    ee.add_argument("--seed", type=int, default=42)
+    ee.add_argument("--explore-fidelity", type=int, default=1, choices=[0, 1, 2])
+    ee.add_argument("--hifi-fidelity", type=int, default=1, choices=[0, 1, 2])
+    ee.add_argument("--top-k", type=int, default=1)
+    ee.add_argument(
+        "--candidate-index",
+        type=int,
+        default=-1,
+        help="Explicit index from Pareto archive; -1 means ranked top-k selection",
+    )
+    ee.add_argument("--rank-weights", type=str, default="1,1,1,0,0,0")
+    ee.add_argument("--refine-indices", type=str, default="")
+    ee.add_argument(
+        "--mode",
+        type=str,
+        default="eps_constraint",
+        choices=["weighted_sum", "eps_constraint"],
+    )
+    ee.add_argument(
+        "--backend",
+        type=str,
+        default="casadi",
+        choices=["casadi", "scipy"],
+    )
+    ee.add_argument(
+        "--slice-method",
+        type=str,
+        default="sensitivity",
+        choices=["sensitivity"],
+    )
+    ee.add_argument("--active-k", type=int, default=None)
+    ee.add_argument("--min-per-group", type=int, default=1)
+    ee.add_argument("--trust-radius", type=float, default=None)
+    ee.add_argument("--max-iter", type=int, default=80)
+    ee.add_argument("--tol", type=float, default=1e-6)
+    ee.add_argument("--eps-margin", type=float, default=0.02)
+    ee.add_argument("--skip-tribology", action="store_true")
+    ee.add_argument("--ipopt-max-iter", type=int, default=None)
+    ee.add_argument("--ipopt-tol", type=float, default=None)
+    ee.add_argument("--ipopt-linear-solver", type=str, default=None)
+    ee.add_argument("--verbose", action="store_true")
+
     # --- Backend Orchestration ---
     orch = subparsers.add_parser(
         "orchestrate",
@@ -396,7 +451,7 @@ def main() -> int:
     orch.add_argument("--multi-start", action="store_true")
 
     # --- Sensitivity ---
-    sens = subparsers.add_parser("sensitivity", help="Sensitivity & Constraint Analysis")
+    subparsers.add_parser("sensitivity", help="Sensitivity & Constraint Analysis")
     # No args for now, uses hardcoded mid-bounds or diagnostics
 
     # --- Diagnostic ---
@@ -418,6 +473,7 @@ def main() -> int:
         "train-surrogates": run_train_surrogates_workflow,
         "openfoam-doe": run_openfoam_doe_workflow,
         "dress-rehearsal": run_dress_rehearsal_workflow,
+        "explore-exploit": run_explore_exploit_workflow,
         "orchestrate": run_orchestrate_workflow,
         "sensitivity": sensitivity_workflow,
         "diagnostic": diagnostic_workflow,

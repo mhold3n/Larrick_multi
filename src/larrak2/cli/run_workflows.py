@@ -1798,6 +1798,122 @@ def run_dress_rehearsal_workflow(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Explore -> Exploit (Pareto + CasADi refinement + Tribology)
+# ---------------------------------------------------------------------------
+
+
+def _parse_float_list(raw: str) -> np.ndarray | None:
+    text = str(raw).strip()
+    if not text:
+        return None
+    vals = [float(tok.strip()) for tok in text.split(",") if tok.strip()]
+    if not vals:
+        return None
+    return np.asarray(vals, dtype=np.float64)
+
+
+def _parse_int_list(raw: str) -> list[int] | None:
+    text = str(raw).strip()
+    if not text:
+        return None
+    vals = [int(tok.strip()) for tok in text.split(",") if tok.strip()]
+    return vals or None
+
+
+def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
+    """Two-stage pipeline: explore Pareto set then exploit selected slices via CasADi."""
+    from larrak2.pipelines.explore_exploit import run_two_stage_pipeline
+
+    pareto_dir = Path(args.pareto_dir)
+    if bool(args.run_explore):
+        pareto_dir.mkdir(parents=True, exist_ok=True)
+        explore_argv = [
+            "--pop",
+            str(args.pop),
+            "--gen",
+            str(args.gen),
+            "--rpm",
+            str(args.rpm),
+            "--torque",
+            str(args.torque),
+            "--fidelity",
+            str(args.explore_fidelity),
+            "--seed",
+            str(args.seed),
+            "--output",
+            str(pareto_dir),
+        ]
+        if bool(args.verbose):
+            explore_argv.append("--verbose")
+        code = run_pareto_main(explore_argv)
+        if code != 0:
+            print("Explore stage failed: run_pareto returned non-zero exit code")
+            return int(code)
+
+    for name in ("pareto_X.npy", "pareto_F.npy", "pareto_G.npy"):
+        if not (pareto_dir / name).exists():
+            print(
+                f"Missing Pareto artifact '{name}' in {pareto_dir}. "
+                "Run with --run-explore or point --pareto-dir to a completed archive."
+            )
+            return 1
+
+    lowfi_ctx = EvalContext(
+        rpm=float(args.rpm),
+        torque=float(args.torque),
+        fidelity=int(args.explore_fidelity),
+        seed=int(args.seed),
+    )
+    hifi_ctx = EvalContext(
+        rpm=float(args.rpm),
+        torque=float(args.torque),
+        fidelity=int(args.hifi_fidelity),
+        seed=int(args.seed),
+    )
+
+    weights = _parse_float_list(str(args.rank_weights))
+    refine_indices = _parse_int_list(str(args.refine_indices))
+
+    ipopt_options = {
+        k: v
+        for k, v in {
+            "max_iter": args.ipopt_max_iter,
+            "tol": args.ipopt_tol,
+            "linear_solver": args.ipopt_linear_solver,
+        }.items()
+        if v is not None
+    }
+
+    manifest = run_two_stage_pipeline(
+        pareto_dir=pareto_dir,
+        outdir=Path(args.outdir),
+        lowfi_ctx=lowfi_ctx,
+        hifi_ctx=hifi_ctx,
+        top_k=int(args.top_k),
+        candidate_index=None if int(args.candidate_index) < 0 else int(args.candidate_index),
+        rank_weights=weights,
+        refine_indices=refine_indices,
+        mode=str(args.mode),
+        backend=str(args.backend),
+        active_k=args.active_k,
+        min_per_group=int(args.min_per_group),
+        slice_method=str(args.slice_method),
+        trust_radius=args.trust_radius,
+        max_iter=int(args.max_iter),
+        tol=float(args.tol),
+        eps_margin=float(args.eps_margin),
+        run_tribology_stage=not bool(args.skip_tribology),
+        ipopt_options=ipopt_options or None,
+    )
+
+    manifest_path = Path(args.outdir) / "explore_exploit_manifest.json"
+    print("Explore->Exploit pipeline complete.")
+    print(f"Selected candidates: {manifest.get('selected_indices', [])}")
+    print(f"Manifest: {manifest_path}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Backend Orchestration (No GUI)
 # ---------------------------------------------------------------------------
 
@@ -1819,8 +1935,8 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
     """Run backend-only orchestration merge path (Wave 2)."""
     from larrak2.orchestration import OrchestrationConfig, Orchestrator
     from larrak2.orchestration.adapters import (
-        CEMAdapter,
         CasadiSolverAdapter,
+        CEMAdapter,
         HifiSurrogateAdapter,
         PhysicsSimulationAdapter,
     )

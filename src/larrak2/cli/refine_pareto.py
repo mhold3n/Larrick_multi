@@ -112,6 +112,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ipopt-max-iter", type=int, default=None)
     parser.add_argument("--ipopt-tol", type=float, default=None)
     parser.add_argument("--ipopt-linear-solver", type=str, default=None)
+    parser.add_argument(
+        "--trust-radius",
+        type=float,
+        default=None,
+        help="Optional L-infinity trust region radius for active variables",
+    )
 
     parser.add_argument("--rpm", type=float, default=3000.0, help="Engine speed (rpm)")
     parser.add_argument("--torque", type=float, default=200.0, help="Torque demand (Nm)")
@@ -168,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             slice_method=args.slice_method,
             freeze_mask=freeze_mask,
             ipopt_options=ipopt_options or None,
+            trust_radius=args.trust_radius,
         )
 
         refined_X.append(result.x_refined)
@@ -208,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
                 "min_per_group": args.min_per_group,
                 "freeze_mask_path": args.freeze_mask_path,
                 "ipopt_options": ipopt_options,
+                "trust_radius": args.trust_radius,
                 "rpm": args.rpm,
                 "torque": args.torque,
                 "fidelity": ctx.fidelity,
@@ -234,6 +242,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    import sys
-
     raise SystemExit(main())
