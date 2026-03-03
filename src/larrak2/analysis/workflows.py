@@ -57,7 +57,9 @@ def sensitivity_workflow(args: Any) -> int:
     print("-" * 70)
 
     # Load Pareto front from diagnostic run if available.
-    diagnostic_dir = prefer_existing_path(Path("outputs/diagnostic_results"), Path("diagnostic_results"))
+    diagnostic_dir = prefer_existing_path(
+        Path("outputs/diagnostic_results"), Path("diagnostic_results")
+    )
     pareto_file = diagnostic_dir / "pareto_X.npy"
 
     if pareto_file.exists():

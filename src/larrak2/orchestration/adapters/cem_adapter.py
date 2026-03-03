@@ -33,7 +33,9 @@ class CEMAdapter:
         if n == 0:
             return []
 
-        seed_x = np.asarray(params.get("x_seed", params.get("x0", [])), dtype=np.float64).reshape(-1)
+        seed_x = np.asarray(params.get("x_seed", params.get("x0", [])), dtype=np.float64).reshape(
+            -1
+        )
         has_seed = seed_x.size == N_TOTAL
         spread = float(params.get("seed_spread", 0.10))
         spread = max(1e-6, min(1.0, spread))
@@ -123,4 +125,3 @@ class CEMAdapter:
 
 
 __all__ = ["CEMAdapter"]
-

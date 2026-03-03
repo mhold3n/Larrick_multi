@@ -11,6 +11,7 @@ from larrak2.core.artifact_paths import (
 )
 from larrak2.gear.manufacturability_limits import PROFILE_NAMES
 
+
 class MachiningSurrogateNet(nn.Module):
     def __init__(self, input_dim: int, output_dim: int = 4):
         super().__init__()

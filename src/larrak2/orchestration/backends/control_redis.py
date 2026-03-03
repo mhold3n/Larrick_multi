@@ -84,4 +84,3 @@ class RedisControlBackend:
             conn.delete(key)
         except Exception as exc:
             LOGGER.warning("Failed to clear Redis signal: %s", exc)
-

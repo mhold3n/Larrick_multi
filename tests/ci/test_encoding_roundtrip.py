@@ -199,7 +199,9 @@ def test_decision_vector_layout():
     xl, xu = bounds()
     face_width_idx = N_THERMO + N_GEAR - 1
     assert xl[face_width_idx] == 4.0, "Face width lower bound should be 4.0 mm"
-    assert xu[face_width_idx] == 14.0, "Face width upper bound should be 14.0 mm (gear body z-height)"
+    assert xu[face_width_idx] == 14.0, (
+        "Face width upper bound should be 14.0 mm (gear body z-height)"
+    )
 
     # Realworld bounds
     rw_slice = slice(N_THERMO + N_GEAR, N_TOTAL)

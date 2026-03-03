@@ -46,7 +46,7 @@ class TrainingRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "TrainingRecord":
+    def from_dict(cls, data: dict[str, Any]) -> TrainingRecord:
         valid = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
         return cls(**valid)
 
@@ -87,7 +87,7 @@ class NormalizationParams:
         Path(path).write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: str | Path) -> "NormalizationParams":
+    def load(cls, path: str | Path) -> NormalizationParams:
         return cls(**json.loads(Path(path).read_text(encoding="utf-8")))
 
 
@@ -103,7 +103,7 @@ class TrainingDataset:
         self.norm_params = norm_params or NormalizationParams()
 
     @classmethod
-    def from_parquet(cls, path: str | Path) -> "TrainingDataset":
+    def from_parquet(cls, path: str | Path) -> TrainingDataset:
         import pandas as pd
 
         df = pd.read_parquet(path)
@@ -127,7 +127,7 @@ class TrainingDataset:
         return cls(records)
 
     @classmethod
-    def from_json(cls, path: str | Path) -> "TrainingDataset":
+    def from_json(cls, path: str | Path) -> TrainingDataset:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         records: list[TrainingRecord] = []
         for item in data:
@@ -154,7 +154,7 @@ class TrainingDataset:
         self,
         train_frac: float = 0.8,
         seed: int = 42,
-    ) -> tuple["TrainingDataset", "TrainingDataset"]:
+    ) -> tuple[TrainingDataset, TrainingDataset]:
         rng = np.random.default_rng(seed)
         idx = rng.permutation(len(self.records))
         split = int(len(idx) * train_frac)

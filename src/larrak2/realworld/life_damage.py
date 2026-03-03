@@ -90,8 +90,7 @@ def _strict_data_enabled(strict_data: bool | None) -> bool:
 
     if not _EMITTED_STRICT_DATA_DEPRECATION:
         logger.warning(
-            "LARRAK_STRICT_DATA env fallback is deprecated. "
-            "Set EvalContext.strict_data instead."
+            "LARRAK_STRICT_DATA env fallback is deprecated. Set EvalContext.strict_data instead."
         )
         _EMITTED_STRICT_DATA_DEPRECATION = True
     return env_raw == "1"

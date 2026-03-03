@@ -198,7 +198,9 @@ def train_all_surrogates(
         "uncertainty_calibration": {
             "method": "ensemble_std",
             "mean_uncertainty": float(
-                np.nanmean([float(v.get("mean_uncertainty", float("nan"))) for v in results.values()])
+                np.nanmean(
+                    [float(v.get("mean_uncertainty", float("nan"))) for v in results.values()]
+                )
             ),
         },
         "required_artifacts": [
@@ -222,7 +224,9 @@ def train_all_surrogates(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train HiFi surrogate ensembles")
     parser.add_argument("--data", required=True, help="Path to DOE results (.json/.parquet)")
-    parser.add_argument("--output", default=str(DEFAULT_HIFI_SURROGATE_DIR), help="Output model directory")
+    parser.add_argument(
+        "--output", default=str(DEFAULT_HIFI_SURROGATE_DIR), help="Output model directory"
+    )
     parser.add_argument("--epochs", type=int, default=100, help="Training epochs")
     parser.add_argument("--n-models", type=int, default=5, help="Ensemble members")
     args = parser.parse_args(argv)

@@ -2,7 +2,13 @@
 
 import numpy as np
 
-from larrak2.core.encoding import Candidate, GearParams, RealWorldParams, ThermoParams, encode_candidate
+from larrak2.core.encoding import (
+    Candidate,
+    GearParams,
+    RealWorldParams,
+    ThermoParams,
+    encode_candidate,
+)
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 

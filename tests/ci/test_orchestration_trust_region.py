@@ -22,4 +22,3 @@ def test_trust_region_bounds_step_and_updates_radius() -> None:
     tr.update(predicted_improvement=1.0, actual_improvement=0.1, uncertainty_at_step=0.5)
     radius_after_bad = np.mean(np.asarray(tr.radius, dtype=np.float64))
     assert radius_after_bad <= radius_after_good
-

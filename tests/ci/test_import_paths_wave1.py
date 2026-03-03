@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
-
 MODULES = [
     "larrak2.optimization.numerical.casadi_problem_spec",
     "larrak2.optimization.solvers.ipopt",

@@ -85,4 +85,3 @@ def symbolic_objectives_constraints(
     if not isinstance(G_hat, ca.MX) and not isinstance(G_hat, ca.SX):
         G_hat = ca.MX(G_hat)
     return F_hat, G_hat
-

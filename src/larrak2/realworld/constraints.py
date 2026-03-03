@@ -82,8 +82,10 @@ def compute_realworld_constraints(
     G.append(float(np.log10(D_total)))
 
     # 7. Material Snapping Distance penalty → G = snap_dist - d_max
-    dist = float(min_snap_distance) if min_snap_distance is not None else getattr(
-        result, "min_snap_distance", 0.0
+    dist = (
+        float(min_snap_distance)
+        if min_snap_distance is not None
+        else getattr(result, "min_snap_distance", 0.0)
     )
     G.append(dist - _SNAP_DIST_MAX)
 

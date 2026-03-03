@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -35,7 +35,9 @@ class TrustRegion:
         if n_vars is None:
             self._radius = float(self.config.initial_radius)
         else:
-            self._radius = np.ones(int(n_vars), dtype=np.float64) * float(self.config.initial_radius)
+            self._radius = np.ones(int(n_vars), dtype=np.float64) * float(
+                self.config.initial_radius
+            )
         self._history: list[dict[str, Any]] = []
 
     @property
@@ -55,8 +57,7 @@ class TrustRegion:
             variable_scales = np.asarray(variable_scales, dtype=np.float64)
             if variable_scales.shape != step.shape:
                 raise ValueError(
-                    "variable_scales shape mismatch: "
-                    f"{variable_scales.shape} vs {step.shape}"
+                    f"variable_scales shape mismatch: {variable_scales.shape} vs {step.shape}"
                 )
 
         unc = np.asarray(uncertainty, dtype=np.float64).reshape(-1)
@@ -96,7 +97,11 @@ class TrustRegion:
         else:
             agreement = abs(act - pred) / abs(pred)
 
-        mean_radius = float(np.mean(self._radius)) if isinstance(self._radius, np.ndarray) else float(self._radius)
+        mean_radius = (
+            float(np.mean(self._radius))
+            if isinstance(self._radius, np.ndarray)
+            else float(self._radius)
+        )
         self._history.append(
             {
                 "predicted": pred,
@@ -185,4 +190,3 @@ __all__ = [
     "TrustRegion",
     "TrustRegionConfig",
 ]
-

@@ -31,7 +31,9 @@ def main() -> int:
     )
     p.add_argument("--solver", type=str, default="rhoPimpleFoam")
     p.add_argument("--train-epochs", type=int, default=200)
-    p.add_argument("--artifact-outdir", type=str, default="outputs/artifacts/surrogates/openfoam_nn")
+    p.add_argument(
+        "--artifact-outdir", type=str, default="outputs/artifacts/surrogates/openfoam_nn"
+    )
     p.add_argument("--artifact-name", type=str, default="openfoam_breathing.pt")
     args = p.parse_args()
 

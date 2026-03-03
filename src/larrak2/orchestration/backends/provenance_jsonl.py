@@ -26,4 +26,3 @@ class JSONLProvenanceBackend:
 
     def close(self) -> None:
         return None
-

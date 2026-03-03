@@ -441,9 +441,7 @@ def _compute_margin_profiles(
                     or [0.0]
                 )
             )
-            soft_violation_sum = float(
-                np.sum([float(r.get("soft_violation", 0.0)) for r in recs])
-            )
+            soft_violation_sum = float(np.sum([float(r.get("soft_violation", 0.0)) for r in recs]))
         else:
             margin_min = 0.0
             hard_margin_min = 0.0
@@ -534,9 +532,7 @@ def _select_promotion_indices(
         def min_geom_dist(i: int) -> float:
             if not selected:
                 return 0.0
-            return float(
-                min(np.linalg.norm(Xg_norm[i] - Xg_norm[j], ord=2) for j in selected)
-            )
+            return float(min(np.linalg.norm(Xg_norm[i] - Xg_norm[j], ord=2) for j in selected))
 
         # Maximize geometry distance first; preserve quality with tie-breakers.
         best = max(
@@ -638,7 +634,9 @@ def _summarize_npz_dataset(path: Path) -> dict[str, object]:
     return summary
 
 
-def _condition_ranges(operating_conditions: list[tuple[float, float]]) -> tuple[float, float, float, float]:
+def _condition_ranges(
+    operating_conditions: list[tuple[float, float]],
+) -> tuple[float, float, float, float]:
     rpms = [float(r) for r, _ in operating_conditions]
     torques = [float(t) for _, t in operating_conditions]
     return min(rpms), max(rpms), min(torques), max(torques)
@@ -688,7 +686,9 @@ def _build_openfoam_training_data(
             raise FileNotFoundError(f"OpenFOAM dataset not found: {openfoam_data}")
         return openfoam_data, {"source": "provided"}
 
-    template_dir = Path(str(args.openfoam_template)) if str(args.openfoam_template).strip() else None
+    template_dir = (
+        Path(str(args.openfoam_template)) if str(args.openfoam_template).strip() else None
+    )
     if template_dir is None:
         raise FileNotFoundError(
             "OpenFOAM dataset path not provided. Set --openfoam-data or provide --openfoam-template "
@@ -877,8 +877,7 @@ def _run_calculix_doe_dataset(
 
     if len(X_rows) < 2:
         raise RuntimeError(
-            "CalculiX DOE produced insufficient successful samples "
-            f"({len(X_rows)}/{n_cases})."
+            f"CalculiX DOE produced insufficient successful samples ({len(X_rows)}/{n_cases})."
         )
 
     train_path = outdir / "train.npz"
@@ -909,7 +908,9 @@ def _build_calculix_training_data(
             raise FileNotFoundError(f"CalculiX dataset not found: {calculix_data}")
         return calculix_data, {"source": "provided"}
 
-    template_path = Path(str(args.calculix_template)) if str(args.calculix_template).strip() else None
+    template_path = (
+        Path(str(args.calculix_template)) if str(args.calculix_template).strip() else None
+    )
     if template_path is None:
         raise FileNotFoundError(
             "CalculiX dataset path not provided. Set --calculix-data or provide "
@@ -1520,7 +1521,9 @@ def run_dress_rehearsal_workflow(args: argparse.Namespace) -> int:
             final_condition_index.extend([int(i)] * int(fX.shape[0]))
 
         cond_summary_path = cond_dir / "summary.json"
-        cond_summary = json.loads(cond_summary_path.read_text()) if cond_summary_path.exists() else {}
+        cond_summary = (
+            json.loads(cond_summary_path.read_text()) if cond_summary_path.exists() else {}
+        )
         condition_results.append(
             {
                 "index": int(i),
@@ -2016,7 +2019,9 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
     }
 
     if bool(args.multi_start):
-        result = optimize_with_multistart(orchestrator, initial_params, n_starts=3, seed=int(args.seed))
+        result = optimize_with_multistart(
+            orchestrator, initial_params, n_starts=3, seed=int(args.seed)
+        )
     else:
         result = orchestrator.optimize(initial_params=initial_params)
 

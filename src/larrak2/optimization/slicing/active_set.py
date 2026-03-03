@@ -48,11 +48,11 @@ def _scalarized_value(
     elif mode == "eps_constraint":
         obj = float(F[0])
         if F.size > 1:
-            eps = np.asarray(eps_constraints if eps_constraints is not None else F, dtype=np.float64)
+            eps = np.asarray(
+                eps_constraints if eps_constraints is not None else F, dtype=np.float64
+            )
             if eps.size != F.size:
-                raise ValueError(
-                    f"eps_constraints length {eps.size} does not match n_obj {F.size}"
-                )
+                raise ValueError(f"eps_constraints length {eps.size} does not match n_obj {F.size}")
             obj += violation_penalty * float(np.maximum(F[1:] - eps[1:], 0.0).sum())
     else:
         raise ValueError(f"Unknown mode: {mode}")
@@ -78,7 +78,11 @@ def sensitivity_scores(
     if x0.size != N_TOTAL:
         raise ValueError(f"Expected x0 length {N_TOTAL}, got {x0.size}")
 
-    mask = np.zeros(N_TOTAL, dtype=bool) if freeze_mask is None else np.asarray(freeze_mask, dtype=bool)
+    mask = (
+        np.zeros(N_TOTAL, dtype=bool)
+        if freeze_mask is None
+        else np.asarray(freeze_mask, dtype=bool)
+    )
     if mask.size != N_TOTAL:
         raise ValueError(f"freeze_mask length {mask.size} does not match N_TOTAL={N_TOTAL}")
 
@@ -157,7 +161,11 @@ def select_active_set(
     if x0.size != N_TOTAL:
         raise ValueError(f"Expected x0 length {N_TOTAL}, got {x0.size}")
 
-    mask = np.zeros(N_TOTAL, dtype=bool) if freeze_mask is None else np.asarray(freeze_mask, dtype=bool)
+    mask = (
+        np.zeros(N_TOTAL, dtype=bool)
+        if freeze_mask is None
+        else np.asarray(freeze_mask, dtype=bool)
+    )
     if mask.size != N_TOTAL:
         raise ValueError(f"freeze_mask length {mask.size} does not match N_TOTAL={N_TOTAL}")
 
@@ -172,7 +180,9 @@ def select_active_set(
 
     available = [i for i in range(N_TOTAL) if not mask[i]]
     if not available:
-        return SliceSelection(active_indices=[], frozen_indices=list(range(N_TOTAL)), scores=scores.tolist())
+        return SliceSelection(
+            active_indices=[], frozen_indices=list(range(N_TOTAL)), scores=scores.tolist()
+        )
 
     default_k = max(6, int(ceil(0.25 * N_TOTAL)))
     k = default_k if active_k is None else int(active_k)

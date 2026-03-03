@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
 from larrak2.surrogate.quality_contract import (
     sha256_file,
     validate_artifact_quality,
@@ -69,9 +70,13 @@ class StackSurrogateArtifact:
         if len(self.constraint_names) <= 0:
             raise ValueError("constraint_names cannot be empty")
         if x_mean.size != n_in or x_std.size != n_in:
-            raise ValueError(f"x normalization shape mismatch: mean={x_mean.size}, std={x_std.size}, in={n_in}")
+            raise ValueError(
+                f"x normalization shape mismatch: mean={x_mean.size}, std={x_std.size}, in={n_in}"
+            )
         if y_mean.size != n_out or y_std.size != n_out:
-            raise ValueError(f"y normalization shape mismatch: mean={y_mean.size}, std={y_std.size}, out={n_out}")
+            raise ValueError(
+                f"y normalization shape mismatch: mean={y_mean.size}, std={y_std.size}, out={n_out}"
+            )
         if self.activation not in {"relu", "leaky_relu"}:
             raise ValueError(f"Unsupported activation '{self.activation}'")
         if self.fidelity < 0:

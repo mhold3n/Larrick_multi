@@ -68,7 +68,9 @@ def main(argv: list[str] | None = None) -> int:
     """Refine top-K Pareto candidates."""
     parser = argparse.ArgumentParser(description="Refine Pareto front candidates")
     parser.add_argument("--input", type=str, default=".", help="Input directory with pareto_*.npy")
-    parser.add_argument("--output", type=str, default=None, help="Output directory (default: input)")
+    parser.add_argument(
+        "--output", type=str, default=None, help="Output directory (default: input)"
+    )
     parser.add_argument("--top-k", type=int, default=5, help="Number of candidates to refine")
     parser.add_argument(
         "--mode",

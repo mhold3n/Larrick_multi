@@ -9,8 +9,8 @@ import numpy as np
 from larrak2.core.encoding import N_TOTAL, bounds
 from larrak2.core.types import EvalContext
 from larrak2.orchestration.adapters import (
-    CEMAdapter,
     CasadiSolverAdapter,
+    CEMAdapter,
     HifiSurrogateAdapter,
     PhysicsSimulationAdapter,
 )

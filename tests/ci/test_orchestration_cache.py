@@ -36,4 +36,3 @@ def test_evaluation_cache_get_or_compute_and_persistence(tmp_path: Path) -> None
     cache2 = EvaluationCache(max_size=2, persist_path=cache_path)
     stats2 = cache2.get_statistics()
     assert stats2["size"] >= 1
-

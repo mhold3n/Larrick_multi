@@ -44,7 +44,9 @@ def feature_vector_from_inputs(
             continue
         idx = parse_feature_index(name)
         if idx is None:
-            raise ValueError(f"Unsupported feature '{name}'. Only x_###, rpm, torque are supported.")
+            raise ValueError(
+                f"Unsupported feature '{name}'. Only x_###, rpm, torque are supported."
+            )
         if idx < 0 or idx >= x.size:
             raise ValueError(f"Feature '{name}' index {idx} out of range for vector size {x.size}")
         out[i] = float(x[idx])
@@ -82,7 +84,9 @@ class StackSurrogateRuntime:
         y = h * self._y_scale + self.artifact.y_mean
         return y[: self.n_obj], y[self.n_obj :]
 
-    def predict_design(self, x_full: np.ndarray, *, rpm: float, torque: float) -> tuple[np.ndarray, np.ndarray]:
+    def predict_design(
+        self, x_full: np.ndarray, *, rpm: float, torque: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Predict from full design vector + operating point."""
         feats = feature_vector_from_inputs(
             self.artifact.feature_names,
@@ -96,7 +100,9 @@ class StackSurrogateRuntime:
 _RUNTIME_CACHE: dict[Path, StackSurrogateRuntime] = {}
 
 
-def load_stack_runtime(path: str | Path, *, validation_mode: str = "strict") -> StackSurrogateRuntime:
+def load_stack_runtime(
+    path: str | Path, *, validation_mode: str = "strict"
+) -> StackSurrogateRuntime:
     """Load and cache runtime by absolute path."""
     p = Path(path).resolve()
     if p not in _RUNTIME_CACHE:
