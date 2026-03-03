@@ -1,54 +1,27 @@
-# repo_layout.yml
-# Source of truth for Larrick_multi repository layout
-
-allowed_top_level:
-  # Source code
-  - src
-  - frontend
-  - packages
-  - models
+allowed_top_level_dirs:
+  - .github
   - data
   - data_temp
-
-  # Outputs and Artifacts
-  - outputs
-
-  # Vendor / Tools
-  - LEAP71_ShapeKernel
-  - PicoGK
-  - tools
-
-  # Documentation & Tests
-  - Docs
+  - models
+  - scripts
+  - src
   - tests
-
-  # Config & Dotfiles (explicit allowlist for clarity, though script might ignore dotfiles if configured)
-  - .agent
-  - .benchmarks
-  - .cursor
-  - .devcontainer
-  - .git
+required_top_level_dirs:
   - .github
-  - .hypothesis
-  - .mypy_cache
-  - .pytest_cache
-  - .ruff_cache
-  - .vscode
-  - .vscode-extensions
-  - .DS_Store
-
-  # Specific allowed files at root will be handled by ignoring files or explicit inclusion if the script supports it.
-  # The Python script primarily checks directories.
-
-singletons:
-  output_dir: outputs
-  frontend_dir: frontend
-
-banned_dir_name_patterns:
-  - '^front[-_ ]?end\d*$'
-  - '^ui\d*$'
-  - '^client\d*$'
-  - '^out(put)?\d*$'
-  - '^logs?\d*$'
-  - '^artifacts?\d*$'
-  - '^results?\d*$'
+  - data
+  - models
+  - scripts
+  - src
+  - tests
+allowed_top_level_files:
+  - README.md
+  - pyproject.toml
+  - sensitivity_analysis.json
+  - summary.json
+  - pareto_F.npy
+  - pareto_G.npy
+  - pareto_X.npy
+  - repo_layout.yml
+allowed_top_level_file_patterns: []
+ignore_top_level_dirs:
+  - .git
