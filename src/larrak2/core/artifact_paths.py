@@ -15,11 +15,16 @@ DEFAULT_CALCULIX_NN_DIR = SURROGATES_ROOT / "calculix_nn"
 DEFAULT_CALCULIX_NN_ARTIFACT = DEFAULT_CALCULIX_NN_DIR / "calculix_stress.pt"
 
 DEFAULT_GEAR_LOSS_NN_DIR = SURROGATES_ROOT / "gear_loss_nn"
+DEFAULT_MACHINING_NN_DIR = SURROGATES_ROOT / "machining_nn"
+DEFAULT_MACHINING_NN_ARTIFACT = DEFAULT_MACHINING_NN_DIR / "machining_surrogate.pth"
 DEFAULT_HIFI_SURROGATE_DIR = SURROGATES_ROOT / "hifi"
 DEFAULT_SURROGATE_V1_DIR = SURROGATES_ROOT / "v1_gbr"
 DEFAULT_INITIALIZATION_SURROGATE_DIR = SURROGATES_ROOT / "initialization_voxel"
+DEFAULT_STACK_SURROGATE_DIR = SURROGATES_ROOT / "stack_f1"
+DEFAULT_STACK_SURROGATE_ARTIFACT = DEFAULT_STACK_SURROGATE_DIR / "stack_f1_surrogate.npz"
 
 DEPRECATED_MODELS_ROOT = Path("models")
+DEPRECATED_SRC_RUNTIME_ROOT = Path("src")
 
 
 def prefer_existing_path(primary: Path, *fallbacks: Path) -> Path:
@@ -44,10 +49,16 @@ def _assert_not_deprecated_models_path(path: str | Path, *, purpose: str) -> Pat
     target = Path(path)
 
     legacy_root = (Path.cwd() / DEPRECATED_MODELS_ROOT).resolve(strict=False)
+    src_root = (Path.cwd() / DEPRECATED_SRC_RUNTIME_ROOT).resolve(strict=False)
     target_abs = (Path.cwd() / target).resolve(strict=False)
     if _is_within(target_abs, legacy_root):
         raise ValueError(
             f"Refusing to use deprecated models path for {purpose}: '{target}'. "
+            "Use outputs/artifacts/... instead."
+        )
+    if _is_within(target_abs, src_root):
+        raise ValueError(
+            f"Refusing to use runtime artifact path under src/ for {purpose}: '{target}'. "
             "Use outputs/artifacts/... instead."
         )
     return target

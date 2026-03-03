@@ -15,6 +15,7 @@ from larrak2.surrogate.hifi.models import (
     StructuralSurrogate,
     ThermalSurrogate,
 )
+from larrak2.surrogate.quality_contract import validate_artifact_quality
 from larrak2.training.hifi_schema import NormalizationParams
 
 LOGGER = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ class HifiSurrogateAdapter:
         *,
         default_rpm: float = 3000.0,
         default_torque: float = 200.0,
+        allow_heuristic_fallback: bool = False,
+        validation_mode: str = "strict",
     ) -> None:
         requested = Path(model_dir)
         self.model_dir = Path(
@@ -39,6 +42,13 @@ class HifiSurrogateAdapter:
         )
         self.default_rpm = float(default_rpm)
         self.default_torque = float(default_torque)
+        self.allow_heuristic_fallback = bool(allow_heuristic_fallback)
+        self.validation_mode = str(validation_mode)
+        if self.validation_mode not in {"strict", "warn", "off"}:
+            raise ValueError(
+                "validation_mode must be one of {'strict', 'warn', 'off'}, "
+                f"got {self.validation_mode!r}"
+            )
 
         self.norm = NormalizationParams()
         self.thermal_model: ThermalSurrogate | None = None
@@ -46,8 +56,24 @@ class HifiSurrogateAdapter:
         self.flow_model: FlowCoefficientSurrogate | None = None
         self._training_data: list[tuple[dict[str, Any], float]] = []
         self._load_assets()
+        if not self.using_hifi_models and not self.allow_heuristic_fallback:
+            raise RuntimeError(
+                "HiFi surrogate assets are incomplete/unvalidated and heuristic fallback is disabled. "
+                "Train artifacts under outputs/artifacts/surrogates/hifi and include quality_report.json."
+            )
 
     def _load_assets(self) -> None:
+        validate_artifact_quality(
+            self.model_dir,
+            surrogate_kind="hifi",
+            validation_mode=self.validation_mode,
+            required_artifacts=[
+                "thermal_surrogate.pt",
+                "structural_surrogate.pt",
+                "flow_surrogate.pt",
+                "normalization.json",
+            ],
+        )
         norm_path = self.model_dir / "normalization.json"
         if norm_path.exists():
             try:
@@ -149,7 +175,12 @@ class HifiSurrogateAdapter:
             return np.zeros(0, dtype=np.float64), np.zeros(0, dtype=np.float64)
 
         if not self.using_hifi_models:
-            return self._heuristic_predict(candidates)
+            if self.allow_heuristic_fallback:
+                return self._heuristic_predict(candidates)
+            raise RuntimeError(
+                "HiFi surrogate models are unavailable in strict production mode. "
+                "Set explicit non-production override allow_heuristic_fallback=True if needed."
+            )
 
         features = np.asarray([self._extract_features(c) for c in candidates], dtype=np.float32)
         thermal_mean, thermal_std = self.thermal_model.predict(features)  # type: ignore[union-attr]

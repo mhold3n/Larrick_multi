@@ -1,0 +1,9 @@
+{
+  "version": "life_damage_calibration_v1",
+  "baseline_route_id": "AISI_9310",
+  "sigma_ref_mpa": 1500.0,
+  "stress_exponent": 8.0,
+  "lambda_exponent": 2.0,
+  "cleanliness_scale_min": 0.8,
+  "cleanliness_scale_max": 1.2
+}

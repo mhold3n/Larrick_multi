@@ -151,3 +151,21 @@ def _ensure_calculix_nn_artifact_for_tests() -> None:
     model_path = tmp_dir / "calculix_stress.pt"
     save_artifact(artifact, model_path)
     os.environ["LARRAK2_CALCULIX_NN_PATH"] = str(model_path)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_machining_nn_artifact_for_tests() -> None:
+    from larrak2.core.artifact_paths import DEFAULT_MACHINING_NN_ARTIFACT
+    from larrak2.gear.manufacturability_limits import PROFILE_NAMES
+    from larrak2.surrogate.machining_inference import MachiningSurrogateNet
+
+    model_path = Path(DEFAULT_MACHINING_NN_ARTIFACT)
+    if model_path.exists():
+        return
+
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    input_dim = 2 + len(PROFILE_NAMES)
+    model = MachiningSurrogateNet(input_dim=input_dim)
+    import torch
+
+    torch.save(model.state_dict(), model_path)

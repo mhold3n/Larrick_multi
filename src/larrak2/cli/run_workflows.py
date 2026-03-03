@@ -22,6 +22,7 @@ from larrak2.cli.run_pareto import main as run_pareto_main
 from larrak2.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,
     DEFAULT_GEAR_LOSS_NN_DIR,
+    DEFAULT_HIFI_SURROGATE_DIR,
     DEFAULT_OPENFOAM_NN_ARTIFACT,
     assert_not_legacy_models_path,
     assert_not_legacy_models_write,
@@ -117,6 +118,12 @@ def run_pareto_grid_workflow(args: argparse.Namespace) -> int:
                 str(getattr(args, "gear_loss_mode", "physics")),
                 "--gear-loss-model-dir",
                 str(getattr(args, "gear_loss_model_dir", "")),
+                "--thermo-model",
+                str(getattr(args, "thermo_model", "two_zone_eq_v1")),
+                "--thermo-constants-path",
+                str(getattr(args, "thermo_constants_path", "")),
+                "--thermo-anchor-manifest",
+                str(getattr(args, "thermo_anchor_manifest", "")),
             ]
             if args.verbose:
                 argv.append("--verbose")
@@ -387,6 +394,7 @@ def _build_eval_context_from_args(
         intake_close_deg=float(args.intake_close_deg),
         exhaust_open_deg=float(args.exhaust_open_deg),
         exhaust_close_deg=float(args.exhaust_close_deg),
+        compression_ratio=float(getattr(args, "compression_ratio", 10.0)),
     )
     return EvalContext(
         rpm=float(args.rpm if rpm is None else rpm),
@@ -402,6 +410,10 @@ def _build_eval_context_from_args(
         calculix_model_path=str(getattr(args, "calculix_model_path", "")).strip() or None,
         gear_loss_mode=str(getattr(args, "gear_loss_mode", "physics")),
         gear_loss_model_dir=str(getattr(args, "gear_loss_model_dir", "")).strip() or None,
+        strict_data=bool(getattr(args, "strict_data", True)),
+        surrogate_validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
+        machining_mode=str(getattr(args, "machining_mode", "nn")),
+        machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,
     )
 
 
@@ -1103,8 +1115,8 @@ def run_train_surrogates_workflow(args: argparse.Namespace) -> int:
         from larrak2.surrogate import calculix_nn as _calculix_nn
         from larrak2.surrogate import openfoam_nn as _openfoam_nn
 
-        _openfoam_nn._OPENFOAM_SURROGATE = None
-        _calculix_nn._CALCULIX_SURROGATE = None
+        _openfoam_nn._OPENFOAM_SURROGATE.clear()
+        _calculix_nn._CALCULIX_SURROGATE.clear()
 
         manifest["steps"]["train_nn_surrogates"] = {
             "ok": True,
@@ -1149,6 +1161,43 @@ def run_train_surrogates_workflow(args: argparse.Namespace) -> int:
     print(f"Surrogate training complete. Gate status: {'PASS' if ready else 'FAIL'}")
     print(f"Manifest: {manifest_path}")
     return 0 if ready else 2
+
+
+def run_train_stack_surrogate_workflow(args: argparse.Namespace) -> int:
+    """Train global stack surrogate artifact used by symbolic CasADi refinement."""
+    from larrak2.training.workflows import train_stack_surrogate_workflow
+
+    outdir = Path(str(args.outdir))
+    outdir.mkdir(parents=True, exist_ok=True)
+    manifest_path = outdir / "train_stack_surrogate_manifest.json"
+
+    manifest: dict[str, object] = {
+        "workflow": "train_stack_surrogate",
+        "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "config": vars(args),
+        "ok": False,
+    }
+
+    try:
+        summary = train_stack_surrogate_workflow(args)
+        manifest["ok"] = True
+        manifest["summary"] = summary
+        manifest["artifact_path"] = str(summary.get("artifact_path", ""))
+        print("Stack surrogate training complete.")
+        print(f"Artifact: {manifest['artifact_path']}")
+    except Exception as exc:
+        manifest["error"] = str(exc)
+        manifest["traceback"] = traceback.format_exc()
+        print(f"Stack surrogate training failed: {exc}")
+        manifest["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        print(f"Manifest: {manifest_path}")
+        return 1
+
+    manifest["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    print(f"Manifest: {manifest_path}")
+    return 0
 
 
 def run_dress_rehearsal_workflow(args: argparse.Namespace) -> int:
@@ -1801,6 +1850,139 @@ def run_dress_rehearsal_workflow(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Explore -> Exploit (Pareto + CasADi refinement + Tribology)
+# ---------------------------------------------------------------------------
+
+
+def _parse_float_list(raw: str) -> np.ndarray | None:
+    text = str(raw).strip()
+    if not text:
+        return None
+    vals = [float(tok.strip()) for tok in text.split(",") if tok.strip()]
+    if not vals:
+        return None
+    return np.asarray(vals, dtype=np.float64)
+
+
+def _parse_int_list(raw: str) -> list[int] | None:
+    text = str(raw).strip()
+    if not text:
+        return None
+    vals = [int(tok.strip()) for tok in text.split(",") if tok.strip()]
+    return vals or None
+
+
+def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
+    """Two-stage pipeline: explore Pareto set then exploit selected slices via CasADi."""
+    from larrak2.pipelines.explore_exploit import run_two_stage_pipeline
+
+    pareto_dir = Path(args.pareto_dir)
+    if bool(args.run_explore):
+        pareto_dir.mkdir(parents=True, exist_ok=True)
+        explore_argv = [
+            "--pop",
+            str(args.pop),
+            "--gen",
+            str(args.gen),
+            "--rpm",
+            str(args.rpm),
+            "--torque",
+            str(args.torque),
+            "--fidelity",
+            str(args.explore_fidelity),
+            "--seed",
+            str(args.seed),
+            "--output",
+            str(pareto_dir),
+            "--thermo-model",
+            str(getattr(args, "thermo_model", "two_zone_eq_v1")),
+            "--thermo-constants-path",
+            str(getattr(args, "thermo_constants_path", "")),
+            "--thermo-anchor-manifest",
+            str(getattr(args, "thermo_anchor_manifest", "")),
+        ]
+        if bool(args.verbose):
+            explore_argv.append("--verbose")
+        code = run_pareto_main(explore_argv)
+        if code != 0:
+            print("Explore stage failed: run_pareto returned non-zero exit code")
+            return int(code)
+
+    for name in ("pareto_X.npy", "pareto_F.npy", "pareto_G.npy"):
+        if not (pareto_dir / name).exists():
+            print(
+                f"Missing Pareto artifact '{name}' in {pareto_dir}. "
+                "Run with --run-explore or point --pareto-dir to a completed archive."
+            )
+            return 1
+
+    lowfi_ctx = EvalContext(
+        rpm=float(args.rpm),
+        torque=float(args.torque),
+        fidelity=int(args.explore_fidelity),
+        seed=int(args.seed),
+        constraint_phase="explore",
+        thermo_model=str(getattr(args, "thermo_model", "two_zone_eq_v1")),
+        thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
+        thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
+        or None,
+    )
+    hifi_ctx = EvalContext(
+        rpm=float(args.rpm),
+        torque=float(args.torque),
+        fidelity=int(args.hifi_fidelity),
+        seed=int(args.seed),
+        constraint_phase=str(getattr(args, "hifi_constraint_phase", "downselect")),
+        thermo_model=str(getattr(args, "thermo_model", "two_zone_eq_v1")),
+        thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
+        thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
+        or None,
+    )
+
+    weights = _parse_float_list(str(args.rank_weights))
+    refine_indices = _parse_int_list(str(args.refine_indices))
+
+    ipopt_options = {
+        k: v
+        for k, v in {
+            "max_iter": args.ipopt_max_iter,
+            "tol": args.ipopt_tol,
+            "linear_solver": args.ipopt_linear_solver,
+        }.items()
+        if v is not None
+    }
+
+    manifest = run_two_stage_pipeline(
+        pareto_dir=pareto_dir,
+        outdir=Path(args.outdir),
+        lowfi_ctx=lowfi_ctx,
+        hifi_ctx=hifi_ctx,
+        top_k=int(args.top_k),
+        candidate_index=None if int(args.candidate_index) < 0 else int(args.candidate_index),
+        rank_weights=weights,
+        refine_indices=refine_indices,
+        mode=str(args.mode),
+        backend=str(args.backend),
+        active_k=args.active_k,
+        min_per_group=int(args.min_per_group),
+        slice_method=str(args.slice_method),
+        trust_radius=args.trust_radius,
+        max_iter=int(args.max_iter),
+        tol=float(args.tol),
+        eps_margin=float(args.eps_margin),
+        run_tribology_stage=not bool(args.skip_tribology),
+        ipopt_options=ipopt_options or None,
+        stack_model_path=str(args.stack_model_path).strip() or None,
+    )
+
+    manifest_path = Path(args.outdir) / "explore_exploit_manifest.json"
+    print("Explore->Exploit pipeline complete.")
+    print(f"Selected candidates: {manifest.get('selected_indices', [])}")
+    print(f"Manifest: {manifest_path}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Backend Orchestration (No GUI)
 # ---------------------------------------------------------------------------
 
@@ -1876,13 +2058,30 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         fidelity=0,
         truth_dispatch_mode=str(args.truth_dispatch_mode),
         truth_plan=truth_tokens,
+        truth_auto_top_k=int(getattr(args, "truth_auto_top_k", 2)),
+        truth_auto_min_uncertainty=float(getattr(args, "truth_auto_min_uncertainty", 0.0)),
+        truth_auto_min_feasibility=float(getattr(args, "truth_auto_min_feasibility", 0.0)),
+        truth_auto_min_pred_quantile=float(getattr(args, "truth_auto_min_pred_quantile", 0.0)),
         outdir=outdir,
         cache_path=str(args.cache_path).strip() or None,
         use_provenance=use_provenance,
+        strict_data=bool(getattr(args, "strict_data", True)),
+        surrogate_validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
+        machining_mode=str(getattr(args, "machining_mode", "nn")),
+        machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,
     )
 
     cem = CEMAdapter()
-    surrogate = HifiSurrogateAdapter(default_rpm=float(args.rpm), default_torque=float(args.torque))
+    surrogate_model_dir = str(getattr(args, "hifi_model_dir", "")).strip() or str(
+        DEFAULT_HIFI_SURROGATE_DIR
+    )
+    surrogate = HifiSurrogateAdapter(
+        model_dir=surrogate_model_dir,
+        default_rpm=float(args.rpm),
+        default_torque=float(args.torque),
+        allow_heuristic_fallback=bool(getattr(args, "allow_heuristic_surrogate_fallback", False)),
+        validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
+    )
     solver = CasadiSolverAdapter(backend="casadi", mode="weighted_sum")
     simulation = PhysicsSimulationAdapter(work_dir=outdir / "truth_runs")
 

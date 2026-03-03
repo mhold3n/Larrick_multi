@@ -30,6 +30,7 @@ class BreathingConfig:
     intake_close_deg: float = 0.0
     exhaust_open_deg: float = 0.0
     exhaust_close_deg: float = 0.0
+    compression_ratio: float = 10.0
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,13 @@ class EvalContext:
     calculix_model_path: str | None = None
     gear_loss_mode: str = "physics"
     gear_loss_model_dir: str | None = None
+    thermo_model: str = "two_zone_eq_v1"
+    thermo_constants_path: str | None = None
+    thermo_anchor_manifest_path: str | None = None
+    strict_data: bool = True
+    surrogate_validation_mode: str = "strict"
+    machining_mode: str = "nn"
+    machining_model_path: str | None = None
 
     def __post_init__(self) -> None:
         if self.fidelity not in (0, 1, 2):
@@ -88,6 +96,19 @@ class EvalContext:
             )
         if self.gear_loss_mode not in {"physics", "nn"}:
             raise ValueError(f"gear_loss_mode must be 'physics' or 'nn', got {self.gear_loss_mode}")
+        if self.thermo_model not in {"two_zone_eq_v1"}:
+            raise ValueError(
+                f"thermo_model must be 'two_zone_eq_v1' in strict mode, got {self.thermo_model}"
+            )
+        if self.surrogate_validation_mode not in {"strict", "warn", "off"}:
+            raise ValueError(
+                "surrogate_validation_mode must be 'strict', 'warn', or 'off', "
+                f"got {self.surrogate_validation_mode}"
+            )
+        if self.machining_mode not in {"nn", "analytical"}:
+            raise ValueError(
+                f"machining_mode must be 'nn' or 'analytical', got {self.machining_mode}"
+            )
 
 
 @dataclass

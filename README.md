@@ -127,7 +127,7 @@ pip install -e ".[dev]"
 ### Running Optimization
 
 ```bash
-# Toy Physics
+# Fast smoke only (toy physics, never for pass/fail decisions)
 python -m larrak2.cli.run_pareto --pop 64 --gen 50
 
 # V1 Physics
@@ -151,10 +151,10 @@ Outputs include:
 - `outputs/dress_rehearsal/cem_validation_report.txt`
 - `outputs/dress_rehearsal/cem_validation_report.json`
 
-Detailed process: `Docs/dress-rehearsal-process.md`
+Canonical process and hard-first gates: `Docs/main-development-plan.md`
 
 ---
 
 ## 7. System Vision
 
-For detailed high-level architecture diagrams and future roadmap, see `outline.md`.
+For the active roadmap and execution priorities, see `Docs/main-development-plan.md`.

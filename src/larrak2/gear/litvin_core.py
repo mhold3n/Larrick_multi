@@ -233,7 +233,10 @@ def _evaluate_radius_strategy_stress(
         try:
             from ..surrogate.calculix_nn import get_calculix_surrogate
 
-            calc_surrogate = get_calculix_surrogate(model_path)
+            calc_surrogate = get_calculix_surrogate(
+                model_path,
+                validation_mode=str(getattr(ctx, "surrogate_validation_mode", "strict")),
+            )
         except Exception as e:
             raise RuntimeError(f"Failed to load CalculiX NN surrogate from '{model_path}'.") from e
     elif calc_mode != "analytical":

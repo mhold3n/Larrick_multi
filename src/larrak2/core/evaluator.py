@@ -159,6 +159,9 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         or os.environ.get("LARRAK2_OPENFOAM_NN_PATH", ""),
         "calculix_stress_mode": ctx.calculix_stress_mode,
         "gear_loss_mode": ctx.gear_loss_mode,
+        "machining_mode": str(getattr(ctx, "machining_mode", "nn")),
+        "machining_model_path": str(getattr(ctx, "machining_model_path", "") or ""),
+        "surrogate_validation_mode": str(getattr(ctx, "surrogate_validation_mode", "strict")),
     }
 
     omega = float(ctx.rpm) * 2.0 * np.pi / 60.0
@@ -172,7 +175,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     from larrak2.machining.cost_model import calculate_tolerance_budget, calculate_tooling_cost
     from larrak2.surrogate.machining_inference import get_machining_engine
 
-    machining_eng = get_machining_engine()
+    machining_eng = get_machining_engine(
+        mode=str(getattr(ctx, "machining_mode", "nn")),
+        model_path=getattr(ctx, "machining_model_path", None),
+    )
 
     # Extract surrogate inputs from ratio profile
     rr = thermo_result.requested_ratio_profile
@@ -342,7 +348,11 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
                 pitch_line_vel_m_s=pitch_line_vel,
             )
 
-            _sigma_ref = get_sigma_ref_for_route(rid, cleanliness_proxy=cleanliness)
+            _sigma_ref = get_sigma_ref_for_route(
+                rid,
+                cleanliness_proxy=cleanliness,
+                strict_data=bool(getattr(ctx, "strict_data", True)),
+            )
 
             lambda_prof = getattr(phase_res_val, "lambda_profile", None)
             if lambda_prof is None:
@@ -477,6 +487,15 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
 
     diag: dict = {
         "thermo": thermo_diag,
+        "thermo_validation": {
+            "thermo_solver_status": str(thermo_diag.get("thermo_solver_status", "")),
+            "thermo_model_version": str(thermo_diag.get("thermo_model_version", "")),
+            "thermo_constants_version": str(thermo_diag.get("thermo_constants_version", "")),
+            "thermo_mass_residual": float(thermo_diag.get("thermo_mass_residual", np.nan)),
+            "thermo_energy_residual": float(thermo_diag.get("thermo_energy_residual", np.nan)),
+            "thermo_benchmark_status": str(thermo_diag.get("thermo_benchmark_status", "")),
+            "thermo_nn_disagreement": thermo_diag.get("thermo_nn_disagreement", {}),
+        },
         "gear": gear_result.diag or {},
         "machining": {
             "t_min_proxy_mm": t_min_proxy,

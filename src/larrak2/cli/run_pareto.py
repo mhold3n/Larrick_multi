@@ -94,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--intake-close-deg", type=float, default=0.0)
     parser.add_argument("--exhaust-open-deg", type=float, default=0.0)
     parser.add_argument("--exhaust-close-deg", type=float, default=0.0)
+    parser.add_argument("--compression-ratio", type=float, default=10.0)
     parser.add_argument(
         "--openfoam-model-path",
         type=str,
@@ -126,6 +127,36 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="Gear-loss NN model directory when --gear-loss-mode=nn",
     )
+    parser.add_argument(
+        "--thermo-model",
+        type=str,
+        default="two_zone_eq_v1",
+        choices=["two_zone_eq_v1"],
+        help="Thermo backend model",
+    )
+    parser.add_argument(
+        "--thermo-constants-path",
+        type=str,
+        default="",
+        help="Override path to thermo literature constants pack",
+    )
+    parser.add_argument(
+        "--thermo-anchor-manifest",
+        type=str,
+        default="",
+        help="Override path to thermo benchmark anchor manifest",
+    )
+    parser.add_argument(
+        "--surrogate-validation-mode",
+        type=str,
+        default="strict",
+        choices=["strict", "warn", "off"],
+    )
+    parser.add_argument("--strict-data", dest="strict_data", action="store_true")
+    parser.add_argument("--no-strict-data", dest="strict_data", action="store_false")
+    parser.set_defaults(strict_data=True)
+    parser.add_argument("--machining-mode", type=str, default="nn", choices=["nn", "analytical"])
+    parser.add_argument("--machining-model-path", type=str, default="")
 
     args = parser.parse_args(argv)
 
@@ -155,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         intake_close_deg=args.intake_close_deg,
         exhaust_open_deg=args.exhaust_open_deg,
         exhaust_close_deg=args.exhaust_close_deg,
+        compression_ratio=float(args.compression_ratio),
     )
 
     ctx = EvalContext(
@@ -171,6 +203,13 @@ def main(argv: list[str] | None = None) -> int:
         calculix_model_path=str(args.calculix_model_path).strip() or None,
         gear_loss_mode=str(args.gear_loss_mode),
         gear_loss_model_dir=str(args.gear_loss_model_dir).strip() or None,
+        thermo_model=str(args.thermo_model),
+        thermo_constants_path=str(args.thermo_constants_path).strip() or None,
+        thermo_anchor_manifest_path=str(args.thermo_anchor_manifest).strip() or None,
+        strict_data=bool(args.strict_data),
+        surrogate_validation_mode=str(args.surrogate_validation_mode),
+        machining_mode=str(args.machining_mode),
+        machining_model_path=str(args.machining_model_path).strip() or None,
     )
 
     problem = ParetoProblem(ctx=ctx)

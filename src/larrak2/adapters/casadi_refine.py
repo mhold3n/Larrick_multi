@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
@@ -14,7 +14,7 @@ from ..core.types import EvalContext
 from ..optimization.slicing import select_active_set, solve_slice_with_ipopt
 
 
-class RefinementMode(str, Enum):
+class RefinementMode(StrEnum):
     """Refinement strategy."""
 
     WEIGHTED_SUM = "weighted_sum"
@@ -102,6 +102,7 @@ def _scipy_refine_slice(
     eps_constraints: np.ndarray | None,
     max_iter: int,
     tol: float,
+    trust_radius: float | None,
 ) -> tuple[np.ndarray, dict[str, Any], bool, str]:
     if not active_indices:
         return x0, {"n_iter": 0}, True, "No active variables selected"
@@ -115,6 +116,17 @@ def _scipy_refine_slice(
     z0 = np.array([x0[i] for i in active_indices], dtype=np.float64)
     lb = np.array([xl[i] for i in active_indices], dtype=np.float64)
     ub = np.array([xu[i] for i in active_indices], dtype=np.float64)
+    if trust_radius is not None:
+        radius = float(trust_radius)
+        if radius <= 0:
+            return (
+                x0,
+                {"error": f"trust_radius must be > 0, got {radius}"},
+                False,
+                "invalid trust_radius",
+            )
+        lb = np.maximum(lb, z0 - radius)
+        ub = np.minimum(ub, z0 + radius)
 
     def objective(z: np.ndarray) -> float:
         x = _reconstruct_full(x0, active_indices, np.clip(z, lb, ub))
@@ -155,6 +167,7 @@ def _scipy_refine_slice(
             "scipy_result": str(res.message),
             "n_iter": int(getattr(res, "nit", 0)),
             "success": bool(res.success),
+            "trust_radius": trust_radius,
         },
         bool(res.success),
         str(res.message),
@@ -176,6 +189,7 @@ def refine_candidate(
     active_k: int | None = None,
     min_per_group: int = 1,
     slice_method: str = "sensitivity",
+    trust_radius: float | None = None,
 ) -> RefinementResult:
     """Refine candidate in a high-dimensional space using active-variable slices."""
     x0 = np.asarray(x0, dtype=np.float64)
@@ -218,6 +232,7 @@ def refine_candidate(
         "active_indices": selected_active,
         "frozen_indices": frozen_indices,
         "slice_scores": selection_scores,
+        "trust_radius": trust_radius,
     }
 
     if backend == "casadi":
@@ -229,6 +244,7 @@ def refine_candidate(
             weights=weights,
             eps_constraints=eps_constraints,
             ipopt_options=ipopt_options,
+            trust_radius=trust_radius,
         )
         ipopt_status = slice_result.ipopt_status
         diag["ipopt"] = slice_result.diagnostics
@@ -249,6 +265,7 @@ def refine_candidate(
                 eps_constraints=eps_constraints,
                 max_iter=max_iter,
                 tol=tol,
+                trust_radius=trust_radius,
             )
             diag["scipy"] = scipy_diag
             backend_used = "scipy_fallback"
@@ -264,6 +281,7 @@ def refine_candidate(
             eps_constraints=eps_constraints,
             max_iter=max_iter,
             tol=tol,
+            trust_radius=trust_radius,
         )
         diag["scipy"] = scipy_diag
         backend_used = "scipy"

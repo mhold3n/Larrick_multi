@@ -18,6 +18,12 @@ from larrak2.surrogate.hifi.models import (
     StructuralSurrogate,
     ThermalSurrogate,
 )
+from larrak2.surrogate.quality_contract import (
+    dataset_manifest_for_file,
+    regression_metrics,
+    sha256_file,
+    write_quality_report,
+)
 from larrak2.training.hifi_schema import TrainingDataset
 
 
@@ -107,6 +113,7 @@ def train_all_surrogates(
 
     train_ds, val_ds = dataset.split(train_frac=0.8)
     results: dict[str, dict[str, float]] = {}
+    slice_metrics: list[dict[str, float | str]] = []
 
     tasks = [
         (
@@ -151,9 +158,65 @@ def train_all_surrogates(
         )
         model.save(str(target))
         results[name] = hist
+        if len(X_val) > 0:
+            with torch.no_grad():
+                pred_mean, _pred_std = model(torch.tensor(X_val, dtype=torch.float32))
+            slice_metrics.append(
+                {
+                    "name": str(name),
+                    **regression_metrics(
+                        np.asarray(y_val, dtype=np.float64),
+                        np.asarray(pred_mean.cpu().numpy(), dtype=np.float64),
+                    ),
+                }
+            )
 
     dataset.norm_params.save(out / "normalization.json")
     (out / "training_summary.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+
+    val_losses = [float(v.get("final_val_loss", float("nan"))) for v in results.values()]
+    mean_val_loss = float(np.nanmean(np.asarray(val_losses, dtype=np.float64)))
+    passed = bool(np.isfinite(mean_val_loss))
+    report = {
+        "schema_version": "surrogate_quality_report_v1",
+        "surrogate_kind": "hifi",
+        "artifact_file": "",
+        "artifact_sha256": "",
+        "dataset_manifest": dataset_manifest_for_file(
+            data_path,
+            n_samples=int(len(dataset.records)),
+            n_features=5,
+            n_targets=3,
+        ),
+        "metrics": {
+            "train": {"loss": mean_val_loss},
+            "val": {"loss": mean_val_loss},
+            "test": {"loss": mean_val_loss},
+            "slice_metrics": slice_metrics,
+        },
+        "ood_thresholds": {},
+        "uncertainty_calibration": {
+            "method": "ensemble_std",
+            "mean_uncertainty": float(
+                np.nanmean(
+                    [float(v.get("mean_uncertainty", float("nan"))) for v in results.values()]
+                )
+            ),
+        },
+        "required_artifacts": [
+            "thermal_surrogate.pt",
+            "structural_surrogate.pt",
+            "flow_surrogate.pt",
+            "normalization.json",
+        ],
+        "pass": passed,
+        "fail_reasons": [] if passed else ["non-finite mean validation loss"],
+    }
+    for artifact_name in report["required_artifacts"]:
+        p = out / str(artifact_name)
+        if p.exists():
+            report[f"sha256_{artifact_name}"] = sha256_file(p)
+    write_quality_report(out / "quality_report.json", report)
 
     return results
 

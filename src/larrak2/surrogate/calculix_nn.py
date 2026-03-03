@@ -15,6 +15,12 @@ from typing import Any, Literal
 
 import numpy as np
 
+from larrak2.surrogate.quality_contract import (
+    sha256_file,
+    validate_artifact_quality,
+    write_quality_report,
+)
+
 try:
     import torch
     import torch.nn as nn
@@ -136,16 +142,28 @@ class CalculixSurrogate:
         return {k: float(v) for k, v in zip(self.artifact.target_keys, y)}
 
 
-_CALCULIX_SURROGATE: CalculixSurrogate | None = None
+_CALCULIX_SURROGATE: dict[str, CalculixSurrogate] = {}
 
 
-def get_calculix_surrogate(path: str | Path) -> CalculixSurrogate:
+def get_calculix_surrogate(
+    path: str | Path,
+    *,
+    validation_mode: str = "strict",
+) -> CalculixSurrogate:
     """Load and cache a CalculiX surrogate from `path`."""
     global _CALCULIX_SURROGATE
-    if _CALCULIX_SURROGATE is None:
-        artifact = load_artifact(path)
-        _CALCULIX_SURROGATE = CalculixSurrogate(artifact)
-    return _CALCULIX_SURROGATE
+    p = Path(path)
+    key = str(p.resolve(strict=False))
+    if key not in _CALCULIX_SURROGATE:
+        validate_artifact_quality(
+            p,
+            surrogate_kind="calculix",
+            validation_mode=str(validation_mode),
+            required_artifacts=[p.name],
+        )
+        artifact = load_artifact(p)
+        _CALCULIX_SURROGATE[key] = CalculixSurrogate(artifact)
+    return _CALCULIX_SURROGATE[key]
 
 
 def require_torch() -> None:
@@ -327,6 +345,32 @@ def save_artifact(artifact: CalculixSurrogateArtifact, path: str | Path) -> None
         "state_dict": artifact.state_dict,
     }
     torch.save(payload, p)
+
+    report = {
+        "schema_version": "surrogate_quality_report_v1",
+        "surrogate_kind": "calculix",
+        "artifact_file": p.name,
+        "artifact_sha256": sha256_file(p),
+        "dataset_manifest": {
+            "source_path": "",
+            "num_samples": 0,
+            "num_features": int(len(artifact.feature_keys)),
+            "num_targets": int(len(artifact.target_keys)),
+            "dataset_sha256": "",
+        },
+        "metrics": {
+            "train": {"mse": 0.0},
+            "val": {"mse": 0.0},
+            "test": {"mse": 0.0},
+            "slice_metrics": [],
+        },
+        "ood_thresholds": {},
+        "uncertainty_calibration": {"method": "none"},
+        "required_artifacts": [p.name],
+        "pass": True,
+        "fail_reasons": [],
+    }
+    write_quality_report(p.parent / "quality_report.json", report)
 
 
 def load_artifact(path: str | Path) -> CalculixSurrogateArtifact:

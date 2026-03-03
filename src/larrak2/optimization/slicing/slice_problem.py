@@ -132,6 +132,7 @@ def solve_slice_with_ipopt(
     eps_constraints: np.ndarray | None = None,
     ipopt_options: dict[str, Any] | None = None,
     regularization: float = 1e-2,
+    trust_radius: float | None = None,
 ) -> SliceSolveResult:
     """Solve a local linearized slice NLP with CasADi/Ipopt."""
     if not active_indices:
@@ -212,6 +213,12 @@ def solve_slice_with_ipopt(
         xl, xu = bounds()
         lbx = np.array([xl[i] for i in active_indices], dtype=np.float64)
         ubx = np.array([xu[i] for i in active_indices], dtype=np.float64)
+        if trust_radius is not None:
+            radius = float(trust_radius)
+            if radius <= 0:
+                raise ValueError(f"trust_radius must be > 0, got {radius}")
+            lbx = np.maximum(lbx, z0 - radius)
+            ubx = np.minimum(ubx, z0 + radius)
 
         option_map = ipopt_options or {}
         solver = IPOPTSolver(
@@ -254,6 +261,7 @@ def solve_slice_with_ipopt(
                 "f_opt": float(res.f_opt),
                 "stats": res.stats,
                 "active_dim": n_active,
+                "trust_radius": trust_radius,
             },
         )
     except Exception as exc:

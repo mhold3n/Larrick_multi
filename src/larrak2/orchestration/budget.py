@@ -176,6 +176,8 @@ class BudgetManager:
         uncertainty: np.ndarray,
         cem_feasibility: np.ndarray | None = None,
         batch_size: int | None = None,
+        *,
+        consume: bool = True,
     ) -> list[int]:
         """Select indices for truth evaluation and consume active budget."""
         n = int(len(candidates))
@@ -232,7 +234,8 @@ class BudgetManager:
                 selected.add(int(idx))
 
         result = sorted(selected)[:batch_size]
-        self.state.consume(len(result), reason="select_batch")
+        if bool(consume):
+            self.state.consume(len(result), reason="select_batch")
         return result
 
     def select_for_validation(

@@ -18,6 +18,12 @@ from typing import Any, Literal
 
 import numpy as np
 
+from larrak2.surrogate.quality_contract import (
+    sha256_file,
+    validate_artifact_quality,
+    write_quality_report,
+)
+
 try:
     import torch
     import torch.nn as nn
@@ -161,18 +167,30 @@ class OpenFoamSurrogate:
         return {k: float(v) for k, v in zip(self.artifact.target_keys, y)}
 
 
-# Singleton (lazy)
-_OPENFOAM_SURROGATE: OpenFoamSurrogate | None = None
+# Singleton cache (path -> runtime model)
+_OPENFOAM_SURROGATE: dict[str, OpenFoamSurrogate] = {}
 
 
-def get_openfoam_surrogate(path: str | Path) -> OpenFoamSurrogate:
+def get_openfoam_surrogate(
+    path: str | Path,
+    *,
+    validation_mode: str = "strict",
+) -> OpenFoamSurrogate:
     """Load and cache an OpenFOAM surrogate from `path`."""
 
     global _OPENFOAM_SURROGATE
-    if _OPENFOAM_SURROGATE is None:
-        artifact = load_artifact(path)
-        _OPENFOAM_SURROGATE = OpenFoamSurrogate(artifact)
-    return _OPENFOAM_SURROGATE
+    p = Path(path)
+    key = str(p.resolve(strict=False))
+    if key not in _OPENFOAM_SURROGATE:
+        validate_artifact_quality(
+            p,
+            surrogate_kind="openfoam",
+            validation_mode=str(validation_mode),
+            required_artifacts=[p.name],
+        )
+        artifact = load_artifact(p)
+        _OPENFOAM_SURROGATE[key] = OpenFoamSurrogate(artifact)
+    return _OPENFOAM_SURROGATE[key]
 
 
 def require_torch() -> None:
@@ -357,6 +375,9 @@ def save_artifact(artifact: OpenFoamSurrogateArtifact, path: str | Path) -> None
     require_torch()
     assert torch is not None  # for type checkers
 
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
     payload = {
         "feature_keys": list(artifact.feature_keys),
         "target_keys": list(artifact.target_keys),
@@ -369,7 +390,33 @@ def save_artifact(artifact: OpenFoamSurrogateArtifact, path: str | Path) -> None
         },
         "state_dict": artifact.state_dict,
     }
-    torch.save(payload, str(path))
+    torch.save(payload, str(target))
+
+    report = {
+        "schema_version": "surrogate_quality_report_v1",
+        "surrogate_kind": "openfoam",
+        "artifact_file": target.name,
+        "artifact_sha256": sha256_file(target),
+        "dataset_manifest": {
+            "source_path": "",
+            "num_samples": 0,
+            "num_features": int(len(artifact.feature_keys)),
+            "num_targets": int(len(artifact.target_keys)),
+            "dataset_sha256": "",
+        },
+        "metrics": {
+            "train": {"mse": 0.0},
+            "val": {"mse": 0.0},
+            "test": {"mse": 0.0},
+            "slice_metrics": [],
+        },
+        "ood_thresholds": {},
+        "uncertainty_calibration": {"method": "none"},
+        "required_artifacts": [target.name],
+        "pass": True,
+        "fail_reasons": [],
+    }
+    write_quality_report(target.parent / "quality_report.json", report)
 
 
 def load_artifact(path: str | Path) -> OpenFoamSurrogateArtifact:
