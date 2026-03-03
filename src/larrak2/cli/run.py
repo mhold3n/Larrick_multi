@@ -23,11 +23,14 @@ from larrak2.cli.run_workflows import (
     run_orchestrate_workflow,
     run_pareto_grid_workflow,
     run_pareto_staged_workflow,
+    run_train_stack_surrogate_workflow,
     run_train_surrogates_workflow,
 )
 from larrak2.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_DIR,
+    DEFAULT_HIFI_SURROGATE_DIR,
     DEFAULT_OPENFOAM_NN_DIR,
+    DEFAULT_STACK_SURROGATE_DIR,
 )
 
 
@@ -71,6 +74,14 @@ def main() -> int:
     pg.add_argument("--gear-loss-model-dir", type=str, default="")
     pg.add_argument("--rpm-list", type=str, default="")
     pg.add_argument("--torque-list", type=str, default="")
+    pg.add_argument(
+        "--thermo-model",
+        type=str,
+        default="two_zone_eq_v1",
+        choices=["two_zone_eq_v1"],
+    )
+    pg.add_argument("--thermo-constants-path", type=str, default="")
+    pg.add_argument("--thermo-anchor-manifest", type=str, default="")
     pg.add_argument("--rpm-min", type=float, default=1000.0)
     pg.add_argument("--rpm-max", type=float, default=7000.0)
     pg.add_argument("--rpm-n", type=int, default=6)
@@ -220,6 +231,43 @@ def main() -> int:
     ts.add_argument("--intake-close-deg", type=float, default=0.0)
     ts.add_argument("--exhaust-open-deg", type=float, default=0.0)
     ts.add_argument("--exhaust-close-deg", type=float, default=0.0)
+
+    # --- Train Stack Surrogate ---
+    tss = subparsers.add_parser(
+        "train-stack-surrogate",
+        help="Train global surrogate stack artifact for symbolic CasADi refinement",
+    )
+    tss.add_argument(
+        "--outdir",
+        type=str,
+        default=str(DEFAULT_STACK_SURROGATE_DIR),
+        help="Output directory for stack surrogate artifact",
+    )
+    tss.add_argument("--name", type=str, default="stack_f1_surrogate.npz")
+    tss.add_argument(
+        "--dataset",
+        type=str,
+        default="",
+        help="NPZ dataset path with X and Y arrays (overrides --pareto-dir)",
+    )
+    tss.add_argument(
+        "--pareto-dir",
+        type=str,
+        default="",
+        help="Pareto archive directory with pareto_X/F/G arrays used to build training data",
+    )
+    tss.add_argument("--fidelity", type=int, default=1, choices=[0, 1, 2])
+    tss.add_argument("--rpm", type=float, default=3000.0)
+    tss.add_argument("--torque", type=float, default=200.0)
+    tss.add_argument("--hidden", type=str, default="128,128")
+    tss.add_argument("--activation", type=str, default="relu", choices=["relu", "leaky_relu"])
+    tss.add_argument("--leaky-relu-slope", type=float, default=0.01)
+    tss.add_argument("--epochs", type=int, default=200)
+    tss.add_argument("--lr", type=float, default=1e-3)
+    tss.add_argument("--weight-decay", type=float, default=1e-6)
+    tss.add_argument("--val-frac", type=float, default=0.2)
+    tss.add_argument("--seed", type=int, default=42)
+    tss.add_argument("--verbose", action="store_true")
 
     # --- Dress Rehearsal ---
     dr = subparsers.add_parser(
@@ -372,6 +420,13 @@ def main() -> int:
     ee.add_argument("--seed", type=int, default=42)
     ee.add_argument("--explore-fidelity", type=int, default=1, choices=[0, 1, 2])
     ee.add_argument("--hifi-fidelity", type=int, default=1, choices=[0, 1, 2])
+    ee.add_argument(
+        "--hifi-constraint-phase",
+        type=str,
+        default="downselect",
+        choices=["explore", "downselect"],
+        help="Constraint phase for high-fidelity evaluate/downselect stage",
+    )
     ee.add_argument("--top-k", type=int, default=1)
     ee.add_argument(
         "--candidate-index",
@@ -406,6 +461,20 @@ def main() -> int:
     ee.add_argument("--tol", type=float, default=1e-6)
     ee.add_argument("--eps-margin", type=float, default=0.02)
     ee.add_argument("--skip-tribology", action="store_true")
+    ee.add_argument(
+        "--thermo-model",
+        type=str,
+        default="two_zone_eq_v1",
+        choices=["two_zone_eq_v1"],
+    )
+    ee.add_argument("--thermo-constants-path", type=str, default="")
+    ee.add_argument("--thermo-anchor-manifest", type=str, default="")
+    ee.add_argument(
+        "--stack-model-path",
+        type=str,
+        default="",
+        help="Stack surrogate artifact path for symbolic CasADi refinement",
+    )
     ee.add_argument("--ipopt-max-iter", type=int, default=None)
     ee.add_argument("--ipopt-tol", type=float, default=None)
     ee.add_argument("--ipopt-linear-solver", type=str, default=None)
@@ -426,14 +495,60 @@ def main() -> int:
     orch.add_argument(
         "--truth-dispatch-mode",
         type=str,
-        choices=["off", "manual"],
-        default="off",
+        choices=["off", "manual", "auto"],
+        default="auto",
     )
     orch.add_argument(
         "--truth-plan",
         type=str,
         default="",
         help="Path to JSON truth plan (required for --truth-dispatch-mode=manual)",
+    )
+    orch.add_argument("--truth-auto-top-k", type=int, default=2)
+    orch.add_argument("--truth-auto-min-uncertainty", type=float, default=0.0)
+    orch.add_argument("--truth-auto-min-feasibility", type=float, default=0.0)
+    orch.add_argument("--truth-auto-min-pred-quantile", type=float, default=0.0)
+    orch.add_argument(
+        "--hifi-model-dir",
+        type=str,
+        default=str(DEFAULT_HIFI_SURROGATE_DIR),
+        help="HiFi surrogate model directory",
+    )
+    orch.add_argument(
+        "--allow-heuristic-surrogate-fallback",
+        action="store_true",
+        help="Explicit non-production override to allow heuristic surrogate fallback",
+    )
+    orch.add_argument(
+        "--surrogate-validation-mode",
+        type=str,
+        default="strict",
+        choices=["strict", "warn", "off"],
+    )
+    orch.add_argument(
+        "--strict-data",
+        dest="strict_data",
+        action="store_true",
+        help="Enable strict data-path checks (default)",
+    )
+    orch.add_argument(
+        "--no-strict-data",
+        dest="strict_data",
+        action="store_false",
+        help="Disable strict data-path checks",
+    )
+    orch.set_defaults(strict_data=True)
+    orch.add_argument(
+        "--machining-mode",
+        type=str,
+        default="nn",
+        choices=["nn", "analytical"],
+    )
+    orch.add_argument(
+        "--machining-model-path",
+        type=str,
+        default="",
+        help="Override machining NN artifact path",
     )
     orch.add_argument(
         "--control-backend",
@@ -471,6 +586,7 @@ def main() -> int:
         "pareto-staged": run_pareto_staged_workflow,
         "active-learning": run_active_learning_workflow,
         "train-surrogates": run_train_surrogates_workflow,
+        "train-stack-surrogate": run_train_stack_surrogate_workflow,
         "openfoam-doe": run_openfoam_doe_workflow,
         "dress-rehearsal": run_dress_rehearsal_workflow,
         "explore-exploit": run_explore_exploit_workflow,

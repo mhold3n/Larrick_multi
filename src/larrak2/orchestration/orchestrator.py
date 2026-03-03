@@ -121,8 +121,16 @@ class OrchestrationConfig:
     tolerance_constraint_mode: str = "capability_floor"
     tolerance_threshold_mm: float = 0.24
 
-    truth_dispatch_mode: str = "off"  # off | manual
+    truth_dispatch_mode: str = "auto"  # off | manual | auto
     truth_plan: list[str] | None = None
+    truth_auto_top_k: int = 2
+    truth_auto_min_uncertainty: float = 0.0
+    truth_auto_min_feasibility: float = 0.0
+    truth_auto_min_pred_quantile: float = 0.0
+    strict_data: bool = True
+    surrogate_validation_mode: str = "strict"
+    machining_mode: str = "nn"
+    machining_model_path: str | None = None
 
     outdir: str | Path = "outputs/orchestration"
     cache_path: str | Path | None = None
@@ -138,13 +146,25 @@ class OrchestrationConfig:
             raise ValueError("batch_size must be > 0")
         if int(self.max_iterations) <= 0:
             raise ValueError("max_iterations must be > 0")
-        if self.truth_dispatch_mode not in {"off", "manual"}:
+        if self.truth_dispatch_mode not in {"off", "manual", "auto"}:
             raise ValueError(
-                "truth_dispatch_mode must be one of {'off', 'manual'}, "
+                "truth_dispatch_mode must be one of {'off', 'manual', 'auto'}, "
                 f"got {self.truth_dispatch_mode!r}"
             )
         if self.truth_dispatch_mode == "manual" and not self.truth_plan:
             raise ValueError("truth_plan is required when truth_dispatch_mode='manual'")
+        if int(self.truth_auto_top_k) < 0:
+            raise ValueError("truth_auto_top_k must be >= 0")
+        if float(self.truth_auto_min_uncertainty) < 0:
+            raise ValueError("truth_auto_min_uncertainty must be >= 0")
+        if not (0.0 <= float(self.truth_auto_min_feasibility) <= 1.0):
+            raise ValueError("truth_auto_min_feasibility must be in [0,1]")
+        if not (0.0 <= float(self.truth_auto_min_pred_quantile) <= 1.0):
+            raise ValueError("truth_auto_min_pred_quantile must be in [0,1]")
+        if self.surrogate_validation_mode not in {"strict", "warn", "off"}:
+            raise ValueError("surrogate_validation_mode must be one of {'strict', 'warn', 'off'}")
+        if self.machining_mode not in {"nn", "analytical"}:
+            raise ValueError("machining_mode must be 'nn' or 'analytical'")
 
 
 @dataclass
@@ -285,6 +305,86 @@ class Orchestrator:
         options.discard("")
         return any(token in self._truth_plan_tokens for token in options)
 
+    def _auto_truth_selector(
+        self,
+        candidates: list[dict[str, Any]],
+        predictions: np.ndarray,
+        uncertainty: np.ndarray,
+    ) -> tuple[list[int], list[dict[str, Any]]]:
+        n = len(candidates)
+        if n == 0:
+            return [], []
+        budget_cap = max(0, int(self.budget.remaining()))
+        top_k = int(max(0, self.config.truth_auto_top_k))
+        if budget_cap <= 0 or top_k <= 0:
+            return [], []
+
+        preds = np.asarray(predictions, dtype=np.float64).reshape(-1)
+        unc = np.asarray(uncertainty, dtype=np.float64).reshape(-1)
+        if preds.size != n:
+            preds = np.resize(preds, n)
+        if unc.size != n:
+            unc = np.resize(unc, n)
+
+        finite_preds = preds[np.isfinite(preds)]
+        if finite_preds.size == 0:
+            return [], []
+        pred_quantile_gate = float(
+            np.quantile(finite_preds, float(self.config.truth_auto_min_pred_quantile))
+        )
+
+        rows: list[dict[str, Any]] = []
+        eligible: list[int] = []
+        for i, cand in enumerate(candidates):
+            pred_i = float(preds[i])
+            unc_i = float(abs(unc[i]))
+            feas_i = float(cand.get("feasibility_score", 0.0))
+            hard_feasible = bool(cand.get("feasible", False))
+
+            reasons: list[str] = []
+            if not hard_feasible:
+                reasons.append("hard_infeasible")
+            if feas_i < float(self.config.truth_auto_min_feasibility):
+                reasons.append("low_feasibility_score")
+            if unc_i < float(self.config.truth_auto_min_uncertainty):
+                reasons.append("low_uncertainty")
+            if pred_i < pred_quantile_gate:
+                reasons.append("below_pred_quantile_gate")
+            accepted = len(reasons) == 0
+            if accepted:
+                eligible.append(i)
+
+            rows.append(
+                {
+                    "idx": int(i),
+                    "candidate_id": str(cand.get("id", i)),
+                    "accepted": bool(accepted),
+                    "predicted_objective": pred_i,
+                    "uncertainty": unc_i,
+                    "feasibility_score": feas_i,
+                    "pred_quantile_gate": pred_quantile_gate,
+                    "reasons": reasons,
+                }
+            )
+
+        ordered = sorted(
+            eligible,
+            key=lambda i: (
+                -float(abs(unc[i])),
+                -float(candidates[i].get("feasibility_score", 0.0)),
+                -float(preds[i]),
+                int(i),
+            ),
+        )
+        n_select = min(int(top_k), int(budget_cap), len(ordered))
+        selected = ordered[:n_select]
+        for row in rows:
+            if int(row["idx"]) in selected:
+                row["selected"] = True
+            else:
+                row["selected"] = False
+        return [int(i) for i in selected], rows
+
     def _extract_objective(self, payload: dict[str, Any]) -> float:
         if "objective" in payload:
             try:
@@ -349,6 +449,14 @@ class Orchestrator:
             constraint_phase=str(self.config.constraint_phase),
             tolerance_constraint_mode=str(self.config.tolerance_constraint_mode),
             tolerance_threshold_mm=float(self.config.tolerance_threshold_mm),
+            strict_data=bool(self.config.strict_data),
+            surrogate_validation_mode=str(self.config.surrogate_validation_mode),
+            machining_mode=str(self.config.machining_mode),
+            machining_model_path=(
+                str(self.config.machining_model_path).strip()
+                if self.config.machining_model_path
+                else None
+            ),
         )
 
     def _clone_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
@@ -455,19 +563,44 @@ class Orchestrator:
             ref_pred, ref_unc = self.surrogate.predict(refined)
             self._n_surrogate_calls += len(refined)
 
-            selected = self.budget.select(
-                refined,
-                ref_pred,
-                ref_unc,
-                cem_feasibility=feasibility,
-                batch_size=min(int(self.config.batch_size), len(refined)),
-            )
-
+            selected: list[int] = []
             truth_indices: list[int] = []
-            if self.config.truth_dispatch_mode == "manual":
+            truth_selection_details: list[dict[str, Any]] = []
+
+            if self.config.truth_dispatch_mode == "off":
+                selected = []
+                truth_indices = []
+            elif self.config.truth_dispatch_mode == "manual":
+                selected = self.budget.select(
+                    refined,
+                    ref_pred,
+                    ref_unc,
+                    cem_feasibility=feasibility,
+                    batch_size=min(int(self.config.batch_size), len(refined)),
+                    consume=False,
+                )
                 for idx in selected:
-                    if self._candidate_allowed_for_manual_truth(refined[idx], iteration, idx):
+                    allowed = self._candidate_allowed_for_manual_truth(refined[idx], iteration, idx)
+                    truth_selection_details.append(
+                        {
+                            "idx": int(idx),
+                            "candidate_id": str(refined[idx].get("id", idx)),
+                            "accepted": bool(allowed),
+                            "reasons": [] if allowed else ["not_in_manual_truth_plan"],
+                        }
+                    )
+                    if allowed:
                         truth_indices.append(int(idx))
+            else:
+                selected, truth_selection_details = self._auto_truth_selector(
+                    refined,
+                    ref_pred,
+                    ref_unc,
+                )
+                truth_indices = list(selected)
+
+            if truth_indices:
+                self.budget.state.consume(len(truth_indices), reason="truth_dispatch")
 
             truth_data: list[tuple[dict[str, Any], float]] = []
             truth_records: list[dict[str, Any]] = []
@@ -556,6 +689,7 @@ class Orchestrator:
                 "n_selected": int(len(selected)),
                 "n_truth_evaluated": int(len(truth_indices)),
                 "selected_candidates": _json_safe(selected_payload),
+                "truth_selection": _json_safe(truth_selection_details),
                 "truth_results": _json_safe(truth_records),
                 "best_objective": float(self._best_objective),
                 "best_source": str(self._best_source),
