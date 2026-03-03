@@ -368,7 +368,10 @@ def v1_eval_thermo_forward(
 
         from ...surrogate.openfoam_nn import get_openfoam_surrogate
 
-        surrogate = get_openfoam_surrogate(mp)
+        surrogate = get_openfoam_surrogate(
+            mp,
+            validation_mode=str(getattr(ctx, "surrogate_validation_mode", "strict")),
+        )
         bcfg = ctx.breathing or BreathingConfig()
 
         pred = surrogate.predict_one(

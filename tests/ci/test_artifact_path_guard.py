@@ -13,6 +13,11 @@ from larrak2.core.artifact_paths import assert_not_legacy_models_path
 def test_runtime_guard_rejects_models_write_paths() -> None:
     with pytest.raises(ValueError):
         assert_not_legacy_models_path("models/surrogate_v1", purpose="test artifact")
+    with pytest.raises(ValueError):
+        assert_not_legacy_models_path(
+            "src/larrak2/surrogate/machining_surrogate.pth",
+            purpose="test artifact",
+        )
 
     p = assert_not_legacy_models_path(
         "outputs/artifacts/surrogates/v1_gbr",

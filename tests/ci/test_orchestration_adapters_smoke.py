@@ -47,7 +47,11 @@ def test_surrogate_solver_simulation_smoke(tmp_path: Path) -> None:
     candidate = _midpoint_candidate()
     ctx = EvalContext(rpm=2500.0, torque=120.0, fidelity=0, seed=123)
 
-    surrogate = HifiSurrogateAdapter(model_dir=tmp_path / "missing_models")
+    surrogate = HifiSurrogateAdapter(
+        model_dir=tmp_path / "missing_models",
+        allow_heuristic_fallback=True,
+        validation_mode="off",
+    )
     pred, unc = surrogate.predict([candidate])
     assert pred.shape == (1,)
     assert unc.shape == (1,)
@@ -65,4 +69,3 @@ def test_surrogate_solver_simulation_smoke(tmp_path: Path) -> None:
     result = sim.evaluate(refined, context=ctx)
     assert "objective" in result
     assert np.isfinite(float(result["objective"]))
-

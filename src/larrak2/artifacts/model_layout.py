@@ -9,6 +9,7 @@ from larrak2.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,
     DEFAULT_HIFI_SURROGATE_DIR,
     DEFAULT_INITIALIZATION_SURROGATE_DIR,
+    DEFAULT_MACHINING_NN_ARTIFACT,
     DEFAULT_OPENFOAM_NN_ARTIFACT,
     DEFAULT_SURROGATE_V1_DIR,
 )
@@ -44,6 +45,12 @@ def planned_model_layout() -> list[ModelArtifactSpec]:
             canonical=DEFAULT_SURROGATE_V1_DIR,
             kind="directory",
             purpose="v1 GBR surrogate ensemble artifacts",
+        ),
+        ModelArtifactSpec(
+            key="machining_nn",
+            canonical=DEFAULT_MACHINING_NN_ARTIFACT,
+            kind="file",
+            purpose="Machining NN surrogate artifact",
         ),
         ModelArtifactSpec(
             key="hifi",
