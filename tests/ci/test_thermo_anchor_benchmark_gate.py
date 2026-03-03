@@ -9,8 +9,8 @@ import pytest
 
 from larrak2.core.encoding import decode_candidate, mid_bounds_candidate
 from larrak2.core.types import BreathingConfig, EvalContext
-from larrak2.thermo.constants import DEFAULT_THERMO_ANCHOR_MANIFEST_PATH, load_anchor_manifest
 from larrak2.thermo import two_zone
+from larrak2.thermo.constants import DEFAULT_THERMO_ANCHOR_MANIFEST_PATH, load_anchor_manifest
 
 
 def _write_anchor_manifest(path: Path) -> Path:
