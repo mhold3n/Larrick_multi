@@ -1,4 +1,4 @@
-"""Backend fallback tests for CasADi refinement."""
+"""Strict backend behavior tests for CasADi refinement."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from larrak2.core.types import EvalContext
 from larrak2.optimization.slicing.slice_problem import SliceSolveResult
 
 
-def test_casadi_failure_falls_back_to_scipy(monkeypatch):
+def test_casadi_failure_does_not_fallback(monkeypatch):
     def _forced_fail(*_args, **_kwargs):
         return SliceSolveResult(
             x_opt=mid_bounds_candidate(),
@@ -18,13 +18,13 @@ def test_casadi_failure_falls_back_to_scipy(monkeypatch):
             message="forced ipopt failure",
             ipopt_status="forced_failure",
             iterations=0,
-            diagnostics={"forced": True},
+            diagnostics={"forced": True, "nlp_formulation": "global_surrogate_symbolic"},
         )
 
     monkeypatch.setattr("larrak2.adapters.casadi_refine.solve_slice_with_ipopt", _forced_fail)
 
     x0 = mid_bounds_candidate()
-    ctx = EvalContext(rpm=3000, torque=200, fidelity=0, seed=7)
+    ctx = EvalContext(rpm=3000, torque=200, fidelity=1, seed=7)
 
     result = refine_candidate(
         x0,
@@ -35,8 +35,8 @@ def test_casadi_failure_falls_back_to_scipy(monkeypatch):
         max_iter=5,
     )
 
-    assert result.backend_used == "scipy_fallback"
+    assert result.backend_used == "casadi"
+    assert result.success is False
     assert result.ipopt_status == "forced_failure"
-    assert isinstance(result.success, bool)
     assert result.x_refined.shape == x0.shape
     assert np.all(np.isfinite(result.F_refined))

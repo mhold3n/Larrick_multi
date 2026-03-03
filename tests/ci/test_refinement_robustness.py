@@ -11,7 +11,13 @@ from larrak2.core.types import EvalContext
 def test_refine_weighted_sum_stays_in_bounds():
     x0 = mid_bounds_candidate()
     ctx = EvalContext(rpm=3000, torque=200, fidelity=0, seed=1)
-    res = refine_candidate(x0, ctx, mode=RefinementMode.WEIGHTED_SUM, max_iter=10)
+    res = refine_candidate(
+        x0,
+        ctx,
+        mode=RefinementMode.WEIGHTED_SUM,
+        backend="scipy",
+        max_iter=10,
+    )
 
     assert np.all(np.isfinite(res.x_refined))
     # Ensure within bounds [0,1] range is not assumed; just check no NaN and sizes match
@@ -27,10 +33,20 @@ def test_refine_improves_scalarized_objective():
     weights = np.full(n_obj, 0.1, dtype=float)
     weights[0] = 1.0
     before = refine_candidate(
-        x0, ctx, mode=RefinementMode.WEIGHTED_SUM, weights=weights, max_iter=1
+        x0,
+        ctx,
+        mode=RefinementMode.WEIGHTED_SUM,
+        weights=weights,
+        backend="scipy",
+        max_iter=1,
     )
     after = refine_candidate(
-        x0, ctx, mode=RefinementMode.WEIGHTED_SUM, weights=weights, max_iter=20
+        x0,
+        ctx,
+        mode=RefinementMode.WEIGHTED_SUM,
+        weights=weights,
+        backend="scipy",
+        max_iter=20,
     )
 
     obj_before = np.dot(weights, before.F_refined)

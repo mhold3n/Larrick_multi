@@ -32,3 +32,5 @@ __pycache__/
 dist/
 build/
 .env
+/Docs/ISO Sources
+/Legacy_Monolithic

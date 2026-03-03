@@ -35,6 +35,8 @@ def test_refinement_summary_contains_versions():
                 "1",
                 "--mode",
                 "weighted_sum",
+                "--backend",
+                "scipy",
                 "--rpm",
                 "2000",
                 "--torque",

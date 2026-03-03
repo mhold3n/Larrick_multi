@@ -106,10 +106,11 @@ DEFAULT_REASON: dict[str, str] = {
 
 
 THERMO_CONSTRAINTS_FID0 = [
-    "thermo_compression_min",
-    "thermo_heat_release_width_min",
-    "thermo_ratio_jerk_max",
+    "thermo_eff_min",
+    "thermo_eff_max",
+    "thermo_pmax_norm",
     "thermo_ratio_slope_max",
+    "system_power_balance",
 ]
 
 THERMO_CONSTRAINTS_FID1 = [

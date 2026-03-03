@@ -1,13 +1,17 @@
-"""CasADi/Ipopt-first local refinement with SciPy fallback."""
+"""CasADi/Ipopt-first local refinement with strict symbolic NLP backend."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any
 
 import numpy as np
 
+from ..core.artifact_paths import (
+    DEFAULT_STACK_SURROGATE_ARTIFACT,
+    assert_not_legacy_models_path,
+)
 from ..core.encoding import N_TOTAL, bounds
 from ..core.evaluator import evaluate_candidate
 from ..core.types import EvalContext
@@ -186,6 +190,8 @@ def refine_candidate(
     min_per_group: int = 1,
     slice_method: str = "sensitivity",
     trust_radius: float | None = None,
+    surrogate_stack_path: str | None = None,
+    fidelity: int = 1,
 ) -> RefinementResult:
     """Refine candidate in a high-dimensional space using active-variable slices."""
     x0 = np.asarray(x0, dtype=np.float64)
@@ -193,6 +199,7 @@ def refine_candidate(
         raise ValueError(f"Expected x0 length {N_TOTAL}, got {x0.size}")
 
     mode = RefinementMode(mode)
+    ctx_refine = ctx if int(ctx.fidelity) == int(fidelity) else replace(ctx, fidelity=int(fidelity))
     freeze_mask_arr = _to_freeze_mask(freeze_mask)
 
     selection_scores: list[float] = []
@@ -204,7 +211,7 @@ def refine_candidate(
     else:
         selection = select_active_set(
             x0,
-            ctx,
+            ctx_refine,
             active_k=active_k,
             min_per_group=min_per_group,
             method=slice_method,
@@ -218,9 +225,9 @@ def refine_candidate(
 
     frozen_indices = [i for i in range(N_TOTAL) if i not in selected_active]
 
-    base_eval = evaluate_candidate(x0, ctx)
+    base_eval = evaluate_candidate(x0, ctx_refine)
     x_refined = x0.copy()
-    backend_used = "scipy"
+    backend_used = str(backend)
     ipopt_status = ""
     success = False
     message = "Refinement failed"
@@ -232,18 +239,31 @@ def refine_candidate(
     }
 
     if backend == "casadi":
+        stack_path = surrogate_stack_path or str(DEFAULT_STACK_SURROGATE_ARTIFACT)
+        stack_path = str(assert_not_legacy_models_path(stack_path, purpose="stack surrogate model"))
         slice_result = solve_slice_with_ipopt(
             x0,
-            ctx,
+            ctx_refine,
             selected_active,
+            surrogate_stack_path=stack_path,
             mode=mode.value,
             weights=weights,
             eps_constraints=eps_constraints,
             ipopt_options=ipopt_options,
             trust_radius=trust_radius,
+            validation_attempts=3,
+            validation_tol=1e-8,
+            fidelity=int(fidelity),
         )
         ipopt_status = slice_result.ipopt_status
         diag["ipopt"] = slice_result.diagnostics
+        diag["nlp_formulation"] = str(slice_result.diagnostics.get("nlp_formulation", "unknown"))
+        diag["surrogate_stack_version"] = str(
+            slice_result.diagnostics.get("surrogate_stack_version", "")
+        )
+        diag["validation_attempts"] = int(slice_result.diagnostics.get("validation_attempts", 0))
+        diag["trust_radius_final"] = slice_result.diagnostics.get("trust_radius_final", trust_radius)
+        diag["surrogate_stack_path"] = stack_path
 
         if slice_result.success:
             x_refined = slice_result.x_opt
@@ -251,26 +271,14 @@ def refine_candidate(
             success = True
             message = slice_result.message
         else:
-            # Controlled fallback keeps the same active/frozen slice partition.
-            x_refined, scipy_diag, scipy_success, scipy_msg = _scipy_refine_slice(
-                x0,
-                ctx,
-                selected_active,
-                mode=mode,
-                weights=weights,
-                eps_constraints=eps_constraints,
-                max_iter=max_iter,
-                tol=tol,
-                trust_radius=trust_radius,
-            )
-            diag["scipy"] = scipy_diag
-            backend_used = "scipy_fallback"
-            success = scipy_success
-            message = f"{slice_result.message}; fallback: {scipy_msg}"
+            x_refined = x0.copy()
+            backend_used = "casadi"
+            success = False
+            message = slice_result.message
     elif backend == "scipy":
         x_refined, scipy_diag, scipy_success, scipy_msg = _scipy_refine_slice(
             x0,
-            ctx,
+            ctx_refine,
             selected_active,
             mode=mode,
             weights=weights,
@@ -286,17 +294,16 @@ def refine_candidate(
     else:
         message = f"Unknown backend: {backend}"
 
-    result_final = evaluate_candidate(x_refined, ctx)
+    result_final = evaluate_candidate(x_refined, ctx_refine)
 
     # Mark success conservatively: solve success + finite outputs.
     finite_ok = np.all(np.isfinite(result_final.F)) and np.all(np.isfinite(result_final.G))
     success = bool(success and finite_ok)
 
-    # If refinement completely failed, preserve base candidate outputs.
-    if not success and backend == "casadi" and backend_used == "scipy_fallback":
-        if x_refined.shape != x0.shape:
-            x_refined = x0.copy()
-            result_final = base_eval
+    # Preserve base outputs on failed refinement.
+    if not success:
+        x_refined = x0.copy()
+        result_final = base_eval
 
     return RefinementResult(
         x_refined=x_refined,

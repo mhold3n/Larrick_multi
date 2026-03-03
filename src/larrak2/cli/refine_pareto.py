@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..core.artifact_paths import DEFAULT_STACK_SURROGATE_ARTIFACT, assert_not_legacy_models_path
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import get_constraint_names, get_constraint_scales
 from ..core.encoding import ENCODING_VERSION, N_TOTAL
@@ -73,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--mode",
         type=str,
-        default="weighted_sum",
+        default="eps_constraint",
         choices=["weighted_sum", "eps_constraint"],
         help="Refinement mode",
     )
@@ -113,6 +114,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ipopt-tol", type=float, default=None)
     parser.add_argument("--ipopt-linear-solver", type=str, default=None)
     parser.add_argument(
+        "--stack-model-path",
+        type=str,
+        default="",
+        help="Global stack surrogate artifact path for casadi backend",
+    )
+    parser.add_argument("--fidelity", type=int, default=1, choices=[0, 1, 2])
+    parser.add_argument(
+        "--thermo-model",
+        type=str,
+        default="two_zone_eq_v1",
+        choices=["two_zone_eq_v1"],
+    )
+    parser.add_argument(
+        "--thermo-constants-path",
+        type=str,
+        default="",
+        help="Override thermo literature constants path",
+    )
+    parser.add_argument(
+        "--thermo-anchor-manifest",
+        type=str,
+        default="",
+        help="Override thermo benchmark anchor manifest path",
+    )
+    parser.add_argument(
         "--trust-radius",
         type=float,
         default=None,
@@ -138,10 +164,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Loaded {X.shape[0]} Pareto solutions")
 
     indices = np.argsort(F[:, 0])[: args.top_k]
-    ctx = EvalContext(rpm=args.rpm, torque=args.torque, fidelity=0, seed=42)
+    ctx = EvalContext(
+        rpm=args.rpm,
+        torque=args.torque,
+        fidelity=int(args.fidelity),
+        seed=42,
+        thermo_model=str(args.thermo_model),
+        thermo_constants_path=str(args.thermo_constants_path).strip() or None,
+        thermo_anchor_manifest_path=str(args.thermo_anchor_manifest).strip() or None,
+    )
     mode = RefinementMode(args.mode)
 
     freeze_mask = _load_freeze_mask(args.freeze_mask_path)
+    stack_model_path = (
+        str(assert_not_legacy_models_path(args.stack_model_path, purpose="stack surrogate model"))
+        if str(args.stack_model_path).strip()
+        else str(DEFAULT_STACK_SURROGATE_ARTIFACT)
+    )
+    if args.backend == "casadi":
+        stack_candidate = Path(stack_model_path)
+        if not stack_candidate.exists():
+            print(
+                "CasADi symbolic refinement requires a stack surrogate artifact at "
+                f"'{stack_candidate}'. Run `larrak-run train-stack-surrogate` first "
+                "or pass --stack-model-path."
+            )
+            return 1
 
     ipopt_options = {
         k: v
@@ -157,6 +205,7 @@ def main(argv: list[str] | None = None) -> int:
     refined_F = []
     refined_G = []
     results_diag = []
+    had_casadi_failures = False
 
     for i, idx in enumerate(indices):
         x0 = X[idx]
@@ -175,6 +224,8 @@ def main(argv: list[str] | None = None) -> int:
             freeze_mask=freeze_mask,
             ipopt_options=ipopt_options or None,
             trust_radius=args.trust_radius,
+            surrogate_stack_path=stack_model_path if args.backend == "casadi" else None,
+            fidelity=int(args.fidelity),
         )
 
         refined_X.append(result.x_refined)
@@ -192,8 +243,14 @@ def main(argv: list[str] | None = None) -> int:
             "active_indices": result.diag.get("active_indices", []),
             "frozen_indices": result.diag.get("frozen_indices", []),
             "slice_scores": result.diag.get("slice_scores", []),
+            "nlp_formulation": result.diag.get("nlp_formulation", ""),
+            "surrogate_stack_version": result.diag.get("surrogate_stack_version", ""),
+            "validation_attempts": result.diag.get("validation_attempts", 0),
+            "trust_radius_final": result.diag.get("trust_radius_final", args.trust_radius),
         }
         results_diag.append(candidate_diag)
+        if args.backend == "casadi" and not bool(result.success):
+            had_casadi_failures = True
 
         if args.verbose:
             print(
@@ -215,10 +272,14 @@ def main(argv: list[str] | None = None) -> int:
                 "min_per_group": args.min_per_group,
                 "freeze_mask_path": args.freeze_mask_path,
                 "ipopt_options": ipopt_options,
+                "stack_model_path": stack_model_path if args.backend == "casadi" else None,
                 "trust_radius": args.trust_radius,
                 "rpm": args.rpm,
                 "torque": args.torque,
                 "fidelity": ctx.fidelity,
+                "thermo_model": ctx.thermo_model,
+                "thermo_constants_path": ctx.thermo_constants_path,
+                "thermo_anchor_manifest_path": ctx.thermo_anchor_manifest_path,
                 "seed": ctx.seed,
                 "encoding_version": ENCODING_VERSION,
                 "model_versions": {
@@ -237,7 +298,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.verbose:
         print(f"Refined {len(refined_X)} candidates")
         print(f"Results saved to: {output_dir}")
+        if args.backend == "casadi" and had_casadi_failures:
+            print("CasADi strict mode: one or more candidates failed.")
 
+    if args.backend == "casadi" and had_casadi_failures:
+        return 2
     return 0
 
 
