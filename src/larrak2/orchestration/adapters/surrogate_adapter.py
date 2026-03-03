@@ -8,14 +8,14 @@ from typing import Any
 
 import numpy as np
 
-from larrak2.core.encoding import N_TOTAL, decode_candidate
 from larrak2.core.artifact_paths import DEFAULT_HIFI_SURROGATE_DIR, assert_not_legacy_models_path
-from larrak2.surrogate.quality_contract import validate_artifact_quality
+from larrak2.core.encoding import N_TOTAL, decode_candidate
 from larrak2.surrogate.hifi.models import (
     FlowCoefficientSurrogate,
     StructuralSurrogate,
     ThermalSurrogate,
 )
+from larrak2.surrogate.quality_contract import validate_artifact_quality
 from larrak2.training.hifi_schema import NormalizationParams
 
 LOGGER = logging.getLogger(__name__)
@@ -127,7 +127,9 @@ class HifiSurrogateAdapter:
         load_adj = float(np.clip(load_adj, 0.1, 1.0))
 
         class _Record:
-            def __init__(self, bore: float, stroke: float, cr: float, rpm: float, load: float) -> None:
+            def __init__(
+                self, bore: float, stroke: float, cr: float, rpm: float, load: float
+            ) -> None:
                 self.bore = bore
                 self.stroke = stroke
                 self.cr = cr

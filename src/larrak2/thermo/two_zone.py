@@ -10,12 +10,12 @@ from typing import Any
 import numpy as np
 
 from ..core.artifact_paths import DEFAULT_OPENFOAM_NN_ARTIFACT, assert_not_legacy_models_path
-from ..core.constants import P_ATM, RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
+from ..core.constants import RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
 from ..core.encoding import ThermoParams
 from ..core.types import BreathingConfig, EvalContext
 from .combustion import burn_increment, double_wiebe_burn_fraction
-from .constants import ThermoConstants, load_thermo_constants
-from .scavenging import ScavengingResult, evaluate_rotary_scavenging
+from .constants import load_thermo_constants
+from .scavenging import evaluate_rotary_scavenging
 from .validation import (
     build_validation_report,
     compute_nn_disagreement,
@@ -250,11 +250,15 @@ def evaluate_two_zone_thermo(
         v_displaced=v_disp,
     )
 
-    p_guess = np.maximum(float(breathing.p_manifold_Pa) * (V.max() / np.maximum(V, 1e-12)) ** constants.gamma_u, 1.0)
+    p_guess = np.maximum(
+        float(breathing.p_manifold_Pa) * (V.max() / np.maximum(V, 1e-12)) ** constants.gamma_u, 1.0
+    )
     t_guess = np.full_like(theta, float(constants.t_intake_k), dtype=np.float64)
 
-    m0_guess = float(breathing.p_manifold_Pa) * float(np.max(V)) / (
-        max(constants.r_u * constants.t_intake_k, 1e-12)
+    m0_guess = (
+        float(breathing.p_manifold_Pa)
+        * float(np.max(V))
+        / (max(constants.r_u * constants.t_intake_k, 1e-12))
     )
 
     scav_eq = evaluate_rotary_scavenging(
@@ -282,7 +286,10 @@ def evaluate_two_zone_thermo(
     scav_eff_eq = float(scav_eq.scavenging_efficiency)
 
     manifest = load_validation_manifest(ctx.thermo_anchor_manifest_path)
-    if int(ctx.fidelity) >= 2 and str(getattr(ctx, "surrogate_validation_mode", "strict")) == "strict":
+    if (
+        int(ctx.fidelity) >= 2
+        and str(getattr(ctx, "surrogate_validation_mode", "strict")) == "strict"
+    ):
         anchors = manifest.get("anchors", [])
         if not anchors:
             raise RuntimeError(
@@ -392,7 +399,11 @@ def evaluate_two_zone_thermo(
     lam = max(float(params.lambda_af), 1e-6)
     m_fuel = float(m_air_used / (lam * constants.afr_stoich))
     q_chem = m_fuel * float(constants.fuel_lhv)
-    trapped_o2 = float(m_air_used) * float(constants.o2_mass_fraction_air) * max(1.0 - float(residual_used), 0.0)
+    trapped_o2 = (
+        float(m_air_used)
+        * float(constants.o2_mass_fraction_air)
+        * max(1.0 - float(residual_used), 0.0)
+    )
     burn_cap = float(
         np.clip(
             trapped_o2 / max(m_fuel * float(constants.o2_required_per_fuel), 1e-12),
@@ -435,7 +446,10 @@ def evaluate_two_zone_thermo(
 
     m_u[0] = max(float(m_air_used + m_fuel), 1e-9)
     m_b[0] = 1e-9
-    t_u[0] = float(constants.t_intake_k) * (1.0 - residual_used) + float(constants.t_residual_k) * residual_used
+    t_u[0] = (
+        float(constants.t_intake_k) * (1.0 - residual_used)
+        + float(constants.t_residual_k) * residual_used
+    )
     t_b[0] = t_u[0] + 100.0
     p[0], newton_iters[0], converged = _newton_pressure(
         m_u[0] * constants.r_u * t_u[0] + m_b[0] * constants.r_b * t_b[0],
@@ -541,7 +555,9 @@ def evaluate_two_zone_thermo(
     u0 = m_u[0] * constants.cv_u * t_u[0] + m_b[0] * constants.cv_b * t_b[0]
     u_end = m_u[-1] * constants.cv_u * t_u[-1] + m_b[-1] * constants.cv_b * t_b[-1]
     energy_balance = (u_end - u0) - (q_rel - work - q_wall_total)
-    energy_residual = abs(float(energy_balance)) / max(abs(q_rel) + abs(work) + abs(q_wall_total), 1.0)
+    energy_residual = abs(float(energy_balance)) / max(
+        abs(q_rel) + abs(work) + abs(q_wall_total), 1.0
+    )
 
     non_negative_ok = bool(
         np.all(m_u > 0.0)

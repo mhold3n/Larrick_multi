@@ -103,7 +103,9 @@ def _stack_quality_report(
             "test": {"mse_norm": val_mse},
             "slice_metrics": [],
         },
-        "ood_thresholds": {"max_val_mse_norm": float(max(0.5, 2.0 * train_mse if np.isfinite(train_mse) else 1.0))},
+        "ood_thresholds": {
+            "max_val_mse_norm": float(max(0.5, 2.0 * train_mse if np.isfinite(train_mse) else 1.0))
+        },
         "uncertainty_calibration": {"method": "deterministic_mlp", "status": "not_applicable"},
         "required_artifacts": [artifact_path.name],
         "pass": passed,
@@ -155,15 +157,28 @@ def _metrics_by_split(
         "test": _take(test_idx),
     }
 
+
 # CalculiX Imports
 try:
     from larrak2.surrogate.calculix_nn import (
         DEFAULT_FEATURE_KEYS as DEFAULT_CCX_FEATURE_KEYS,
+    )
+    from larrak2.surrogate.calculix_nn import (
         DEFAULT_TARGET_KEYS as DEFAULT_CCX_TARGET_KEYS,
+    )
+    from larrak2.surrogate.calculix_nn import (
         load_dataset_json as load_ccx_dataset_json,
+    )
+    from larrak2.surrogate.calculix_nn import (
         load_dataset_jsonl as load_ccx_dataset_jsonl,
+    )
+    from larrak2.surrogate.calculix_nn import (
         load_dataset_npz as load_ccx_dataset_npz,
+    )
+    from larrak2.surrogate.calculix_nn import (
         save_artifact as save_ccx_artifact,
+    )
+    from larrak2.surrogate.calculix_nn import (
         train_calculix_surrogate,
     )
 except ImportError:
@@ -229,7 +244,9 @@ def _load_stack_training_dataset(
     fidelity: int,
     rpm: float,
     torque: float,
-) -> tuple[np.ndarray, np.ndarray, tuple[str, ...], tuple[str, ...], tuple[str, ...], dict[str, Any]]:
+) -> tuple[
+    np.ndarray, np.ndarray, tuple[str, ...], tuple[str, ...], tuple[str, ...], dict[str, Any]
+]:
     if str(dataset_path).strip():
         npz_path = assert_not_legacy_models_path(dataset_path, purpose="stack training dataset")
         if not npz_path.exists():
@@ -319,15 +336,19 @@ def train_stack_surrogate_workflow(args: argparse.Namespace) -> dict[str, Any]:
         str(args.outdir or DEFAULT_STACK_SURROGATE_DIR),
         purpose="Stack surrogate artifact output",
     )
-    artifact_name = str(getattr(args, "name", "stack_f1_surrogate.npz")).strip() or "stack_f1_surrogate.npz"
+    artifact_name = (
+        str(getattr(args, "name", "stack_f1_surrogate.npz")).strip() or "stack_f1_surrogate.npz"
+    )
     out_path = outdir / artifact_name
 
-    X, Y, feature_names, objective_names, constraint_names, source_meta = _load_stack_training_dataset(
-        dataset_path=str(getattr(args, "dataset", "")),
-        pareto_dir=str(getattr(args, "pareto_dir", "")),
-        fidelity=int(args.fidelity),
-        rpm=float(args.rpm),
-        torque=float(args.torque),
+    X, Y, feature_names, objective_names, constraint_names, source_meta = (
+        _load_stack_training_dataset(
+            dataset_path=str(getattr(args, "dataset", "")),
+            pareto_dir=str(getattr(args, "pareto_dir", "")),
+            fidelity=int(args.fidelity),
+            rpm=float(args.rpm),
+            torque=float(args.torque),
+        )
     )
 
     if X.ndim != 2 or Y.ndim != 2:
@@ -335,7 +356,9 @@ def train_stack_surrogate_workflow(args: argparse.Namespace) -> dict[str, Any]:
     if X.shape[0] != Y.shape[0]:
         raise ValueError(f"X/Y row mismatch: {X.shape[0]} vs {Y.shape[0]}")
     if X.shape[1] != len(feature_names):
-        raise ValueError(f"Feature schema mismatch: X has {X.shape[1]} cols, names={len(feature_names)}")
+        raise ValueError(
+            f"Feature schema mismatch: X has {X.shape[1]} cols, names={len(feature_names)}"
+        )
     if Y.shape[1] != len(objective_names) + len(constraint_names):
         raise ValueError(
             "Target schema mismatch: "

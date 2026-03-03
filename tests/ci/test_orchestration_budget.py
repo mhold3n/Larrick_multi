@@ -40,4 +40,3 @@ def test_budget_select_respects_remaining_budget() -> None:
     selected = manager.select(candidates, preds, unc, batch_size=10)
     assert len(selected) == 3
     assert manager.exhausted() is True
-

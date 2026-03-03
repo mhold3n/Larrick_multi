@@ -13,7 +13,9 @@ from .orchestrator import OrchestrationResult, Orchestrator
 LOGGER = logging.getLogger(__name__)
 
 
-def _perturb_numeric(values: dict[str, Any], rng: np.random.Generator, scale: float) -> dict[str, Any]:
+def _perturb_numeric(
+    values: dict[str, Any], rng: np.random.Generator, scale: float
+) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, value in values.items():
         if isinstance(value, dict):
@@ -44,7 +46,9 @@ def optimize_with_multistart(
         if attempt > 0:
             scale = float(perturbation_scale) * (1.0 + 0.5 * attempt)
             params = _perturb_numeric(params, rng, scale)
-            LOGGER.info("Multi-start attempt %d/%d perturbation_scale=%.4f", attempt + 1, n_starts, scale)
+            LOGGER.info(
+                "Multi-start attempt %d/%d perturbation_scale=%.4f", attempt + 1, n_starts, scale
+            )
 
         result = orchestrator.optimize(initial_params=params)
         results.append(result)
@@ -65,4 +69,3 @@ def _is_acceptable_result(result: OrchestrationResult) -> bool:
 
 
 __all__ = ["optimize_with_multistart"]
-

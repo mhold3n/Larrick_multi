@@ -22,4 +22,3 @@ def test_optional_backends_fail_soft(tmp_path: Path) -> None:
     prov_backend.log_event({"type": "smoke", "run_id": "test-run"})
     prov_backend.close()
     assert mirror_path.exists()
-

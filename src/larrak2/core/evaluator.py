@@ -155,7 +155,8 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         "surrogate_used": False,
         "residual_correction_used": False,
         "residual_correction_engine": "disabled",
-        "openfoam_model_path": ctx.openfoam_model_path or os.environ.get("LARRAK2_OPENFOAM_NN_PATH", ""),
+        "openfoam_model_path": ctx.openfoam_model_path
+        or os.environ.get("LARRAK2_OPENFOAM_NN_PATH", ""),
         "calculix_stress_mode": ctx.calculix_stress_mode,
         "gear_loss_mode": ctx.gear_loss_mode,
         "machining_mode": str(getattr(ctx, "machining_mode", "nn")),

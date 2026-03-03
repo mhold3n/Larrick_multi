@@ -35,7 +35,7 @@ class Normalization:
     y_std: np.ndarray
 
     @staticmethod
-    def fit(X: np.ndarray, Y: np.ndarray) -> "Normalization":
+    def fit(X: np.ndarray, Y: np.ndarray) -> Normalization:
         return Normalization(
             x_mean=np.mean(X, axis=0),
             x_std=np.std(X, axis=0),
@@ -233,4 +233,3 @@ def train_stack_surrogate(
         "activation": activation,
     }
     return artifact, metrics
-

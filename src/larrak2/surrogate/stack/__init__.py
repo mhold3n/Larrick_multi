@@ -24,4 +24,3 @@ __all__ = [
     "symbolic_objectives_constraints",
     "train_stack_surrogate",
 ]
-

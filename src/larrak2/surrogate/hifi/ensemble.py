@@ -143,7 +143,7 @@ class EnsembleSurrogate(nn.Module):
         torch.save(payload, path)
 
     @classmethod
-    def load(cls, path: str, **kwargs: Any) -> "EnsembleSurrogate":
+    def load(cls, path: str, **kwargs: Any) -> EnsembleSurrogate:
         ckpt = torch.load(path, map_location="cpu", weights_only=True)
         for key in [
             "n_models",

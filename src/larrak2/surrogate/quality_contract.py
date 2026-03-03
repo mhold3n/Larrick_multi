@@ -86,21 +86,40 @@ def validate_quality_report_schema(report: dict[str, Any]) -> None:
     _require(str(report.get("schema_version", "")).strip(), "schema_version is required")
     kind = str(report.get("surrogate_kind", "")).strip()
     _require(kind in _ALLOWED_KINDS, f"surrogate_kind must be one of {sorted(_ALLOWED_KINDS)}")
-    _require("dataset_manifest" in report and isinstance(report["dataset_manifest"], dict), "dataset_manifest must be an object")
-    _require("metrics" in report and isinstance(report["metrics"], dict), "metrics must be an object")
+    _require(
+        "dataset_manifest" in report and isinstance(report["dataset_manifest"], dict),
+        "dataset_manifest must be an object",
+    )
+    _require(
+        "metrics" in report and isinstance(report["metrics"], dict), "metrics must be an object"
+    )
     metrics = report["metrics"]
     for split in ("train", "val", "test"):
-        _require(split in metrics and isinstance(metrics[split], dict), f"metrics.{split} must be an object")
-    _require("slice_metrics" in metrics and isinstance(metrics["slice_metrics"], list), "metrics.slice_metrics must be a list")
-    _require("ood_thresholds" in report and isinstance(report["ood_thresholds"], dict), "ood_thresholds must be an object")
+        _require(
+            split in metrics and isinstance(metrics[split], dict),
+            f"metrics.{split} must be an object",
+        )
+    _require(
+        "slice_metrics" in metrics and isinstance(metrics["slice_metrics"], list),
+        "metrics.slice_metrics must be a list",
+    )
+    _require(
+        "ood_thresholds" in report and isinstance(report["ood_thresholds"], dict),
+        "ood_thresholds must be an object",
+    )
     _require(
         "uncertainty_calibration" in report and isinstance(report["uncertainty_calibration"], dict),
         "uncertainty_calibration must be an object",
     )
     _require("pass" in report and isinstance(report["pass"], bool), "pass must be a bool")
-    _require("fail_reasons" in report and isinstance(report["fail_reasons"], list), "fail_reasons must be a list")
+    _require(
+        "fail_reasons" in report and isinstance(report["fail_reasons"], list),
+        "fail_reasons must be a list",
+    )
     if "required_artifacts" in report:
-        _require(isinstance(report["required_artifacts"], list), "required_artifacts must be a list")
+        _require(
+            isinstance(report["required_artifacts"], list), "required_artifacts must be a list"
+        )
 
 
 def load_quality_report(path: str | Path) -> dict[str, Any]:
@@ -130,7 +149,9 @@ def validate_artifact_quality(
     """Validate a surrogate artifact against quality_report.json contract."""
     mode = str(validation_mode).strip().lower()
     if mode not in _ALLOWED_MODES:
-        raise ValueError(f"validation_mode must be one of {sorted(_ALLOWED_MODES)}, got {validation_mode!r}")
+        raise ValueError(
+            f"validation_mode must be one of {sorted(_ALLOWED_MODES)}, got {validation_mode!r}"
+        )
     if mode == "off":
         return None
 

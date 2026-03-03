@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import hashlib
 import json
 import logging
 import pickle
-from pathlib import Path
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -170,4 +171,3 @@ __all__ = [
     "CacheStats",
     "EvaluationCache",
 ]
-

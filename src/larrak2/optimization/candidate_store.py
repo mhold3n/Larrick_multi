@@ -156,4 +156,3 @@ class CandidateStore:
         }
         target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return target
-

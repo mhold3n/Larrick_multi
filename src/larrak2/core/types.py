@@ -95,14 +95,10 @@ class EvalContext:
                 f"got {self.calculix_stress_mode}"
             )
         if self.gear_loss_mode not in {"physics", "nn"}:
-            raise ValueError(
-                "gear_loss_mode must be 'physics' or 'nn', "
-                f"got {self.gear_loss_mode}"
-            )
+            raise ValueError(f"gear_loss_mode must be 'physics' or 'nn', got {self.gear_loss_mode}")
         if self.thermo_model not in {"two_zone_eq_v1"}:
             raise ValueError(
-                "thermo_model must be 'two_zone_eq_v1' in strict mode, "
-                f"got {self.thermo_model}"
+                f"thermo_model must be 'two_zone_eq_v1' in strict mode, got {self.thermo_model}"
             )
         if self.surrogate_validation_mode not in {"strict", "warn", "off"}:
             raise ValueError(
@@ -111,8 +107,7 @@ class EvalContext:
             )
         if self.machining_mode not in {"nn", "analytical"}:
             raise ValueError(
-                "machining_mode must be 'nn' or 'analytical', "
-                f"got {self.machining_mode}"
+                f"machining_mode must be 'nn' or 'analytical', got {self.machining_mode}"
             )
 
 

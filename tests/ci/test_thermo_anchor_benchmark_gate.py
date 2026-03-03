@@ -113,7 +113,9 @@ def test_fidelity2_requires_nonempty_anchors_in_strict_mode(monkeypatch) -> None
             "anchors": [],
         },
     )
-    ctx = EvalContext(rpm=2800.0, torque=140.0, fidelity=2, seed=3, surrogate_validation_mode="strict")
+    ctx = EvalContext(
+        rpm=2800.0, torque=140.0, fidelity=2, seed=3, surrogate_validation_mode="strict"
+    )
     with pytest.raises(RuntimeError, match="non-empty anchor manifest"):
         two_zone.evaluate_two_zone_thermo(candidate.thermo, ctx)
 

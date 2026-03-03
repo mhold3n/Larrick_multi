@@ -15,8 +15,8 @@ Outputs:
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -238,9 +238,7 @@ def _evaluate_radius_strategy_stress(
                 validation_mode=str(getattr(ctx, "surrogate_validation_mode", "strict")),
             )
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to load CalculiX NN surrogate from '{model_path}'."
-            ) from e
+            raise RuntimeError(f"Failed to load CalculiX NN surrogate from '{model_path}'.") from e
     elif calc_mode != "analytical":
         raise ValueError(f"Unsupported calculix_stress_mode '{calc_mode}'")
 
@@ -356,9 +354,7 @@ def _evaluate_radius_strategy_stress(
     selected_idx = next(i for i, r in enumerate(rows) if r["strategy"] == selected["strategy"])
     selected_is_outlier = not bool(inlier_mask[selected_idx])
     gate_stress = (
-        float(np.median(inlier_vals))
-        if selected_is_outlier
-        else float(selected["stress_pred_mpa"])
+        float(np.median(inlier_vals)) if selected_is_outlier else float(selected["stress_pred_mpa"])
     )
     omitted = [rows[i]["strategy"] for i in range(len(rows)) if not bool(inlier_mask[i])]
 
@@ -641,9 +637,7 @@ def eval_gear(
             "hertz_stress_max": hertz_stress_max,
         },
     )
-    g_stress_hotspot = (
-        float(stress_strategy["selected_gate_stress_mpa"]) - STRESS_HOTSPOT_LIMIT_MPA
-    )
+    g_stress_hotspot = float(stress_strategy["selected_gate_stress_mpa"]) - STRESS_HOTSPOT_LIMIT_MPA
     constraints.append(g_stress_hotspot)
 
     G = np.array(constraints, dtype=np.float64)

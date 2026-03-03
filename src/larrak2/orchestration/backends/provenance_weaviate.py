@@ -32,14 +32,18 @@ class WeaviateProvenanceBackend:
             import weaviate
 
             self._client = weaviate.connect_to_custom(
-                http_host=self.weaviate_url.replace("http://", "").replace("https://", "").split(":")[0],
+                http_host=self.weaviate_url.replace("http://", "")
+                .replace("https://", "")
+                .split(":")[0],
                 http_port=int(
                     self.weaviate_url.split(":")[-1]
                     if ":" in self.weaviate_url.replace("http://", "").replace("https://", "")
                     else 8080
                 ),
                 http_secure=self.weaviate_url.startswith("https://"),
-                grpc_host=self.weaviate_url.replace("http://", "").replace("https://", "").split(":")[0],
+                grpc_host=self.weaviate_url.replace("http://", "")
+                .replace("https://", "")
+                .split(":")[0],
                 grpc_port=int(os.getenv("WEAVIATE_GRPC_PORT", "50051")),
                 grpc_secure=False,
             )
@@ -65,7 +69,12 @@ class WeaviateProvenanceBackend:
             return
         try:
             collection = self._client.collections.get(self.collection)
-            collection.data.insert(properties={k: str(v) if not isinstance(v, (str, int, float, bool)) else v for k, v in event.items()})
+            collection.data.insert(
+                properties={
+                    k: str(v) if not isinstance(v, (str, int, float, bool)) else v
+                    for k, v in event.items()
+                }
+            )
         except Exception as exc:
             LOGGER.warning("Weaviate event insert failed; disabling backend: %s", exc)
             self._enabled = False
@@ -78,4 +87,3 @@ class WeaviateProvenanceBackend:
                 self._client.close()
             except Exception:
                 pass
-

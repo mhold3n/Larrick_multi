@@ -46,4 +46,3 @@ def test_candidate_store_feasible_filter_rank_and_export(tmp_path):
     assert payload["candidate_index"] == 2
     assert len(payload["x_full"]) == N_TOTAL
     assert payload["n_var"] == N_TOTAL
-

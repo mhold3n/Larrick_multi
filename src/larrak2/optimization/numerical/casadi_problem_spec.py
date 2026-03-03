@@ -132,7 +132,7 @@ class CasADiMotionProblem:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "CasADiMotionProblem":
+    def from_dict(cls, data: dict[str, Any]) -> CasADiMotionProblem:
         duration_angle_deg = data.get("duration_angle_deg")
         if duration_angle_deg is None:
             raise ValueError("duration_angle_deg is required")

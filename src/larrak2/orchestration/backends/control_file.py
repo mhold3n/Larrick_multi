@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Any
 
 LOGGER = logging.getLogger(__name__)
@@ -52,4 +52,3 @@ class FileControlBackend:
                 self.path.unlink()
         except Exception as exc:
             LOGGER.warning("Failed clearing control signal file %s: %s", self.path, exc)
-

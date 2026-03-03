@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import json
 import logging
-from pathlib import Path
 import time
-from typing import Any, Protocol
 import uuid
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -31,27 +31,21 @@ class CEMInterface(Protocol):
         n: int,
         *,
         rng: np.random.Generator,
-    ) -> list[dict[str, Any]]:
-        ...
+    ) -> list[dict[str, Any]]: ...
 
-    def check_feasibility(self, candidate: dict[str, Any]) -> tuple[bool, float]:
-        ...
+    def check_feasibility(self, candidate: dict[str, Any]) -> tuple[bool, float]: ...
 
-    def repair(self, candidate: dict[str, Any]) -> dict[str, Any]:
-        ...
+    def repair(self, candidate: dict[str, Any]) -> dict[str, Any]: ...
 
-    def update_distribution(self, history: list[dict[str, Any]]) -> None:
-        ...
+    def update_distribution(self, history: list[dict[str, Any]]) -> None: ...
 
 
 class SurrogateInterface(Protocol):
     """Surrogate prediction/update interface."""
 
-    def predict(self, candidates: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
-        ...
+    def predict(self, candidates: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarray]: ...
 
-    def update(self, data: list[tuple[dict[str, Any], float]]) -> None:
-        ...
+    def update(self, data: list[tuple[dict[str, Any], float]]) -> None: ...
 
 
 class SolverInterface(Protocol):
@@ -63,8 +57,7 @@ class SolverInterface(Protocol):
         *,
         context: EvalContext,
         max_step: np.ndarray,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
 
 class SimulationInterface(Protocol):
@@ -75,28 +68,23 @@ class SimulationInterface(Protocol):
         candidate: dict[str, Any],
         *,
         context: EvalContext,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
 
 class ControlBackendInterface(Protocol):
     """Control signal backend interface."""
 
-    def get_signal(self, run_id: str) -> dict[str, Any] | None:
-        ...
+    def get_signal(self, run_id: str) -> dict[str, Any] | None: ...
 
-    def clear_signal(self, run_id: str) -> None:
-        ...
+    def clear_signal(self, run_id: str) -> None: ...
 
 
 class ProvenanceBackendInterface(Protocol):
     """Provenance backend interface."""
 
-    def log_event(self, event: dict[str, Any]) -> None:
-        ...
+    def log_event(self, event: dict[str, Any]) -> None: ...
 
-    def close(self) -> None:
-        ...
+    def close(self) -> None: ...
 
 
 class _NullControlBackend:
@@ -174,9 +162,7 @@ class OrchestrationConfig:
         if not (0.0 <= float(self.truth_auto_min_pred_quantile) <= 1.0):
             raise ValueError("truth_auto_min_pred_quantile must be in [0,1]")
         if self.surrogate_validation_mode not in {"strict", "warn", "off"}:
-            raise ValueError(
-                "surrogate_validation_mode must be one of {'strict', 'warn', 'off'}"
-            )
+            raise ValueError("surrogate_validation_mode must be one of {'strict', 'warn', 'off'}")
         if self.machining_mode not in {"nn", "analytical"}:
             raise ValueError("machining_mode must be 'nn' or 'analytical'")
 
@@ -626,8 +612,12 @@ class Orchestrator:
                         cand,
                         lambda item: self.simulation.evaluate(item, context=context),
                     )
-                    objective = self._extract_objective(payload if isinstance(payload, dict) else {})
-                    payload_dict = payload if isinstance(payload, dict) else {"objective": objective}
+                    objective = self._extract_objective(
+                        payload if isinstance(payload, dict) else {}
+                    )
+                    payload_dict = (
+                        payload if isinstance(payload, dict) else {"objective": objective}
+                    )
 
                     truth_records.append(
                         {

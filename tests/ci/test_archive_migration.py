@@ -10,8 +10,7 @@ import pytest
 
 from larrak2.core.archive_io import load_archive, save_archive
 from larrak2.core.constraints import get_constraint_names
-from larrak2.core.encoding import ENCODING_VERSION, N_TOTAL
-from larrak2.core.encoding import mid_bounds_candidate
+from larrak2.core.encoding import ENCODING_VERSION, N_TOTAL, mid_bounds_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
 

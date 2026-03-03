@@ -51,7 +51,9 @@ def _scalarized_value(
     elif mode == "eps_constraint":
         objective = float(F[0])
         if F.size > 1:
-            eps = np.asarray(eps_constraints if eps_constraints is not None else F, dtype=np.float64)
+            eps = np.asarray(
+                eps_constraints if eps_constraints is not None else F, dtype=np.float64
+            )
             objective += violation_penalty * float(np.maximum(F[1:] - eps[1:], 0.0).sum())
     else:
         raise ValueError(f"Unknown mode: {mode}")
@@ -172,7 +174,16 @@ def solve_slice_with_ipopt(
         z0_dm = ca.DM(z0)
 
         delta = z - z0_dm
-        objective = float(_scalarized_value(F0, G0, mode=mode, weights=weights, eps_constraints=eps_constraints, violation_penalty=10.0))
+        objective = float(
+            _scalarized_value(
+                F0,
+                G0,
+                mode=mode,
+                weights=weights,
+                eps_constraints=eps_constraints,
+                violation_penalty=10.0,
+            )
+        )
         objective += ca.dot(ca.DM(grad_scalar), delta)
         objective += 0.5 * float(regularization) * ca.dot(delta, delta)
 
@@ -187,7 +198,9 @@ def solve_slice_with_ipopt(
             ubg.append(0.0)
 
         if mode == "eps_constraint" and F0.size > 1:
-            eps = np.asarray(eps_constraints if eps_constraints is not None else F0, dtype=np.float64)
+            eps = np.asarray(
+                eps_constraints if eps_constraints is not None else F0, dtype=np.float64
+            )
             for i in range(1, F0.size):
                 f_lin = float(F0[i]) + ca.dot(ca.DM(grad_F[i]), delta)
                 constraints.append(f_lin)

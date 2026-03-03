@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
-import logging
 from typing import Any
 
 import numpy as np
@@ -139,17 +139,19 @@ class BudgetManager:
 
         counts = [n_best, n_unc, n_dis, n_rand]
         while sum(counts) < batch_size:
-            next_idx = int(np.argmax(
-                np.array(
-                    [
-                        self.allocation.best_fraction,
-                        self.allocation.uncertain_fraction,
-                        self.allocation.disagreement_fraction,
-                        self.allocation.random_fraction,
-                    ],
-                    dtype=np.float64,
+            next_idx = int(
+                np.argmax(
+                    np.array(
+                        [
+                            self.allocation.best_fraction,
+                            self.allocation.uncertain_fraction,
+                            self.allocation.disagreement_fraction,
+                            self.allocation.random_fraction,
+                        ],
+                        dtype=np.float64,
+                    )
                 )
-            ))
+            )
             counts[next_idx] += 1
         while sum(counts) > batch_size:
             for i in range(4):

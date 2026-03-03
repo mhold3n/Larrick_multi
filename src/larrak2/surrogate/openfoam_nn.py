@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+
 from larrak2.surrogate.quality_contract import (
     sha256_file,
     validate_artifact_quality,
