@@ -31,7 +31,6 @@ class SliceSolveResult:
     diagnostics: dict[str, Any]
 
 
-
 def solve_slice_with_ipopt(
     x0: np.ndarray,
     ctx: EvalContext,
