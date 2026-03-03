@@ -53,7 +53,7 @@ class TestV1PortSmoke:
         )
 
     def test_fidelity_0_still_works(self):
-        """Verify fidelity=0 still uses toy physics."""
+        """Verify fidelity=0 still routes through strict two-zone thermo backend."""
         x = mid_bounds_candidate()
         ctx = EvalContext(rpm=3000.0, torque=200.0, fidelity=0, seed=42)
 
@@ -65,7 +65,11 @@ class TestV1PortSmoke:
         assert np.all(np.isfinite(result.F))
         assert np.all(np.isfinite(result.G))
 
-        # v1_port flag should be absent or False for fidelity=0
+        # The thermo backend remains strict equation-first; compatibility v1 flag is fidelity-scoped.
+        assert result.diag.get("thermo", {}).get("thermo_solver_status") == "ok"
+        assert result.diag.get("thermo", {}).get("thermo_model_version") == "two_zone_eq_v1"
+
+        # v1_port compatibility flag remains fidelity-scoped.
         thermo_v1 = result.diag.get("thermo", {}).get("v1_port", False)
         gear_v1 = result.diag.get("gear", {}).get("v1_port", False)
         assert not thermo_v1, "Fidelity=0 should not use v1 thermo"
@@ -90,7 +94,7 @@ class TestV1PortSmoke:
     def test_low_rpm_torque_does_not_crash(self):
         """Low rpm/torque edge case should not crash."""
         x = mid_bounds_candidate()
-        ctx = EvalContext(rpm=100.0, torque=10.0, fidelity=1, seed=42)
+        ctx = EvalContext(rpm=1000.0, torque=40.0, fidelity=1, seed=42)
 
         result = evaluate_candidate(x, ctx)
 

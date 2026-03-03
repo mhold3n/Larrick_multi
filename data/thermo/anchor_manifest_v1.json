@@ -1,0 +1,15 @@
+{
+  "version": "thermo_anchor_v1",
+  "validated_envelope": {
+    "rpm_min": 1000.0,
+    "rpm_max": 7000.0,
+    "torque_min": 40.0,
+    "torque_max": 400.0
+  },
+  "thresholds": {
+    "delta_m_air_rel_max": 0.10,
+    "delta_residual_abs_max": 0.05,
+    "delta_scavenging_abs_max": 0.08
+  },
+  "anchors": []
+}

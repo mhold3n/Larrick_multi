@@ -109,8 +109,7 @@ class TestV1PortBounds:
         ctx = EvalContext(rpm=3000.0, torque=200.0, fidelity=1, seed=42)
         result = evaluate_candidate(x, ctx)
 
-        # F[0] is -efficiency (minimized), should be in [-1, 0]
-        assert -1.0 <= result.F[0] <= 0.0, f"Efficiency objective out of range: {result.F[0]}"
-
-        # F[1] is loss_total (watts), should be positive
-        assert result.F[1] >= 0.0, f"Loss objective should be non-negative: {result.F[1]}"
+        # First three objectives are efficiency gaps: 1 - eta_* in [0, 1].
+        assert 0.0 <= result.F[0] <= 1.0, f"eta_comb gap out of range: {result.F[0]}"
+        assert 0.0 <= result.F[1] <= 1.0, f"eta_exp gap out of range: {result.F[1]}"
+        assert 0.0 <= result.F[2] <= 1.0, f"eta_gear gap out of range: {result.F[2]}"

@@ -14,6 +14,10 @@ data/cem/*
 !data/cem/material_route_cloud.csv
 !data/cem/route_metadata.csv
 !data/cem/temperature_curves.csv
+!data/thermo/
+!data/thermo/anchor_manifest_v1.json
+!data/thermo/literature_constants_manifest_v1.json
+!data/thermo/literature_constants_v1.json
 models/
 openfoam_templates/
 
@@ -32,3 +36,4 @@ __pycache__/
 dist/
 build/
 .env
+/Legacy_Monolithic

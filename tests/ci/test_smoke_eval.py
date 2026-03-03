@@ -65,6 +65,7 @@ def test_smoke_eval_diag():
 
     # Check diag structure
     assert "thermo" in result.diag
+    assert "thermo_validation" in result.diag
     assert "gear" in result.diag
     assert "timings" in result.diag
     assert "metrics" in result.diag
@@ -72,6 +73,19 @@ def test_smoke_eval_diag():
 
     # Check timings
     assert result.diag["timings"]["total_ms"] > 0
+
+    # Thermo strict metadata should always be populated.
+    thermo = result.diag["thermo"]
+    thermo_v = result.diag["thermo_validation"]
+    assert thermo.get("thermo_solver_status") == "ok"
+    assert thermo.get("thermo_model_version") == "two_zone_eq_v1"
+    assert thermo_v.get("thermo_solver_status") == "ok"
+    assert thermo_v.get("thermo_model_version") == "two_zone_eq_v1"
+    assert thermo_v.get("thermo_benchmark_status") in {
+        "not_applicable",
+        "outside_validated_envelope",
+        "pass",
+    }
 
     # Check realworld diagnostics structure
     rw = result.diag["realworld"]

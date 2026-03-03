@@ -15,7 +15,7 @@ N_THETA = 360
 # Model Versioning for Caching
 # Update these when the underlying physics logic changes
 # format: "v{version}_{date}_{githash_short}" if possible, or manual string
-MODEL_VERSION_THERMO_V1 = "v1.1_20260128_phase_driven"
+MODEL_VERSION_THERMO_V1 = "v2.0_20260228_two_zone_eq"
 MODEL_VERSION_GEAR_V1 = "v1.0_20260125_initial"
 
 # Physical constants (universal)
