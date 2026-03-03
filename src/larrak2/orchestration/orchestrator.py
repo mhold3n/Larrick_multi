@@ -140,6 +140,8 @@ class OrchestrationConfig:
     surrogate_validation_mode: str = "strict"
     thermo_symbolic_mode: str = "strict"
     thermo_symbolic_artifact_path: str | None = None
+    thermo_constants_path: str | None = None
+    thermo_anchor_manifest_path: str | None = None
     machining_mode: str = "nn"
     machining_model_path: str | None = None
 
@@ -484,6 +486,16 @@ class Orchestrator:
             thermo_symbolic_artifact_path=(
                 str(self.config.thermo_symbolic_artifact_path).strip()
                 if self.config.thermo_symbolic_artifact_path
+                else None
+            ),
+            thermo_constants_path=(
+                str(self.config.thermo_constants_path).strip()
+                if self.config.thermo_constants_path
+                else None
+            ),
+            thermo_anchor_manifest_path=(
+                str(self.config.thermo_anchor_manifest_path).strip()
+                if self.config.thermo_anchor_manifest_path
                 else None
             ),
             machining_mode=str(self.config.machining_mode),

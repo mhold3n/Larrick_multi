@@ -74,6 +74,8 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
         captured["thermo_symbolic_mode"] = str(args.thermo_symbolic_mode)
         captured["fidelity"] = int(args.fidelity)
         captured["enforce_contract_routing"] = bool(args.enforce_contract_routing)
+        captured["thermo_constants_path"] = str(args.thermo_constants_path)
+        captured["thermo_anchor_manifest"] = str(args.thermo_anchor_manifest)
         return 0
 
     monkeypatch.setattr("larrak2.cli.run.run_orchestrate_workflow", _mock_workflow)
@@ -83,3 +85,5 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
     assert captured["thermo_symbolic_mode"] == "strict"
     assert captured["fidelity"] == 0
     assert captured["enforce_contract_routing"] is False
+    assert captured["thermo_constants_path"] == ""
+    assert captured["thermo_anchor_manifest"] == ""

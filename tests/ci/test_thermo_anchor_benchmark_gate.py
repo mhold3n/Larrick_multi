@@ -9,6 +9,7 @@ import pytest
 
 from larrak2.core.encoding import decode_candidate, mid_bounds_candidate
 from larrak2.core.types import BreathingConfig, EvalContext
+from larrak2.thermo.constants import DEFAULT_THERMO_ANCHOR_MANIFEST_PATH, load_anchor_manifest
 from larrak2.thermo import two_zone
 
 
@@ -136,3 +137,13 @@ def test_two_zone_uses_breathing_compression_ratio() -> None:
     V = res.diag["V"]
     ratio = float(max(V) / max(min(V), 1e-12))
     assert ratio == pytest.approx(12.5, rel=0.15)
+
+
+def test_default_anchor_manifest_is_non_empty_and_valid() -> None:
+    manifest = load_anchor_manifest(DEFAULT_THERMO_ANCHOR_MANIFEST_PATH)
+    anchors = manifest.get("anchors", [])
+    assert isinstance(anchors, list)
+    assert len(anchors) > 0
+    for rec in anchors:
+        assert float(rec["rpm"]) > 0.0
+        assert float(rec["torque"]) >= 0.0

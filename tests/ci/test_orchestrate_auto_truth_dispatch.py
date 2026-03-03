@@ -119,3 +119,25 @@ def test_orchestrate_auto_truth_is_deterministic_and_budget_respecting(tmp_path:
     assert "life_damage_input_mode" in it0["truth_results"][0]
     assert "life_damage_status" in it0["truth_results"][0]
     assert "lifetime" in manifest
+
+
+def test_orchestrate_context_includes_thermo_path_overrides(tmp_path: Path) -> None:
+    cfg = OrchestrationConfig(
+        outdir=tmp_path / "orch_context",
+        max_iterations=1,
+        batch_size=1,
+        total_sim_budget=0,
+        use_provenance=False,
+        thermo_constants_path="data/thermo/literature_constants_v1.json",
+        thermo_anchor_manifest_path="data/thermo/anchor_manifest_v1.json",
+    )
+    orch = Orchestrator(
+        cem=_StubCEM(),
+        surrogate=_StubSurrogate(),
+        solver=_StubSolver(),
+        simulation=_StubSimulation(),
+        config=cfg,
+    )
+    ctx = orch._build_context()
+    assert ctx.thermo_constants_path == "data/thermo/literature_constants_v1.json"
+    assert ctx.thermo_anchor_manifest_path == "data/thermo/anchor_manifest_v1.json"

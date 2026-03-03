@@ -2061,6 +2061,7 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
             contract_version=CONTRACT_VERSION,
             contract_trace_file=str(trace_path),
             contract_summary_file=str(summary_path),
+            architecture_probe_mode=bool(getattr(args, "architecture_probe_mode", False)),
         )
 
     manifest_path = Path(args.outdir) / "explore_exploit_manifest.json"
@@ -2162,6 +2163,9 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         thermo_symbolic_artifact_path=str(
             getattr(args, "thermo_symbolic_artifact_path", "")
         ).strip()
+        or None,
+        thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
+        thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
         or None,
         machining_mode=str(getattr(args, "machining_mode", "nn")),
         machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,

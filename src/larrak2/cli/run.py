@@ -581,6 +581,11 @@ def main() -> int:
         action="store_true",
         help="Fail if observed edge engine_mode violates fidelity routing policy",
     )
+    ee.add_argument(
+        "--architecture-probe-mode",
+        action="store_true",
+        help="Emit explore-exploit manifest/contract artifacts even when downselect has no hard-feasible winner",
+    )
     ee.add_argument("--verbose", action="store_true")
 
     # --- Backend Orchestration ---
@@ -645,6 +650,18 @@ def main() -> int:
         type=str,
         default="",
         help="Thermo symbolic artifact path for CasADi thermo overlay",
+    )
+    orch.add_argument(
+        "--thermo-constants-path",
+        type=str,
+        default="",
+        help="Override thermo constants path for orchestration evaluations",
+    )
+    orch.add_argument(
+        "--thermo-anchor-manifest",
+        type=str,
+        default="",
+        help="Override thermo anchor manifest path for orchestration evaluations",
     )
     orch.add_argument(
         "--strict-data",

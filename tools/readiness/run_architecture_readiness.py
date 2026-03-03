@@ -31,6 +31,15 @@ from larrak2.architecture.contracts import (  # noqa: E402
 from larrak2.core.archive_io import save_archive  # noqa: E402
 from larrak2.core.encoding import mid_bounds_candidate  # noqa: E402
 
+THERMO_CONSTANTS_REL_PATH = Path("data/thermo/literature_constants_v1.json")
+THERMO_ANCHOR_REL_PATH = Path("data/thermo/anchor_manifest_v1.json")
+KNOWN_BLOCKER_TYPES = {
+    "orchestration_wiring_gap",
+    "contract_shape_gap",
+    "fidelity_routing_gap",
+    "runtime_dependency_gap",
+}
+
 
 @dataclass(frozen=True)
 class ProbeSpec:
@@ -135,7 +144,15 @@ def _is_real_value(value: Any) -> bool:
     return value is not None
 
 
-def _seed_pareto_archive(pareto_dir: Path, fidelity: int) -> None:
+def _probe_operating_point(fidelity: int) -> tuple[float, float]:
+    if int(fidelity) == 2:
+        # Intentionally outside validated envelope to preserve strict thresholds
+        # while keeping architecture contract observability active.
+        return 2000.0, 450.0
+    return 2000.0, 80.0
+
+
+def _seed_pareto_archive(pareto_dir: Path, fidelity: int, *, rpm: float, torque: float) -> None:
     pareto_dir.mkdir(parents=True, exist_ok=True)
     x = mid_bounds_candidate()
     X = x.reshape(1, -1)
@@ -146,8 +163,8 @@ def _seed_pareto_archive(pareto_dir: Path, fidelity: int) -> None:
         "n_obj": 6,
         "n_constr": 23,
         "fidelity": int(fidelity),
-        "rpm": 2000.0,
-        "torque": 80.0,
+        "rpm": float(rpm),
+        "torque": float(torque),
     }
     save_archive(
         pareto_dir,
@@ -161,6 +178,7 @@ def _seed_pareto_archive(pareto_dir: Path, fidelity: int) -> None:
 def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
     specs: list[ProbeSpec] = []
     for fidelity in (0, 1, 2):
+        rpm, torque = _probe_operating_point(fidelity)
         pareto_out = outdir / f"run_pareto_f{fidelity}"
         specs.append(
             ProbeSpec(
@@ -177,9 +195,9 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     "--gen",
                     "2",
                     "--rpm",
-                    "2000",
+                    str(rpm),
                     "--torque",
-                    "80",
+                    str(torque),
                     "--fidelity",
                     str(fidelity),
                     "--seed",
@@ -190,6 +208,10 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     "off",
                     "--thermo-model",
                     "two_zone_eq_v1",
+                    "--thermo-constants-path",
+                    str(THERMO_CONSTANTS_REL_PATH),
+                    "--thermo-anchor-manifest",
+                    str(THERMO_ANCHOR_REL_PATH),
                     "--no-strict-data",
                     "--outdir",
                     str(pareto_out),
@@ -216,9 +238,9 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     "--outdir",
                     str(ee_out),
                     "--rpm",
-                    "2000",
+                    str(rpm),
                     "--torque",
-                    "80",
+                    str(torque),
                     "--seed",
                     str(200 + fidelity),
                     "--top-k",
@@ -240,8 +262,13 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     str(fidelity),
                     "--hifi-constraint-phase",
                     "explore",
+                    "--thermo-constants-path",
+                    str(THERMO_CONSTANTS_REL_PATH),
+                    "--thermo-anchor-manifest",
+                    str(THERMO_ANCHOR_REL_PATH),
                     "--thermo-symbolic-mode",
                     "off",
+                    "--architecture-probe-mode",
                     "--enforce-contract-routing",
                 ],
             )
@@ -262,9 +289,9 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     "--outdir",
                     str(orch_out),
                     "--rpm",
-                    "2000",
+                    str(rpm),
                     "--torque",
-                    "80",
+                    str(torque),
                     "--fidelity",
                     str(fidelity),
                     "--seed",
@@ -282,6 +309,10 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     "--allow-heuristic-surrogate-fallback",
                     "--surrogate-validation-mode",
                     "off",
+                    "--thermo-constants-path",
+                    str(THERMO_CONSTANTS_REL_PATH),
+                    "--thermo-anchor-manifest",
+                    str(THERMO_ANCHOR_REL_PATH),
                     "--thermo-symbolic-mode",
                     "off",
                     "--enforce-contract-routing",
@@ -304,7 +335,8 @@ def run_probes(outdir: Path) -> dict[str, Any]:
     for spec in probe_specs:
         spec.outdir.mkdir(parents=True, exist_ok=True)
         if spec.workflow == "explore_exploit":
-            _seed_pareto_archive(spec.outdir / "pareto", spec.fidelity)
+            rpm, torque = _probe_operating_point(spec.fidelity)
+            _seed_pareto_archive(spec.outdir / "pareto", spec.fidelity, rpm=rpm, torque=torque)
         log_path = logs_dir / f"{spec.workflow}_f{spec.fidelity}.log"
         env = os.environ.copy()
         env["PYTHONPATH"] = str(SRC_ROOT)
@@ -363,17 +395,31 @@ def run_probes(outdir: Path) -> dict[str, Any]:
         )
 
     blocker_counts: dict[str, int] = {}
+    unclassified_blockers: list[dict[str, Any]] = []
     for item in probe_results:
-        bt = str(item.get("blocker_type", "")).strip()
-        if not bt:
+        if bool(item.get("success", False)):
             continue
-        blocker_counts[bt] = blocker_counts.get(bt, 0) + 1
+        bt = str(item.get("blocker_type", "")).strip()
+        if bt:
+            blocker_counts[bt] = blocker_counts.get(bt, 0) + 1
+        if bt not in KNOWN_BLOCKER_TYPES:
+            unclassified_blockers.append(
+                {
+                    "workflow": str(item.get("workflow", "")),
+                    "fidelity": int(item.get("fidelity", -1)),
+                    "blocker_type": bt,
+                    "blocker_detail": str(item.get("blocker_detail", "")),
+                    "log_file": str(item.get("log_file", "")),
+                }
+            )
 
     return {
         "generated_at": _now(),
         "contract_version": CONTRACT_VERSION,
         "probes": probe_results,
         "blocker_counts": blocker_counts,
+        "known_blocker_types": sorted(KNOWN_BLOCKER_TYPES),
+        "unclassified_blockers": unclassified_blockers,
         "summaries": summaries,
         "traces_by_fidelity": traces_by_fidelity,
         "manifests_by_probe": manifests_by_probe,
@@ -664,11 +710,25 @@ def build_gap_ledger(
     for gap in gaps:
         counts[str(gap["status"])] += 1
 
+    unresolved_wiring_contract_count = sum(
+        1
+        for gap in gaps
+        if str(gap.get("area", "")) in {"orchestration_wiring", "contract_shape"}
+        and str(gap.get("status", "")) != "closed"
+    )
+    unclassified_blocker_count = len(workflow_probe_results.get("unclassified_blockers", []))
+    requirements = {
+        "required_key_parity_pass": bool(key_parity.get("required_key_parity_pass", False)),
+        "unresolved_wiring_contract_count": int(unresolved_wiring_contract_count),
+        "unclassified_blocker_count": int(unclassified_blocker_count),
+    }
+
     return {
         "generated_at": _now(),
         "contract_version": CONTRACT_VERSION,
         "counts": counts,
         "blocker_counts_from_probes": blocker_counts,
+        "requirements": requirements,
         "gaps": gaps,
     }
 
@@ -701,7 +761,7 @@ def write_summary(
         if str(gap.get("area", "")) == "fidelity_routing" and str(gap.get("status", "")) != "closed"
     )
     unresolved_runtime = int(blocker_counts.get("runtime_dependency_gap", 0))
-    unclassified = 0
+    unclassified = len(workflow_probe_results.get("unclassified_blockers", []))
 
     architecture_ready = bool(
         unresolved_wiring == 0
@@ -746,6 +806,11 @@ def main(argv: list[str] | None = None) -> int:
         default=REPO_ROOT / "outputs" / "readiness" / "architecture",
         help="Output directory for architecture readiness artifacts",
     )
+    parser.add_argument(
+        "--require-architecture-pass",
+        action="store_true",
+        help="Return non-zero unless required parity/wiring/contract/unclassified architecture gates pass",
+    )
     args = parser.parse_args(argv)
 
     outdir = Path(args.outdir)
@@ -757,6 +822,8 @@ def main(argv: list[str] | None = None) -> int:
         "contract_version": CONTRACT_VERSION,
         "probes": probe_data["probes"],
         "blocker_counts": probe_data["blocker_counts"],
+        "known_blocker_types": probe_data["known_blocker_types"],
+        "unclassified_blockers": probe_data["unclassified_blockers"],
     }
     _json_dump(outdir / "workflow_probe_results.json", workflow_probe_results)
 
@@ -786,6 +853,22 @@ def main(argv: list[str] | None = None) -> int:
         key_parity=key_parity,
         critical_real_keys=critical_real_keys,
     )
+
+    if bool(args.require_architecture_pass):
+        req = dict(ledger.get("requirements", {}))
+        hard_fail = (
+            not bool(req.get("required_key_parity_pass", False))
+            or int(req.get("unresolved_wiring_contract_count", 0)) > 0
+            or int(req.get("unclassified_blocker_count", 0)) > 0
+        )
+        if hard_fail:
+            print(
+                "Architecture readiness gate failed: "
+                f"required_key_parity_pass={bool(req.get('required_key_parity_pass', False))}, "
+                f"unresolved_wiring_contract_count={int(req.get('unresolved_wiring_contract_count', 0))}, "
+                f"unclassified_blocker_count={int(req.get('unclassified_blocker_count', 0))}"
+            )
+            return 2
 
     print(f"Architecture readiness artifacts written to: {outdir}")
     return 0

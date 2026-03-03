@@ -11,5 +11,24 @@
     "delta_residual_abs_max": 0.05,
     "delta_scavenging_abs_max": 0.08
   },
-  "anchors": []
+  "anchors": [
+    {
+      "label": "rpm_2000_torque_80",
+      "rpm": 2000.0,
+      "torque": 80.0,
+      "source": "canonical_default"
+    },
+    {
+      "label": "rpm_3000_torque_200",
+      "rpm": 3000.0,
+      "torque": 200.0,
+      "source": "canonical_default"
+    },
+    {
+      "label": "rpm_4500_torque_320",
+      "rpm": 4500.0,
+      "torque": 320.0,
+      "source": "canonical_default"
+    }
+  ]
 }
