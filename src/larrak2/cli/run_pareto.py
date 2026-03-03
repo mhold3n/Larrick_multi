@@ -14,11 +14,13 @@ Outputs:
 from __future__ import annotations
 
 import argparse
+import json
 import time
 from pathlib import Path
 
 import numpy as np
 
+from ..architecture.contracts import CONTRACT_VERSION, active_contract_tracer
 from ..core.archive_io import save_archive
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import get_constraint_names, get_constraint_scales
@@ -172,6 +174,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.set_defaults(strict_tribology_data=None)
     parser.add_argument("--machining-mode", type=str, default="nn", choices=["nn", "analytical"])
     parser.add_argument("--machining-model-path", type=str, default="")
+    parser.add_argument(
+        "--enforce-contract-routing",
+        action="store_true",
+        help="Fail if observed edge engine_mode violates the fidelity routing policy",
+    )
 
     args = parser.parse_args(argv)
 
@@ -229,112 +236,121 @@ def main(argv: list[str] | None = None) -> int:
         machining_model_path=str(args.machining_model_path).strip() or None,
     )
 
-    problem = ParetoProblem(ctx=ctx)
+    contract_trace_path = output_dir / "contract_trace.jsonl"
+    contract_summary_path = output_dir / "contract_summary.json"
 
-    if args.algorithm == "nsga3":
-        if problem.n_obj < 3:
-            # Not strictly required, but NSGA-III is usually for many-objective
-            pass
+    with active_contract_tracer(
+        trace_path=contract_trace_path,
+        summary_path=contract_summary_path,
+        fidelity=int(args.fidelity),
+        enforce_routing=bool(args.enforce_contract_routing),
+    ):
+        problem = ParetoProblem(ctx=ctx)
 
-        # Setup reference directions
-        ref_dirs = get_reference_directions(
-            "das-dennis", problem.n_obj, n_partitions=args.partitions
-        )
+        if args.algorithm == "nsga3":
+            if problem.n_obj < 3:
+                # Not strictly required, but NSGA-III is usually for many-objective
+                pass
+
+            # Setup reference directions
+            ref_dirs = get_reference_directions(
+                "das-dennis", problem.n_obj, n_partitions=args.partitions
+            )
+
+            if args.verbose:
+                print(f"Reference directions: {len(ref_dirs)} points")
+
+            if args.pop < len(ref_dirs):
+                if args.verbose:
+                    print(
+                        f"WARNING: Population size ({args.pop}) < Reference directions ({len(ref_dirs)})"
+                    )
+                    print("Increasing population size to match reference directions.")
+                args.pop = len(ref_dirs)
+
+            algorithm = NSGA3(
+                pop_size=args.pop,
+                ref_dirs=ref_dirs,
+                prob_neighbor_mating=0.7,
+            )
+        else:
+            algorithm = NSGA2(pop_size=args.pop)
+        termination = get_termination("n_gen", args.gen)
 
         if args.verbose:
-            print(f"Reference directions: {len(ref_dirs)} points")
+            print(f"Starting {args.algorithm.upper()}: pop={args.pop}, gen={args.gen}")
+            print(f"Context: rpm={args.rpm}, torque={args.torque}, fidelity={args.fidelity}")
+            print(
+                "Constraint phase: "
+                f"{args.constraint_phase}, tol mode: {args.tolerance_constraint_mode}, "
+                f"tol threshold: {args.tolerance_threshold_mm:.3f} mm"
+            )
+            print(
+                "Surrogate modes: "
+                f"calculix={args.calculix_stress_mode}, gear_loss={args.gear_loss_mode}, "
+                f"openfoam_model={args.openfoam_model_path or 'env/default'}"
+            )
 
-        if args.pop < len(ref_dirs):
-            if args.verbose:
-                print(
-                    f"WARNING: Population size ({args.pop}) < Reference directions ({len(ref_dirs)})"
-                )
-                print("Increasing population size to match reference directions.")
-            args.pop = len(ref_dirs)
+        # Run optimization
+        t_start = time.perf_counter()
 
-        algorithm = NSGA3(
-            pop_size=args.pop,
-            ref_dirs=ref_dirs,
-            prob_neighbor_mating=0.7,
-        )
-    else:
-        algorithm = NSGA2(pop_size=args.pop)
-    termination = get_termination("n_gen", args.gen)
-
-    if args.verbose:
-        print(f"Starting {args.algorithm.upper()}: pop={args.pop}, gen={args.gen}")
-        print(f"Context: rpm={args.rpm}, torque={args.torque}, fidelity={args.fidelity}")
-        print(
-            "Constraint phase: "
-            f"{args.constraint_phase}, tol mode: {args.tolerance_constraint_mode}, "
-            f"tol threshold: {args.tolerance_threshold_mm:.3f} mm"
-        )
-        print(
-            "Surrogate modes: "
-            f"calculix={args.calculix_stress_mode}, gear_loss={args.gear_loss_mode}, "
-            f"openfoam_model={args.openfoam_model_path or 'env/default'}"
+        result = minimize(
+            problem,
+            algorithm,
+            termination,
+            seed=args.seed,
+            verbose=args.verbose,
         )
 
-    # Run optimization
-    t_start = time.perf_counter()
+        t_elapsed = time.perf_counter() - t_start
 
-    result = minimize(
-        problem,
-        algorithm,
-        termination,
-        seed=args.seed,
-        verbose=args.verbose,
-    )
+        # Extract Pareto front (may be None if no feasible solutions)
+        X = result.X
+        F = result.F
+        G_result = getattr(result, "G", None)
+        X_pop = result.pop.get("X") if result.pop is not None else None
+        F_pop = result.pop.get("F") if result.pop is not None else None
+        G_pop = result.pop.get("G") if result.pop is not None else None
 
-    t_elapsed = time.perf_counter() - t_start
-
-    # Extract Pareto front (may be None if no feasible solutions)
-    X = result.X
-    F = result.F
-    G_result = getattr(result, "G", None)
-    X_pop = result.pop.get("X") if result.pop is not None else None
-    F_pop = result.pop.get("F") if result.pop is not None else None
-    G_pop = result.pop.get("G") if result.pop is not None else None
-
-    # Save final population arrays for downstream fallback workflows.
-    if X_pop is None:
-        np.save(output_dir / "final_pop_X.npy", np.array([]).reshape(0, problem.n_var))
-    else:
-        np.save(output_dir / "final_pop_X.npy", X_pop)
-    if F_pop is None:
-        np.save(output_dir / "final_pop_F.npy", np.array([]).reshape(0, problem.n_obj))
-    else:
-        np.save(output_dir / "final_pop_F.npy", F_pop)
-    if G_pop is None:
-        np.save(output_dir / "final_pop_G.npy", np.array([]).reshape(0, problem.N_CONSTR))
-    else:
-        np.save(output_dir / "final_pop_G.npy", G_pop)
-
-    # Handle case where no solutions found
-    if X is None or len(X) == 0:
-        n_pareto = 0
-        G = np.array([]).reshape(0, problem.N_CONSTR)
-        # Save empty arrays
-        np.save(output_dir / "pareto_X.npy", np.array([]).reshape(0, problem.n_var))
-        np.save(output_dir / "pareto_F.npy", np.array([]).reshape(0, problem.n_obj))
-        np.save(output_dir / "pareto_G.npy", G)
-    else:
-        # Get constraint values for Pareto solutions (reuse result.G if present)
-        n_pareto = X.shape[0]
-        if G_result is not None and getattr(G_result, "shape", (0,))[0] == n_pareto:
-            G = G_result
+        # Save final population arrays for downstream fallback workflows.
+        if X_pop is None:
+            np.save(output_dir / "final_pop_X.npy", np.array([]).reshape(0, problem.n_var))
         else:
-            from ..core.evaluator import evaluate_candidate
+            np.save(output_dir / "final_pop_X.npy", X_pop)
+        if F_pop is None:
+            np.save(output_dir / "final_pop_F.npy", np.array([]).reshape(0, problem.n_obj))
+        else:
+            np.save(output_dir / "final_pop_F.npy", F_pop)
+        if G_pop is None:
+            np.save(output_dir / "final_pop_G.npy", np.array([]).reshape(0, problem.N_CONSTR))
+        else:
+            np.save(output_dir / "final_pop_G.npy", G_pop)
 
-            G = np.zeros((n_pareto, problem.N_CONSTR), dtype=np.float64)
-            for i, x in enumerate(X):
-                res = evaluate_candidate(x, ctx)
-                G[i] = res.G
+        # Handle case where no solutions found
+        if X is None or len(X) == 0:
+            n_pareto = 0
+            G = np.array([]).reshape(0, problem.N_CONSTR)
+            # Save empty arrays
+            np.save(output_dir / "pareto_X.npy", np.array([]).reshape(0, problem.n_var))
+            np.save(output_dir / "pareto_F.npy", np.array([]).reshape(0, problem.n_obj))
+            np.save(output_dir / "pareto_G.npy", G)
+        else:
+            # Get constraint values for Pareto solutions (reuse result.G if present)
+            n_pareto = X.shape[0]
+            if G_result is not None and getattr(G_result, "shape", (0,))[0] == n_pareto:
+                G = G_result
+            else:
+                from ..core.evaluator import evaluate_candidate
 
-        # Save results
-        np.save(output_dir / "pareto_X.npy", X)
-        np.save(output_dir / "pareto_F.npy", F)
-        np.save(output_dir / "pareto_G.npy", G)
+                G = np.zeros((n_pareto, problem.N_CONSTR), dtype=np.float64)
+                for i, x in enumerate(X):
+                    res = evaluate_candidate(x, ctx)
+                    G[i] = res.G
+
+            # Save results
+            np.save(output_dir / "pareto_X.npy", X)
+            np.save(output_dir / "pareto_F.npy", F)
+            np.save(output_dir / "pareto_G.npy", G)
 
     # Summary
     if n_pareto > 0 and F is not None:
@@ -358,6 +374,13 @@ def main(argv: list[str] | None = None) -> int:
         best_eta_exp = 0.0
         best_eta_gear = 0.0
         best_eta_total = 0.0
+
+    contract_summary: dict[str, object] = {}
+    if contract_summary_path.exists():
+        try:
+            contract_summary = json.loads(contract_summary_path.read_text(encoding="utf-8"))
+        except Exception:
+            contract_summary = {}
 
     summary = {
         "n_pareto": n_pareto,
@@ -410,15 +433,28 @@ def main(argv: list[str] | None = None) -> int:
         "best_eta_exp": best_eta_exp,
         "best_eta_gear": best_eta_gear,
         "best_eta_total": best_eta_total,
+        "contract_version": CONTRACT_VERSION,
+        "contract_trace_file": str(contract_trace_path),
+        "contract_summary_file": str(contract_summary_path),
+        "contract_summary": contract_summary,
     }
 
-    save_archive(
-        output_dir,
-        X if X is not None else np.array([]),
-        F if F is not None else np.array([]),
-        G,
-        summary,
+    X_archive = (
+        np.asarray(X, dtype=np.float64)
+        if X is not None
+        else np.zeros((0, int(problem.n_var)), dtype=np.float64)
     )
+    F_archive = (
+        np.asarray(F, dtype=np.float64)
+        if F is not None
+        else np.zeros((0, int(problem.n_obj)), dtype=np.float64)
+    )
+    if X_archive.ndim == 1:
+        X_archive = X_archive.reshape(0, int(problem.n_var))
+    if F_archive.ndim == 1:
+        F_archive = F_archive.reshape(0, int(problem.n_obj))
+
+    save_archive(output_dir, X_archive, F_archive, np.asarray(G, dtype=np.float64), summary)
 
     if args.verbose:
         print(f"\nCompleted in {t_elapsed:.1f}s")

@@ -576,6 +576,11 @@ def main() -> int:
         action="store_false",
     )
     ee.set_defaults(strict_tribology_data=None)
+    ee.add_argument(
+        "--enforce-contract-routing",
+        action="store_true",
+        help="Fail if observed edge engine_mode violates fidelity routing policy",
+    )
     ee.add_argument("--verbose", action="store_true")
 
     # --- Backend Orchestration ---
@@ -586,6 +591,12 @@ def main() -> int:
     orch.add_argument("--outdir", type=str, default="outputs/orchestration")
     orch.add_argument("--rpm", type=float, default=3000.0)
     orch.add_argument("--torque", type=float, default=200.0)
+    orch.add_argument("--fidelity", type=int, default=0, choices=[0, 1, 2])
+    orch.add_argument(
+        "--enforce-contract-routing",
+        action="store_true",
+        help="Fail if observed edge engine_mode violates fidelity routing policy",
+    )
     orch.add_argument("--seed", type=int, default=42)
     orch.add_argument("--sim-budget", type=int, default=32)
     orch.add_argument("--batch-size", type=int, default=16)

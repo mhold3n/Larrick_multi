@@ -1,0 +1,160 @@
+{
+  "contract_version": "connection_contract_v1",
+  "engine_modes": [
+    "placeholder",
+    "hybrid",
+    "production"
+  ],
+  "required_edges": [
+    {
+      "edge_id": "edge.decode_candidate",
+      "required_request_keys": [
+        "x",
+        "ctx.fidelity"
+      ],
+      "required_response_keys": [
+        "candidate"
+      ]
+    },
+    {
+      "edge_id": "edge.thermo.forward",
+      "required_request_keys": [
+        "ctx.fidelity",
+        "ctx.rpm",
+        "ctx.torque",
+        "thermo_params"
+      ],
+      "required_response_keys": [
+        "efficiency",
+        "diag.thermo_solver_status",
+        "diag.thermo_model_version"
+      ]
+    },
+    {
+      "edge_id": "edge.gear.forward",
+      "required_request_keys": [
+        "ctx.fidelity",
+        "i_req_profile",
+        "gear_params"
+      ],
+      "required_response_keys": [
+        "loss_total",
+        "diag.hertz_stress_max"
+      ]
+    },
+    {
+      "edge_id": "edge.machining.forward",
+      "required_request_keys": [
+        "ctx.machining_mode",
+        "ctx.tolerance_threshold_mm"
+      ],
+      "required_response_keys": [
+        "tooling_cost",
+        "tol_penalty"
+      ]
+    },
+    {
+      "edge_id": "edge.realworld.forward",
+      "required_request_keys": [
+        "tribology_scuff_method",
+        "strict_tribology_data"
+      ],
+      "required_response_keys": [
+        "lambda_min",
+        "scuff_margin_flash_C",
+        "scuff_margin_integral_C",
+        "micropitting_safety",
+        "material_temp_margin_C"
+      ]
+    },
+    {
+      "edge_id": "edge.constraints.combine",
+      "required_request_keys": [
+        "thermo_G",
+        "gear_G",
+        "constraint_phase"
+      ],
+      "required_response_keys": [
+        "G",
+        "diag.constraints"
+      ]
+    },
+    {
+      "edge_id": "edge.objectives.assemble",
+      "required_request_keys": [
+        "eta_comb",
+        "eta_exp",
+        "eta_gear",
+        "life_damage_total"
+      ],
+      "required_response_keys": [
+        "F",
+        "diag.objectives.names"
+      ]
+    },
+    {
+      "edge_id": "edge.surrogate.predict",
+      "required_request_keys": [
+        "n_candidates"
+      ],
+      "required_response_keys": [
+        "predictions",
+        "uncertainty"
+      ]
+    },
+    {
+      "edge_id": "edge.solver.refine",
+      "required_request_keys": [
+        "candidate_id",
+        "backend",
+        "fidelity"
+      ],
+      "required_response_keys": [
+        "solver_success",
+        "solver_backend"
+      ]
+    },
+    {
+      "edge_id": "edge.truth.evaluate",
+      "required_request_keys": [
+        "candidate_id",
+        "fidelity"
+      ],
+      "required_response_keys": [
+        "objective",
+        "diag"
+      ]
+    },
+    {
+      "edge_id": "edge.lifetime.extract",
+      "required_request_keys": [
+        "diag.realworld.life_damage"
+      ],
+      "required_response_keys": [
+        "life_damage_total",
+        "life_damage_status",
+        "life_damage_input_mode"
+      ]
+    }
+  ],
+  "critical_real_key_paths_stage_a_to_c": [
+    "F",
+    "G",
+    "diag.constraints",
+    "diag.constraints[].name",
+    "diag.constraints[].kind",
+    "diag.constraints[].scaled",
+    "diag.constraints[].scaled_raw",
+    "diag.constraints[].feasible",
+    "diag.realworld.lambda_min",
+    "diag.realworld.scuff_margin_flash_C",
+    "diag.realworld.scuff_margin_integral_C",
+    "diag.realworld.micropitting_safety",
+    "diag.realworld.material_temp_margin_C",
+    "diag.realworld.life_damage.D_total",
+    "diag.realworld.life_damage.life_damage_status",
+    "diag.realworld.life_damage.life_damage_input_mode",
+    "release_readiness.release_ready",
+    "release_readiness.reasons"
+  ]
+}

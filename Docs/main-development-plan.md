@@ -244,3 +244,30 @@ Explore -> Exploit -> Lifetime (A->C) and F2 probe status.
    is an environment/runtime availability issue, not a missing project feature.
 3. F2 probe blockers are captured and categorized in
    `outputs/readiness/f2_blockers.json`.
+
+## 10. Architecture Contract-First Status (2026-03-03)
+
+This appendix tracks architecture-level orchestration and interface-contract
+readiness for Pareto -> Explore/Exploit -> Single-candidate Lifetime.
+
+### 10.1 Evidence Artifacts
+
+1. Architecture gap ledger:
+   `outputs/readiness/architecture/architecture_gap_ledger.json`
+2. Edge coverage report:
+   `outputs/readiness/architecture/edge_coverage_report.json`
+3. Required key parity report (fidelity 0 vs 2):
+   `outputs/readiness/architecture/key_parity_report_f0_vs_f2.json`
+4. Workflow probe matrix:
+   `outputs/readiness/architecture/workflow_probe_results.json`
+5. Human-readable architecture readiness summary:
+   `outputs/readiness/architecture/pipeline_arch_readiness_summary.md`
+
+### 10.2 Scope Notes
+
+1. These artifacts prioritize orchestration wiring, edge contracts, and fidelity
+   routing policy over module calibration details.
+2. Fidelity 0 is treated as a full contract observability mode: all required
+   edges are expected with placeholder engine mode and required key coverage.
+3. Fidelity 2 probe failures remain tracked as blockers but are not treated as
+   evidence of contract-shape closure unless key and routing requirements pass.

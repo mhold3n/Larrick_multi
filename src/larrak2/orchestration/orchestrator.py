@@ -12,6 +12,13 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from larrak2.architecture.contracts import (
+    CONTRACT_VERSION,
+    ContractTracer,
+    activate_contract_tracer,
+    deactivate_contract_tracer,
+    log_contract_edge,
+)
 from larrak2.core.encoding import N_TOTAL
 from larrak2.core.types import EvalContext
 
@@ -140,6 +147,7 @@ class OrchestrationConfig:
     cache_path: str | Path | None = None
     use_provenance: bool = True
     run_id: str | None = None
+    enforce_contract_routing: bool = False
 
     ipopt_options: dict[str, Any] = field(default_factory=dict)
 
@@ -201,10 +209,12 @@ class OrchestrationResult:
 
 
 def _json_safe(obj: Any) -> Any:
+    if isinstance(obj, np.bool_):
+        return bool(obj)
     if isinstance(obj, (np.integer, np.floating)):
         return float(obj)
     if isinstance(obj, np.ndarray):
-        return obj.tolist()
+        return _json_safe(obj.tolist())
     if isinstance(obj, Path):
         return str(obj)
     if isinstance(obj, dict):
@@ -240,6 +250,9 @@ class Orchestrator:
         self.outdir = Path(self.config.outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         self.manifest_path = self.outdir / "orchestrate_manifest.json"
+        self.contract_trace_path = self.outdir / "contract_trace.jsonl"
+        self.contract_summary_path = self.outdir / "contract_summary.json"
+        self._contract_summary: dict[str, Any] = {}
 
         self.budget = budget or BudgetManager(total_sim_calls=int(self.config.total_sim_budget))
         self.cache = cache or EvaluationCache(persist_path=self.config.cache_path)
@@ -526,6 +539,24 @@ class Orchestrator:
                 updated = self.solver.refine(current, context=context, max_step=max_step)
                 updated["id"] = current.get("id", f"refined-{idx}")
                 updated.setdefault("global_index", current.get("global_index"))
+                log_contract_edge(
+                    edge_id="edge.solver.refine",
+                    engine_mode=(
+                        "placeholder"
+                        if int(context.fidelity) == 0
+                        else ("hybrid" if int(context.fidelity) == 1 else "production")
+                    ),
+                    status="ok",
+                    request_payload={
+                        "candidate_id": str(current.get("id", idx)),
+                        "backend": str(updated.get("solver_backend", "")),
+                        "fidelity": int(context.fidelity),
+                    },
+                    response_payload={
+                        "solver_success": bool(updated.get("solver_success", False)),
+                        "solver_backend": str(updated.get("solver_backend", "")),
+                    },
+                )
                 if strict_thermo:
                     solver_diag = updated.get("solver_diag", {})
                     thermo_error = ""
@@ -542,6 +573,22 @@ class Orchestrator:
                 refined[idx] = updated
             except Exception as exc:
                 err_msg = str(exc)
+                log_contract_edge(
+                    edge_id="edge.solver.refine",
+                    engine_mode=(
+                        "placeholder"
+                        if int(context.fidelity) == 0
+                        else ("hybrid" if int(context.fidelity) == 1 else "production")
+                    ),
+                    status="error",
+                    request_payload={
+                        "candidate_id": str(current.get("id", idx)),
+                        "backend": str(getattr(self.solver, "backend", "")),
+                        "fidelity": int(context.fidelity),
+                    },
+                    response_payload={},
+                    error_signature=err_msg,
+                )
                 if strict_thermo:
                     raise RuntimeError(
                         "Thermo symbolic strict-mode refinement failed for candidate "
@@ -564,238 +611,287 @@ class Orchestrator:
         params = dict(initial_params or {})
         rng = np.random.default_rng(int(self.config.seed))
         context = self._build_context()
+        tracer = ContractTracer(
+            trace_path=self.contract_trace_path,
+            summary_path=self.contract_summary_path,
+            fidelity=int(self.config.fidelity),
+            enforce_routing=bool(self.config.enforce_contract_routing),
+        )
+        tracer_token = activate_contract_tracer(tracer)
+        try:
+            self._emit_event("run_start", config=asdict(self.config))
+            stop_requested = False
 
-        self._emit_event("run_start", config=asdict(self.config))
-        stop_requested = False
+            for iteration in range(1, int(self.config.max_iterations) + 1):
+                if self.budget.exhausted():
+                    break
 
-        for iteration in range(1, int(self.config.max_iterations) + 1):
-            if self.budget.exhausted():
-                break
+                if self._handle_control_signal():
+                    stop_requested = True
+                    break
 
-            if self._handle_control_signal():
-                stop_requested = True
-                break
+                candidates = self.cem.generate_batch(params, n=int(self.config.batch_size), rng=rng)
+                if not candidates:
+                    break
 
-            candidates = self.cem.generate_batch(params, n=int(self.config.batch_size), rng=rng)
-            if not candidates:
-                break
+                enriched: list[dict[str, Any]] = []
+                feasibility = np.zeros(len(candidates), dtype=np.float64)
+                for local_idx, candidate in enumerate(candidates):
+                    self._candidate_counter += 1
+                    c = self._clone_candidate(candidate)
+                    c["iteration"] = int(iteration)
+                    c["local_index"] = int(local_idx)
+                    c["global_index"] = int(self._candidate_counter)
+                    c["id"] = self._candidate_key(c, iteration, local_idx)
 
-            enriched: list[dict[str, Any]] = []
-            feasibility = np.zeros(len(candidates), dtype=np.float64)
-            for local_idx, candidate in enumerate(candidates):
-                self._candidate_counter += 1
-                c = self._clone_candidate(candidate)
-                c["iteration"] = int(iteration)
-                c["local_index"] = int(local_idx)
-                c["global_index"] = int(self._candidate_counter)
-                c["id"] = self._candidate_key(c, iteration, local_idx)
-
-                is_feasible, score = self.cem.check_feasibility(c)
-                if not is_feasible:
-                    c = self.cem.repair(c)
                     is_feasible, score = self.cem.check_feasibility(c)
-                c["feasible"] = bool(is_feasible)
-                c["feasibility_score"] = float(score)
+                    if not is_feasible:
+                        c = self.cem.repair(c)
+                        is_feasible, score = self.cem.check_feasibility(c)
+                    c["feasible"] = bool(is_feasible)
+                    c["feasibility_score"] = float(score)
 
-                enriched.append(c)
-                feasibility[local_idx] = float(score)
+                    enriched.append(c)
+                    feasibility[local_idx] = float(score)
 
-            pred, unc = self.surrogate.predict(enriched)
-            self._n_surrogate_calls += len(enriched)
-
-            refined = self._refine_candidates(enriched, pred, unc, context=context)
-            ref_pred, ref_unc = self.surrogate.predict(refined)
-            self._n_surrogate_calls += len(refined)
-
-            selected: list[int] = []
-            truth_indices: list[int] = []
-            truth_selection_details: list[dict[str, Any]] = []
-
-            if self.config.truth_dispatch_mode == "off":
-                selected = []
-                truth_indices = []
-            elif self.config.truth_dispatch_mode == "manual":
-                selected = self.budget.select(
-                    refined,
-                    ref_pred,
-                    ref_unc,
-                    cem_feasibility=feasibility,
-                    batch_size=min(int(self.config.batch_size), len(refined)),
-                    consume=False,
+                pred, unc = self.surrogate.predict(enriched)
+                self._n_surrogate_calls += len(enriched)
+                log_contract_edge(
+                    edge_id="edge.surrogate.predict",
+                    engine_mode=(
+                        "placeholder"
+                        if int(context.fidelity) == 0
+                        else ("hybrid" if int(context.fidelity) == 1 else "production")
+                    ),
+                    status="ok",
+                    request_payload={"n_candidates": int(len(enriched))},
+                    response_payload={
+                        "predictions": np.asarray(pred, dtype=np.float64),
+                        "uncertainty": np.asarray(unc, dtype=np.float64),
+                    },
                 )
+
+                refined = self._refine_candidates(enriched, pred, unc, context=context)
+                ref_pred, ref_unc = self.surrogate.predict(refined)
+                self._n_surrogate_calls += len(refined)
+                log_contract_edge(
+                    edge_id="edge.surrogate.predict",
+                    engine_mode=(
+                        "placeholder"
+                        if int(context.fidelity) == 0
+                        else ("hybrid" if int(context.fidelity) == 1 else "production")
+                    ),
+                    status="ok",
+                    request_payload={"n_candidates": int(len(refined))},
+                    response_payload={
+                        "predictions": np.asarray(ref_pred, dtype=np.float64),
+                        "uncertainty": np.asarray(ref_unc, dtype=np.float64),
+                    },
+                )
+
+                selected: list[int] = []
+                truth_indices: list[int] = []
+                truth_selection_details: list[dict[str, Any]] = []
+
+                if self.config.truth_dispatch_mode == "off":
+                    selected = []
+                    truth_indices = []
+                elif self.config.truth_dispatch_mode == "manual":
+                    selected = self.budget.select(
+                        refined,
+                        ref_pred,
+                        ref_unc,
+                        cem_feasibility=feasibility,
+                        batch_size=min(int(self.config.batch_size), len(refined)),
+                        consume=False,
+                    )
+                    for idx in selected:
+                        allowed = self._candidate_allowed_for_manual_truth(refined[idx], iteration, idx)
+                        truth_selection_details.append(
+                            {
+                                "idx": int(idx),
+                                "candidate_id": str(refined[idx].get("id", idx)),
+                                "accepted": bool(allowed),
+                                "reasons": [] if allowed else ["not_in_manual_truth_plan"],
+                            }
+                        )
+                        if allowed:
+                            truth_indices.append(int(idx))
+                else:
+                    selected, truth_selection_details = self._auto_truth_selector(
+                        refined,
+                        ref_pred,
+                        ref_unc,
+                    )
+                    truth_indices = list(selected)
+
+                if truth_indices:
+                    self.budget.state.consume(len(truth_indices), reason="truth_dispatch")
+
+                truth_data: list[tuple[dict[str, Any], float]] = []
+                truth_records: list[dict[str, Any]] = []
+
+                if truth_indices:
+                    for idx in truth_indices:
+                        cand = refined[idx]
+                        payload, was_cached = self.cache.get_or_compute(
+                            cand,
+                            lambda item: self.simulation.evaluate(item, context=context),
+                        )
+                        objective = self._extract_objective(payload if isinstance(payload, dict) else {})
+                        payload_dict = payload if isinstance(payload, dict) else {"objective": objective}
+                        log_contract_edge(
+                            edge_id="edge.truth.evaluate",
+                            engine_mode=(
+                                "placeholder"
+                                if int(context.fidelity) == 0
+                                else ("hybrid" if int(context.fidelity) == 1 else "production")
+                            ),
+                            status="ok",
+                            request_payload={
+                                "candidate_id": str(cand.get("id", idx)),
+                                "fidelity": int(context.fidelity),
+                            },
+                            response_payload={
+                                "objective": float(objective),
+                                "diag": payload_dict.get("diag", {}),
+                            },
+                        )
+                        life_diag = (
+                            (payload_dict.get("diag", {}) or {}).get("realworld", {}).get("life_damage", {})
+                        )
+                        life_input_mode = str(life_diag.get("life_damage_input_mode", "unknown"))
+                        life_status = str(life_diag.get("life_damage_status", "unknown"))
+                        if life_input_mode:
+                            self._lifetime_input_modes_seen.add(life_input_mode)
+                        if life_status:
+                            self._lifetime_status_seen.add(life_status)
+
+                        truth_records.append(
+                            {
+                                "idx": int(idx),
+                                "candidate_id": str(cand.get("id", idx)),
+                                "objective": float(objective),
+                                "cached": bool(was_cached),
+                                "life_damage_input_mode": life_input_mode,
+                                "life_damage_status": life_status,
+                                "payload": _json_safe(payload_dict),
+                            }
+                        )
+                        truth_data.append((cand, float(objective)))
+
+                        self._history.append(
+                            {
+                                "iteration": int(iteration),
+                                "candidate_id": str(cand.get("id", idx)),
+                                "objective": float(objective),
+                                "source": "truth",
+                            }
+                        )
+
+                        if np.isfinite(objective) and objective > self._best_objective:
+                            self._best_objective = float(objective)
+                            self._best_candidate = self._clone_candidate(cand)
+                            self._best_source = "truth"
+
+                best_ref_idx = (
+                    int(np.argmax(ref_pred))
+                    if isinstance(ref_pred, np.ndarray) and ref_pred.size > 0
+                    else None
+                )
+                if best_ref_idx is not None and self._best_source != "truth":
+                    best_pred = float(np.asarray(ref_pred, dtype=np.float64)[best_ref_idx])
+                    if np.isfinite(best_pred) and best_pred > self._best_objective:
+                        self._best_objective = best_pred
+                        self._best_candidate = self._clone_candidate(refined[best_ref_idx])
+                        self._best_source = "surrogate"
+
+                if truth_data:
+                    self.surrogate.update(truth_data)
+                    first_idx = truth_indices[0]
+                    try:
+                        pred_val = float(np.asarray(ref_pred, dtype=np.float64)[first_idx])
+                        act_val = float(truth_data[0][1])
+                        unc_val = float(np.asarray(ref_unc, dtype=np.float64)[first_idx])
+                        self.trust_region.update(
+                            predicted_improvement=pred_val,
+                            actual_improvement=act_val,
+                            uncertainty_at_step=unc_val,
+                        )
+                    except Exception:
+                        pass
+
+                self.cem.update_distribution(self._history)
+
+                selected_payload: list[dict[str, Any]] = []
                 for idx in selected:
-                    allowed = self._candidate_allowed_for_manual_truth(refined[idx], iteration, idx)
-                    truth_selection_details.append(
+                    solver_diag = refined[idx].get("solver_diag", {})
+                    solver_diag_map = solver_diag if isinstance(solver_diag, dict) else {}
+                    selected_payload.append(
                         {
                             "idx": int(idx),
                             "candidate_id": str(refined[idx].get("id", idx)),
-                            "accepted": bool(allowed),
-                            "reasons": [] if allowed else ["not_in_manual_truth_plan"],
-                        }
-                    )
-                    if allowed:
-                        truth_indices.append(int(idx))
-            else:
-                selected, truth_selection_details = self._auto_truth_selector(
-                    refined,
-                    ref_pred,
-                    ref_unc,
-                )
-                truth_indices = list(selected)
-
-            if truth_indices:
-                self.budget.state.consume(len(truth_indices), reason="truth_dispatch")
-
-            truth_data: list[tuple[dict[str, Any], float]] = []
-            truth_records: list[dict[str, Any]] = []
-
-            if truth_indices:
-                for idx in truth_indices:
-                    cand = refined[idx]
-                    payload, was_cached = self.cache.get_or_compute(
-                        cand,
-                        lambda item: self.simulation.evaluate(item, context=context),
-                    )
-                    objective = self._extract_objective(
-                        payload if isinstance(payload, dict) else {}
-                    )
-                    payload_dict = (
-                        payload if isinstance(payload, dict) else {"objective": objective}
-                    )
-                    life_diag = (
-                        (payload_dict.get("diag", {}) or {})
-                        .get("realworld", {})
-                        .get("life_damage", {})
-                    )
-                    life_input_mode = str(life_diag.get("life_damage_input_mode", "unknown"))
-                    life_status = str(life_diag.get("life_damage_status", "unknown"))
-                    if life_input_mode:
-                        self._lifetime_input_modes_seen.add(life_input_mode)
-                    if life_status:
-                        self._lifetime_status_seen.add(life_status)
-
-                    truth_records.append(
-                        {
-                            "idx": int(idx),
-                            "candidate_id": str(cand.get("id", idx)),
-                            "objective": float(objective),
-                            "cached": bool(was_cached),
-                            "life_damage_input_mode": life_input_mode,
-                            "life_damage_status": life_status,
-                            "payload": _json_safe(payload_dict),
-                        }
-                    )
-                    truth_data.append((cand, float(objective)))
-
-                    self._history.append(
-                        {
-                            "iteration": int(iteration),
-                            "candidate_id": str(cand.get("id", idx)),
-                            "objective": float(objective),
-                            "source": "truth",
+                            "predicted_objective": float(np.asarray(ref_pred, dtype=np.float64)[idx]),
+                            "uncertainty": float(np.asarray(ref_unc, dtype=np.float64)[idx]),
+                            "thermo_symbolic_mode": str(
+                                solver_diag_map.get("thermo_symbolic_mode", "")
+                            ),
+                            "thermo_symbolic_used": bool(
+                                solver_diag_map.get("thermo_symbolic_used", False)
+                            ),
+                            "thermo_symbolic_version": str(
+                                solver_diag_map.get("thermo_symbolic_version", "")
+                            ),
+                            "thermo_symbolic_path": str(
+                                solver_diag_map.get("thermo_symbolic_path", "")
+                            ),
+                            "thermo_symbolic_overlay_objectives": list(
+                                solver_diag_map.get("thermo_symbolic_overlay_objectives", [])
+                            ),
+                            "thermo_symbolic_overlay_constraints": list(
+                                solver_diag_map.get("thermo_symbolic_overlay_constraints", [])
+                            ),
+                            "thermo_symbolic_error": str(
+                                solver_diag_map.get("thermo_symbolic_error", "")
+                            ),
                         }
                     )
 
-                    if np.isfinite(objective) and objective > self._best_objective:
-                        self._best_objective = float(objective)
-                        self._best_candidate = self._clone_candidate(cand)
-                        self._best_source = "truth"
+                iter_summary = {
+                    "iteration": int(iteration),
+                    "n_generated": int(len(enriched)),
+                    "n_selected": int(len(selected)),
+                    "n_truth_evaluated": int(len(truth_indices)),
+                    "selected_candidates": _json_safe(selected_payload),
+                    "truth_selection": _json_safe(truth_selection_details),
+                    "truth_results": _json_safe(truth_records),
+                    "best_objective": float(self._best_objective),
+                    "best_source": str(self._best_source),
+                    "budget_remaining": int(self.budget.remaining()),
+                }
+                self._iterations.append(iter_summary)
+                self._emit_event("iteration_end", **iter_summary)
 
-            best_ref_idx = (
-                int(np.argmax(ref_pred))
-                if isinstance(ref_pred, np.ndarray) and ref_pred.size > 0
-                else None
+            self.cache.save_to_disk()
+            self._emit_event(
+                "run_end",
+                stopped=bool(stop_requested),
+                n_iterations=int(len(self._iterations)),
+                best_objective=float(self._best_objective),
+                best_source=str(self._best_source),
+                n_sim_calls=int(self.budget.state.used),
+                n_surrogate_calls=int(self._n_surrogate_calls),
             )
-            if best_ref_idx is not None and self._best_source != "truth":
-                best_pred = float(np.asarray(ref_pred, dtype=np.float64)[best_ref_idx])
-                if np.isfinite(best_pred) and best_pred > self._best_objective:
-                    self._best_objective = best_pred
-                    self._best_candidate = self._clone_candidate(refined[best_ref_idx])
-                    self._best_source = "surrogate"
+            try:
+                self.provenance.close()
+            except Exception:
+                pass
 
-            if truth_data:
-                self.surrogate.update(truth_data)
-                first_idx = truth_indices[0]
-                try:
-                    pred_val = float(np.asarray(ref_pred, dtype=np.float64)[first_idx])
-                    act_val = float(truth_data[0][1])
-                    unc_val = float(np.asarray(ref_unc, dtype=np.float64)[first_idx])
-                    self.trust_region.update(
-                        predicted_improvement=pred_val,
-                        actual_improvement=act_val,
-                        uncertainty_at_step=unc_val,
-                    )
-                except Exception:
-                    pass
-
-            self.cem.update_distribution(self._history)
-
-            selected_payload: list[dict[str, Any]] = []
-            for idx in selected:
-                solver_diag = refined[idx].get("solver_diag", {})
-                solver_diag_map = solver_diag if isinstance(solver_diag, dict) else {}
-                selected_payload.append(
-                    {
-                        "idx": int(idx),
-                        "candidate_id": str(refined[idx].get("id", idx)),
-                        "predicted_objective": float(np.asarray(ref_pred, dtype=np.float64)[idx]),
-                        "uncertainty": float(np.asarray(ref_unc, dtype=np.float64)[idx]),
-                        "thermo_symbolic_mode": str(
-                            solver_diag_map.get("thermo_symbolic_mode", "")
-                        ),
-                        "thermo_symbolic_used": bool(
-                            solver_diag_map.get("thermo_symbolic_used", False)
-                        ),
-                        "thermo_symbolic_version": str(
-                            solver_diag_map.get("thermo_symbolic_version", "")
-                        ),
-                        "thermo_symbolic_path": str(
-                            solver_diag_map.get("thermo_symbolic_path", "")
-                        ),
-                        "thermo_symbolic_overlay_objectives": list(
-                            solver_diag_map.get("thermo_symbolic_overlay_objectives", [])
-                        ),
-                        "thermo_symbolic_overlay_constraints": list(
-                            solver_diag_map.get("thermo_symbolic_overlay_constraints", [])
-                        ),
-                        "thermo_symbolic_error": str(
-                            solver_diag_map.get("thermo_symbolic_error", "")
-                        ),
-                    }
-                )
-
-            iter_summary = {
-                "iteration": int(iteration),
-                "n_generated": int(len(enriched)),
-                "n_selected": int(len(selected)),
-                "n_truth_evaluated": int(len(truth_indices)),
-                "selected_candidates": _json_safe(selected_payload),
-                "truth_selection": _json_safe(truth_selection_details),
-                "truth_results": _json_safe(truth_records),
-                "best_objective": float(self._best_objective),
-                "best_source": str(self._best_source),
-                "budget_remaining": int(self.budget.remaining()),
-            }
-            self._iterations.append(iter_summary)
-            self._emit_event("iteration_end", **iter_summary)
-
-        self.cache.save_to_disk()
-        self._emit_event(
-            "run_end",
-            stopped=bool(stop_requested),
-            n_iterations=int(len(self._iterations)),
-            best_objective=float(self._best_objective),
-            best_source=str(self._best_source),
-            n_sim_calls=int(self.budget.state.used),
-            n_surrogate_calls=int(self._n_surrogate_calls),
-        )
-        try:
-            self.provenance.close()
-        except Exception:
-            pass
-
-        return self._write_manifest_and_result(stop_requested=stop_requested)
-
+            self._contract_summary = tracer.summary_payload()
+            return self._write_manifest_and_result(stop_requested=stop_requested)
+        finally:
+            deactivate_contract_tracer(tracer_token)
+            tracer.close()
     def _write_manifest_and_result(self, *, stop_requested: bool) -> OrchestrationResult:
         elapsed = float(time.time() - self._run_started_at)
         provenance_path = str(getattr(self.provenance, "path", "")) if self.provenance else ""
@@ -816,6 +912,10 @@ class Orchestrator:
             "finished_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "elapsed_s": elapsed,
             "stopped": bool(stop_requested),
+            "contract_version": CONTRACT_VERSION,
+            "contract_trace_file": str(self.contract_trace_path),
+            "contract_summary_file": str(self.contract_summary_path),
+            "contract_summary": _json_safe(self._contract_summary),
             "config": _json_safe(asdict(self.config)),
             "backend": {
                 "control": type(self.control).__name__ if self.control else "None",
@@ -850,6 +950,8 @@ class Orchestrator:
             "files": {
                 "orchestrate_manifest": str(self.manifest_path),
                 "provenance_events": provenance_path,
+                "contract_trace": str(self.contract_trace_path),
+                "contract_summary": str(self.contract_summary_path),
             },
         }
         self.manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

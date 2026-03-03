@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+from larrak2.architecture.contracts import CONTRACT_VERSION
 from larrak2.cli.run import main as run_main
 
 
@@ -49,13 +50,21 @@ def test_orchestrate_cli_smoke(tmp_path: Path) -> None:
 
     manifest_path = outdir / "orchestrate_manifest.json"
     provenance_path = outdir / "provenance_events.jsonl"
+    contract_trace_path = outdir / "contract_trace.jsonl"
+    contract_summary_path = outdir / "contract_summary.json"
     assert manifest_path.exists()
     assert provenance_path.exists()
+    assert contract_trace_path.exists()
+    assert contract_summary_path.exists()
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["workflow"] == "orchestrate"
     assert manifest["result"]["n_iterations"] >= 1
     assert manifest["files"]["orchestrate_manifest"] == str(manifest_path)
+    assert manifest["contract_version"] == CONTRACT_VERSION
+    assert manifest["contract_trace_file"] == str(contract_trace_path)
+    assert manifest["contract_summary_file"] == str(contract_summary_path)
+    assert isinstance(manifest.get("contract_summary", {}), dict)
 
 
 def test_orchestrate_cli_defaults(monkeypatch) -> None:
@@ -63,6 +72,8 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
 
     def _mock_workflow(args):
         captured["thermo_symbolic_mode"] = str(args.thermo_symbolic_mode)
+        captured["fidelity"] = int(args.fidelity)
+        captured["enforce_contract_routing"] = bool(args.enforce_contract_routing)
         return 0
 
     monkeypatch.setattr("larrak2.cli.run.run_orchestrate_workflow", _mock_workflow)
@@ -70,3 +81,5 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
         code = run_main()
     assert code == 0
     assert captured["thermo_symbolic_mode"] == "strict"
+    assert captured["fidelity"] == 0
+    assert captured["enforce_contract_routing"] is False

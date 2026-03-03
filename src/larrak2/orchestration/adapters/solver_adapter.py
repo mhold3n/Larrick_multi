@@ -69,6 +69,7 @@ class CasadiSolverAdapter:
                 weights=self.weights,
                 eps_constraints=self.eps_constraints,
                 backend=self.backend,
+                fidelity=int(context.fidelity),
                 active_set=self.active_set,
                 ipopt_options=self.ipopt_options,
                 freeze_mask=freeze_mask,

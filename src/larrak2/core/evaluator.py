@@ -24,6 +24,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
+from ..architecture.contracts import log_contract_edge
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import (
     GEAR_CONSTRAINTS,
@@ -40,6 +41,14 @@ from ..gear.manufacturability_limits import (
 from ..thermo.motionlaw import eval_thermo
 from .encoding import decode_candidate
 from .types import EvalContext, EvalResult
+
+
+def _default_engine_mode_for_fidelity(fidelity: int) -> str:
+    if int(fidelity) == 0:
+        return "placeholder"
+    if int(fidelity) == 1:
+        return "hybrid"
+    return "production"
 
 
 def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
@@ -67,7 +76,25 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
     t0 = time.perf_counter()
 
     # Decode candidate
-    candidate = decode_candidate(x)
+    try:
+        candidate = decode_candidate(x)
+        log_contract_edge(
+            edge_id="edge.decode_candidate",
+            engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+            status="ok",
+            request_payload={"x": np.asarray(x, dtype=np.float64), "ctx": {"fidelity": int(ctx.fidelity)}},
+            response_payload={"candidate": {"decoded": True}},
+        )
+    except Exception as exc:
+        log_contract_edge(
+            edge_id="edge.decode_candidate",
+            engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+            status="error",
+            request_payload={"x": np.asarray(x, dtype=np.float64), "ctx": {"fidelity": int(ctx.fidelity)}},
+            response_payload={},
+            error_signature=str(exc),
+        )
+        raise
 
     # Manufacturability-derived ratio-rate limit (cached per gear/process setup)
     process_cfg = ManufacturingProcessParams(**(ctx.gear_process_params or {}))
@@ -97,7 +124,45 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
 
     # Thermo evaluation
     t_thermo_start = time.perf_counter()
-    thermo_result = eval_thermo(candidate.thermo, ctx, ratio_slope_limit=dynamic_slope_limit)
+    try:
+        thermo_result = eval_thermo(candidate.thermo, ctx, ratio_slope_limit=dynamic_slope_limit)
+        log_contract_edge(
+            edge_id="edge.thermo.forward",
+            engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+            status="ok",
+            request_payload={
+                "ctx": {"fidelity": int(ctx.fidelity), "rpm": float(ctx.rpm), "torque": float(ctx.torque)},
+                "thermo_params": {
+                    "compression_duration": float(candidate.thermo.compression_duration),
+                    "expansion_duration": float(candidate.thermo.expansion_duration),
+                    "lambda_af": float(candidate.thermo.lambda_af),
+                },
+            },
+            response_payload={
+                "efficiency": float(thermo_result.efficiency),
+                "diag": {
+                    "thermo_solver_status": str((thermo_result.diag or {}).get("thermo_solver_status", "")),
+                    "thermo_model_version": str((thermo_result.diag or {}).get("thermo_model_version", "")),
+                },
+            },
+        )
+    except Exception as exc:
+        log_contract_edge(
+            edge_id="edge.thermo.forward",
+            engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+            status="error",
+            request_payload={
+                "ctx": {"fidelity": int(ctx.fidelity), "rpm": float(ctx.rpm), "torque": float(ctx.torque)},
+                "thermo_params": {
+                    "compression_duration": float(candidate.thermo.compression_duration),
+                    "expansion_duration": float(candidate.thermo.expansion_duration),
+                    "lambda_af": float(candidate.thermo.lambda_af),
+                },
+            },
+            response_payload={},
+            error_signature=str(exc),
+        )
+        raise
     t_thermo = time.perf_counter() - t_thermo_start
 
     # Resolve material properties for gear eval (E' requires material DB)
@@ -128,7 +193,42 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
 
     # Gear evaluation (uses ratio profile from thermo)
     t_gear_start = time.perf_counter()
-    gear_result = eval_gear(candidate.gear, thermo_result.requested_ratio_profile, ctx_gear)
+    try:
+        gear_result = eval_gear(candidate.gear, thermo_result.requested_ratio_profile, ctx_gear)
+        log_contract_edge(
+            edge_id="edge.gear.forward",
+            engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+            status="ok",
+            request_payload={
+                "ctx": {"fidelity": int(ctx.fidelity)},
+                "i_req_profile": np.asarray(thermo_result.requested_ratio_profile, dtype=np.float64),
+                "gear_params": {
+                    "base_radius": float(candidate.gear.base_radius),
+                    "face_width_mm": float(candidate.gear.face_width_mm),
+                },
+            },
+            response_payload={
+                "loss_total": float(gear_result.loss_total),
+                "diag": {"hertz_stress_max": float((gear_result.diag or {}).get("hertz_stress_max", np.nan))},
+            },
+        )
+    except Exception as exc:
+        log_contract_edge(
+            edge_id="edge.gear.forward",
+            engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+            status="error",
+            request_payload={
+                "ctx": {"fidelity": int(ctx.fidelity)},
+                "i_req_profile": np.asarray(thermo_result.requested_ratio_profile, dtype=np.float64),
+                "gear_params": {
+                    "base_radius": float(candidate.gear.base_radius),
+                    "face_width_mm": float(candidate.gear.face_width_mm),
+                },
+            },
+            response_payload={},
+            error_signature=str(exc),
+        )
+        raise
     t_gear = time.perf_counter() - t_gear_start
 
     # ===================================================================
@@ -222,6 +322,18 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
 
     machining_G = [tol_penalty, tooling_penalty]
     machining_names = ["tol_budget", "tooling_cost"]
+    log_contract_edge(
+        edge_id="edge.machining.forward",
+        engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+        status="ok",
+        request_payload={
+            "ctx": {
+                "machining_mode": str(getattr(ctx, "machining_mode", "nn")),
+                "tolerance_threshold_mm": float(ctx.tolerance_threshold_mm),
+            }
+        },
+        response_payload={"tooling_cost": float(tooling_cost_val), "tol_penalty": float(tol_penalty)},
+    )
 
     # ===================================================================
     # Real-World Checks (tribology, material, surface, lubrication)
@@ -615,6 +727,33 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         min_snap_distance=min_snap_dist,
     )
     t_rw = time.perf_counter() - t_rw_start
+    log_contract_edge(
+        edge_id="edge.realworld.forward",
+        engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+        status="ok",
+        request_payload={
+            "tribology_scuff_method": tribology_scuff_method,
+            "strict_tribology_data": bool(strict_tribology_flag),
+        },
+        response_payload={
+            "lambda_min": float(getattr(rw_result, "lambda_min", np.nan)),
+            "scuff_margin_flash_C": float(getattr(rw_result, "scuff_margin_flash_C", np.nan)),
+            "scuff_margin_integral_C": float(getattr(rw_result, "scuff_margin_integral_C", np.nan)),
+            "micropitting_safety": float(getattr(rw_result, "micropitting_safety", np.nan)),
+            "material_temp_margin_C": float(getattr(rw_result, "material_temp_margin_C", np.nan)),
+        },
+    )
+    log_contract_edge(
+        edge_id="edge.lifetime.extract",
+        engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+        status="ok",
+        request_payload={"diag": {"realworld": {"life_damage": dict(life_damage_diag)}}},
+        response_payload={
+            "life_damage_total": float(life_damage_diag.get("D_total", np.nan)),
+            "life_damage_status": str(life_damage_diag.get("life_damage_status", "")),
+            "life_damage_input_mode": str(life_damage_diag.get("life_damage_input_mode", "")),
+        },
+    )
 
     # ===================================================================
     # Objectives (6D): efficiency + motion-law + lifetime + material risk
@@ -645,6 +784,32 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         ],
         dtype=np.float64,
     )
+    log_contract_edge(
+        edge_id="edge.objectives.assemble",
+        engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+        status="ok",
+        request_payload={
+            "eta_comb": float(eta_comb),
+            "eta_exp": float(eta_exp),
+            "eta_gear": float(eta_gear),
+            "life_damage_total": float(life_damage_total),
+        },
+        response_payload={
+            "F": np.asarray(F, dtype=np.float64),
+            "diag": {
+                "objectives": {
+                    "names": [
+                        "eta_comb_gap",
+                        "eta_exp_gap",
+                        "eta_gear_gap",
+                        "motion_law_penalty",
+                        "life_damage_penalty",
+                        "material_risk_penalty",
+                    ]
+                }
+            },
+        },
+    )
 
     # ===================================================================
     # Combine all constraints
@@ -667,6 +832,17 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
         kind_overrides=constraint_kinds,
         realworld_G=rw_G,
         realworld_names=rw_names,
+    )
+    log_contract_edge(
+        edge_id="edge.constraints.combine",
+        engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
+        status="ok",
+        request_payload={
+            "thermo_G": list(thermo_G),
+            "gear_G": list(gear_G_list),
+            "constraint_phase": str(ctx.constraint_phase),
+        },
+        response_payload={"G": np.asarray(G, dtype=np.float64), "diag": {"constraints": constraint_diag}},
     )
 
     # ===================================================================

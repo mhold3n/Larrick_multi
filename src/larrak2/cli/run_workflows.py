@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from larrak2.adapters.calculix import CalculiXRunner
+from larrak2.architecture.contracts import CONTRACT_VERSION, active_contract_tracer
 from larrak2.adapters.openfoam import OpenFoamRunner
 from larrak2.cli.run_pareto import main as run_pareto_main
 from larrak2.core.artifact_paths import (
@@ -2023,28 +2024,44 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         if v is not None
     }
 
-    manifest = run_two_stage_pipeline(
-        pareto_dir=pareto_dir,
-        outdir=Path(args.outdir),
-        lowfi_ctx=lowfi_ctx,
-        hifi_ctx=hifi_ctx,
-        top_k=int(args.top_k),
-        candidate_index=None if int(args.candidate_index) < 0 else int(args.candidate_index),
-        rank_weights=weights,
-        refine_indices=refine_indices,
-        mode=str(args.mode),
-        backend=str(args.backend),
-        active_k=args.active_k,
-        min_per_group=int(args.min_per_group),
-        slice_method=str(args.slice_method),
-        trust_radius=args.trust_radius,
-        max_iter=int(args.max_iter),
-        tol=float(args.tol),
-        eps_margin=float(args.eps_margin),
-        run_tribology_stage=not bool(args.skip_tribology),
-        ipopt_options=ipopt_options or None,
-        stack_model_path=str(args.stack_model_path).strip() or None,
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    trace_path = outdir / "contract_trace.jsonl"
+    summary_path = outdir / "contract_summary.json"
+    tracer_fidelity = (
+        int(hifi_ctx.fidelity) if int(hifi_ctx.fidelity) == int(lowfi_ctx.fidelity) else None
     )
+    with active_contract_tracer(
+        trace_path=trace_path,
+        summary_path=summary_path,
+        fidelity=tracer_fidelity,
+        enforce_routing=bool(getattr(args, "enforce_contract_routing", False)),
+    ):
+        manifest = run_two_stage_pipeline(
+            pareto_dir=pareto_dir,
+            outdir=outdir,
+            lowfi_ctx=lowfi_ctx,
+            hifi_ctx=hifi_ctx,
+            top_k=int(args.top_k),
+            candidate_index=None if int(args.candidate_index) < 0 else int(args.candidate_index),
+            rank_weights=weights,
+            refine_indices=refine_indices,
+            mode=str(args.mode),
+            backend=str(args.backend),
+            active_k=args.active_k,
+            min_per_group=int(args.min_per_group),
+            slice_method=str(args.slice_method),
+            trust_radius=args.trust_radius,
+            max_iter=int(args.max_iter),
+            tol=float(args.tol),
+            eps_margin=float(args.eps_margin),
+            run_tribology_stage=not bool(args.skip_tribology),
+            ipopt_options=ipopt_options or None,
+            stack_model_path=str(args.stack_model_path).strip() or None,
+            contract_version=CONTRACT_VERSION,
+            contract_trace_file=str(trace_path),
+            contract_summary_file=str(summary_path),
+        )
 
     manifest_path = Path(args.outdir) / "explore_exploit_manifest.json"
     print("Explore->Exploit pipeline complete.")
@@ -2126,7 +2143,8 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         seed=int(args.seed),
         rpm=float(args.rpm),
         torque=float(args.torque),
-        fidelity=0,
+        fidelity=int(getattr(args, "fidelity", 0)),
+        enforce_contract_routing=bool(getattr(args, "enforce_contract_routing", False)),
         truth_dispatch_mode=str(args.truth_dispatch_mode),
         truth_plan=truth_tokens,
         truth_auto_top_k=int(getattr(args, "truth_auto_top_k", 2)),
