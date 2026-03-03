@@ -188,7 +188,6 @@ def load_anchor_manifest(path: str | Path | None = None) -> dict[str, Any]:
                 "provenance": rec.get("provenance", {}),
             }
         )
-
     return {
         "version": str(payload.get("version", "")),
         "validated_envelope": {

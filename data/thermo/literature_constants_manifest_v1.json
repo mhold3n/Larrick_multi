@@ -1,0 +1,18 @@
+{
+  "manifest_version": "1.0",
+  "constant_pack_version": "two_zone_eq_v1",
+  "owner": "larrak2",
+  "description": "Literature-backed transitional constants for equation-first two-zone thermo solver.",
+  "required_fields": [
+    "symbol",
+    "value",
+    "units",
+    "source",
+    "valid_range"
+  ],
+  "citations": [
+    "Heywood, Internal Combustion Engine Fundamentals, 2nd edition",
+    "ISO 5167 compressible orifice flow formulations",
+    "Stone, Introduction to Internal Combustion Engines"
+  ]
+}

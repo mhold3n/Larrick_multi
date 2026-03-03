@@ -62,7 +62,6 @@ def test_hybrid_correction_disabled_outside_validated_envelope(monkeypatch, tmp_
         }
 
     monkeypatch.setattr(two_zone, "_predict_openfoam_breathing", _fake_predict)
-
     manifest_path = _write_anchor_manifest(tmp_path / "anchors.json")
     ctx = EvalContext(
         rpm=3000.0,

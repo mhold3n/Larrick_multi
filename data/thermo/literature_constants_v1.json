@@ -1,0 +1,179 @@
+{
+  "version": "two_zone_eq_v1",
+  "constants": {
+    "gamma_u": {
+      "value": 1.35,
+      "units": "-",
+      "source": "Heywood Internal Combustion Engine Fundamentals, 2nd ed.",
+      "valid_range": [1.2, 1.45]
+    },
+    "gamma_b": {
+      "value": 1.28,
+      "units": "-",
+      "source": "Heywood Internal Combustion Engine Fundamentals, 2nd ed.",
+      "valid_range": [1.15, 1.4]
+    },
+    "r_u": {
+      "value": 287.0,
+      "units": "J/(kg*K)",
+      "source": "Ideal gas constant for dry air",
+      "valid_range": [250.0, 320.0]
+    },
+    "r_b": {
+      "value": 287.0,
+      "units": "J/(kg*K)",
+      "source": "Mixture approximation for burned gases",
+      "valid_range": [200.0, 350.0]
+    },
+    "cv_u": {
+      "value": 718.0,
+      "units": "J/(kg*K)",
+      "source": "Air specific heat at constant volume near 300K",
+      "valid_range": [500.0, 900.0]
+    },
+    "cv_b": {
+      "value": 840.0,
+      "units": "J/(kg*K)",
+      "source": "Burned gas effective cv approximation",
+      "valid_range": [600.0, 1200.0]
+    },
+    "cd_intake": {
+      "value": 0.78,
+      "units": "-",
+      "source": "Valve/orifice discharge literature range",
+      "valid_range": [0.5, 0.95]
+    },
+    "cd_exhaust": {
+      "value": 0.82,
+      "units": "-",
+      "source": "Valve/orifice discharge literature range",
+      "valid_range": [0.5, 0.98]
+    },
+    "fuel_lhv": {
+      "value": 44000000.0,
+      "units": "J/kg",
+      "source": "Gasoline lower heating value typical",
+      "valid_range": [30000000.0, 50000000.0]
+    },
+    "afr_stoich": {
+      "value": 14.7,
+      "units": "-",
+      "source": "Gasoline stoichiometric AFR",
+      "valid_range": [10.0, 20.0]
+    },
+    "o2_required_per_fuel": {
+      "value": 3.51,
+      "units": "kg/kg",
+      "source": "Iso-octane stoichiometry approximation",
+      "valid_range": [2.5, 4.5]
+    },
+    "o2_mass_fraction_air": {
+      "value": 0.233,
+      "units": "-",
+      "source": "Dry air oxygen mass fraction",
+      "valid_range": [0.2, 0.25]
+    },
+    "t_intake_k": {
+      "value": 330.0,
+      "units": "K",
+      "source": "Typical boosted intake temperature",
+      "valid_range": [250.0, 500.0]
+    },
+    "t_residual_k": {
+      "value": 900.0,
+      "units": "K",
+      "source": "Residual gas estimate",
+      "valid_range": [500.0, 1500.0]
+    },
+    "wall_temp_k": {
+      "value": 460.0,
+      "units": "K",
+      "source": "Representative chamber wall temperature",
+      "valid_range": [300.0, 800.0]
+    },
+    "wiebe_a1": {
+      "value": 6.5,
+      "units": "-",
+      "source": "Two-stage Wiebe calibration prior",
+      "valid_range": [2.0, 12.0]
+    },
+    "wiebe_m1": {
+      "value": 2.0,
+      "units": "-",
+      "source": "Two-stage Wiebe calibration prior",
+      "valid_range": [0.5, 4.0]
+    },
+    "wiebe_a2": {
+      "value": 4.0,
+      "units": "-",
+      "source": "Two-stage Wiebe late-burn prior",
+      "valid_range": [1.0, 10.0]
+    },
+    "wiebe_m2": {
+      "value": 1.2,
+      "units": "-",
+      "source": "Two-stage Wiebe late-burn prior",
+      "valid_range": [0.3, 3.0]
+    },
+    "wiebe_split": {
+      "value": 0.72,
+      "units": "-",
+      "source": "Two-stage Wiebe weight prior",
+      "valid_range": [0.4, 0.95]
+    },
+    "vapor_tau_ref_s": {
+      "value": 0.004,
+      "units": "s",
+      "source": "Spray vaporization first-order approximation",
+      "valid_range": [0.0005, 0.05]
+    },
+    "vapor_temp_exponent": {
+      "value": -1.2,
+      "units": "-",
+      "source": "D2-law-inspired temperature sensitivity",
+      "valid_range": [-3.0, -0.1]
+    },
+    "vapor_pressure_exponent": {
+      "value": 0.2,
+      "units": "-",
+      "source": "Pressure effect approximation",
+      "valid_range": [-1.0, 1.0]
+    },
+    "h_wall_u": {
+      "value": 120.0,
+      "units": "W/(m^2*K)",
+      "source": "Woschni-like low-zone coefficient prior",
+      "valid_range": [20.0, 1000.0]
+    },
+    "h_wall_b": {
+      "value": 220.0,
+      "units": "W/(m^2*K)",
+      "source": "Woschni-like burned-zone coefficient prior",
+      "valid_range": [20.0, 2000.0]
+    },
+    "p_limit_bar": {
+      "value": 300.0,
+      "units": "bar",
+      "source": "Engineering pressure limit",
+      "valid_range": [100.0, 500.0]
+    },
+    "efficiency_upper_bound": {
+      "value": 0.68,
+      "units": "-",
+      "source": "Practical indicated efficiency cap",
+      "valid_range": [0.3, 0.85]
+    },
+    "nn_correction_k": {
+      "value": 0.5,
+      "units": "-",
+      "source": "Hybrid blend policy",
+      "valid_range": [0.0, 1.0]
+    },
+    "nn_correction_beta": {
+      "value": 0.15,
+      "units": "-",
+      "source": "Hybrid blend policy",
+      "valid_range": [0.0, 0.5]
+    }
+  }
+}

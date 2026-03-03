@@ -3,7 +3,6 @@ from __future__ import annotations
 """Thermo module — equation-first thermodynamic physics models."""
 
 from .constants import ThermoConstants, load_anchor_manifest, load_thermo_constants
-from .motionlaw import ThermoResult, eval_thermo
 from .symbolic_artifact import (
     ThermoSymbolicArtifact,
     load_thermo_symbolic_artifact,
@@ -16,7 +15,6 @@ from .symbolic_bridge import (
     numeric_thermo_forward,
     symbolic_thermo_forward,
 )
-from .two_zone import TwoZoneThermoResult, evaluate_two_zone_thermo
 from .validation import ThermoValidationReport
 
 __all__ = [
@@ -30,10 +28,30 @@ __all__ = [
     "eval_thermo",
     "evaluate_two_zone_thermo",
     "load_anchor_manifest",
-    "load_thermo_symbolic_artifact",
     "load_thermo_constants",
+    "load_thermo_symbolic_artifact",
     "numeric_thermo_forward",
     "save_thermo_symbolic_artifact",
     "symbolic_thermo_forward",
     "train_thermo_symbolic_affine",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"ThermoResult", "eval_thermo"}:
+        from .motionlaw import ThermoResult, eval_thermo
+
+        exports = {
+            "ThermoResult": ThermoResult,
+            "eval_thermo": eval_thermo,
+        }
+        return exports[name]
+    if name in {"TwoZoneThermoResult", "evaluate_two_zone_thermo"}:
+        from .two_zone import TwoZoneThermoResult, evaluate_two_zone_thermo
+
+        exports = {
+            "TwoZoneThermoResult": TwoZoneThermoResult,
+            "evaluate_two_zone_thermo": evaluate_two_zone_thermo,
+        }
+        return exports[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -18,6 +18,10 @@ data/cem/*
 !data/cem/scuffing_critical_temperatures.csv
 !data/cem/micropitting_lambda_perm.csv
 !data/cem/fzg_step_load_map.csv
+!data/thermo/
+!data/thermo/anchor_manifest_v1.json
+!data/thermo/literature_constants_manifest_v1.json
+!data/thermo/literature_constants_v1.json
 models/
 openfoam_templates/
 
