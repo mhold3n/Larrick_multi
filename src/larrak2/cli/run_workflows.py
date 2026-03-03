@@ -17,8 +17,8 @@ from pathlib import Path
 import numpy as np
 
 from larrak2.adapters.calculix import CalculiXRunner
-from larrak2.architecture.contracts import CONTRACT_VERSION, active_contract_tracer
 from larrak2.adapters.openfoam import OpenFoamRunner
+from larrak2.architecture.contracts import CONTRACT_VERSION, active_contract_tracer
 from larrak2.cli.run_pareto import main as run_pareto_main
 from larrak2.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,

@@ -51,7 +51,9 @@ def test_contract_tracer_deterministic_error_capture(tmp_path: Path) -> None:
     )
     tracer.close()
 
-    rows = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines() if line]
+    rows = [
+        json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines() if line
+    ]
     assert len(rows) == 2
     assert rows[0]["event_index"] == 1
     assert rows[1]["event_index"] == 2
@@ -81,4 +83,3 @@ def test_contract_tracer_routing_enforcement(tmp_path: Path) -> None:
             response_payload={"candidate": {"decoded": True}},
         )
     tracer.close()
-

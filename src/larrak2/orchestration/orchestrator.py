@@ -718,7 +718,9 @@ class Orchestrator:
                         consume=False,
                     )
                     for idx in selected:
-                        allowed = self._candidate_allowed_for_manual_truth(refined[idx], iteration, idx)
+                        allowed = self._candidate_allowed_for_manual_truth(
+                            refined[idx], iteration, idx
+                        )
                         truth_selection_details.append(
                             {
                                 "idx": int(idx),
@@ -750,8 +752,12 @@ class Orchestrator:
                             cand,
                             lambda item: self.simulation.evaluate(item, context=context),
                         )
-                        objective = self._extract_objective(payload if isinstance(payload, dict) else {})
-                        payload_dict = payload if isinstance(payload, dict) else {"objective": objective}
+                        objective = self._extract_objective(
+                            payload if isinstance(payload, dict) else {}
+                        )
+                        payload_dict = (
+                            payload if isinstance(payload, dict) else {"objective": objective}
+                        )
                         log_contract_edge(
                             edge_id="edge.truth.evaluate",
                             engine_mode=(
@@ -770,7 +776,9 @@ class Orchestrator:
                             },
                         )
                         life_diag = (
-                            (payload_dict.get("diag", {}) or {}).get("realworld", {}).get("life_damage", {})
+                            (payload_dict.get("diag", {}) or {})
+                            .get("realworld", {})
+                            .get("life_damage", {})
                         )
                         life_input_mode = str(life_diag.get("life_damage_input_mode", "unknown"))
                         life_status = str(life_diag.get("life_damage_status", "unknown"))
@@ -843,7 +851,9 @@ class Orchestrator:
                         {
                             "idx": int(idx),
                             "candidate_id": str(refined[idx].get("id", idx)),
-                            "predicted_objective": float(np.asarray(ref_pred, dtype=np.float64)[idx]),
+                            "predicted_objective": float(
+                                np.asarray(ref_pred, dtype=np.float64)[idx]
+                            ),
                             "uncertainty": float(np.asarray(ref_unc, dtype=np.float64)[idx]),
                             "thermo_symbolic_mode": str(
                                 solver_diag_map.get("thermo_symbolic_mode", "")
@@ -904,6 +914,7 @@ class Orchestrator:
         finally:
             deactivate_contract_tracer(tracer_token)
             tracer.close()
+
     def _write_manifest_and_result(self, *, stop_requested: bool) -> OrchestrationResult:
         elapsed = float(time.time() - self._run_started_at)
         provenance_path = str(getattr(self.provenance, "path", "")) if self.provenance else ""

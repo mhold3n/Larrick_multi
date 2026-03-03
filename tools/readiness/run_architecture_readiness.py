@@ -348,7 +348,11 @@ def run_probes(outdir: Path) -> dict[str, Any]:
             text=True,
             check=False,
         )
-        full_output = (proc.stdout or "") + ("\n" if proc.stdout and proc.stderr else "") + (proc.stderr or "")
+        full_output = (
+            (proc.stdout or "")
+            + ("\n" if proc.stdout and proc.stderr else "")
+            + (proc.stderr or "")
+        )
         log_path.write_text(full_output, encoding="utf-8")
         trace_path = spec.outdir / "contract_trace.jsonl"
         summary_path = spec.outdir / "contract_summary.json"
@@ -662,7 +666,9 @@ def build_gap_ledger(
             "gap_id": "arch.coverage.f0_placeholder",
             "area": "fidelity_routing",
             "planned_gap_text": "Fidelity 0 triggers all required edges in placeholder mode.",
-            "status": "closed" if bool(edge_coverage.get("f0_contract_policy_pass", False)) else "open",
+            "status": "closed"
+            if bool(edge_coverage.get("f0_contract_policy_pass", False))
+            else "open",
             "evidence_files": [],
             "blocking_for_A_to_C": not bool(edge_coverage.get("f0_contract_policy_pass", False)),
             "blocker_type": "fidelity_routing_gap"
@@ -673,7 +679,9 @@ def build_gap_ledger(
             "gap_id": "arch.parity.f0_vs_f2_required_keys",
             "area": "contract_shape",
             "planned_gap_text": "Exact required key-path parity is preserved between fidelity 0 and 2.",
-            "status": "closed" if bool(key_parity.get("required_key_parity_pass", False)) else "open",
+            "status": "closed"
+            if bool(key_parity.get("required_key_parity_pass", False))
+            else "open",
             "evidence_files": [],
             "blocking_for_A_to_C": not bool(key_parity.get("required_key_parity_pass", False)),
             "blocker_type": "contract_shape_gap"

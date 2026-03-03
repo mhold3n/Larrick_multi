@@ -348,7 +348,9 @@ class ContractTracer:
         if self._closed:
             return
         summary = self.summary_payload()
-        self.summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+        self.summary_path.write_text(
+            json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8"
+        )
         self._fout.close()
         self._closed = True
 

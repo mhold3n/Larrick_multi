@@ -82,7 +82,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             edge_id="edge.decode_candidate",
             engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
             status="ok",
-            request_payload={"x": np.asarray(x, dtype=np.float64), "ctx": {"fidelity": int(ctx.fidelity)}},
+            request_payload={
+                "x": np.asarray(x, dtype=np.float64),
+                "ctx": {"fidelity": int(ctx.fidelity)},
+            },
             response_payload={"candidate": {"decoded": True}},
         )
     except Exception as exc:
@@ -90,7 +93,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             edge_id="edge.decode_candidate",
             engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
             status="error",
-            request_payload={"x": np.asarray(x, dtype=np.float64), "ctx": {"fidelity": int(ctx.fidelity)}},
+            request_payload={
+                "x": np.asarray(x, dtype=np.float64),
+                "ctx": {"fidelity": int(ctx.fidelity)},
+            },
             response_payload={},
             error_signature=str(exc),
         )
@@ -131,7 +137,11 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
             status="ok",
             request_payload={
-                "ctx": {"fidelity": int(ctx.fidelity), "rpm": float(ctx.rpm), "torque": float(ctx.torque)},
+                "ctx": {
+                    "fidelity": int(ctx.fidelity),
+                    "rpm": float(ctx.rpm),
+                    "torque": float(ctx.torque),
+                },
                 "thermo_params": {
                     "compression_duration": float(candidate.thermo.compression_duration),
                     "expansion_duration": float(candidate.thermo.expansion_duration),
@@ -141,8 +151,12 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             response_payload={
                 "efficiency": float(thermo_result.efficiency),
                 "diag": {
-                    "thermo_solver_status": str((thermo_result.diag or {}).get("thermo_solver_status", "")),
-                    "thermo_model_version": str((thermo_result.diag or {}).get("thermo_model_version", "")),
+                    "thermo_solver_status": str(
+                        (thermo_result.diag or {}).get("thermo_solver_status", "")
+                    ),
+                    "thermo_model_version": str(
+                        (thermo_result.diag or {}).get("thermo_model_version", "")
+                    ),
                 },
             },
         )
@@ -152,7 +166,11 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             engine_mode=_default_engine_mode_for_fidelity(ctx.fidelity),
             status="error",
             request_payload={
-                "ctx": {"fidelity": int(ctx.fidelity), "rpm": float(ctx.rpm), "torque": float(ctx.torque)},
+                "ctx": {
+                    "fidelity": int(ctx.fidelity),
+                    "rpm": float(ctx.rpm),
+                    "torque": float(ctx.torque),
+                },
                 "thermo_params": {
                     "compression_duration": float(candidate.thermo.compression_duration),
                     "expansion_duration": float(candidate.thermo.expansion_duration),
@@ -201,7 +219,9 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             status="ok",
             request_payload={
                 "ctx": {"fidelity": int(ctx.fidelity)},
-                "i_req_profile": np.asarray(thermo_result.requested_ratio_profile, dtype=np.float64),
+                "i_req_profile": np.asarray(
+                    thermo_result.requested_ratio_profile, dtype=np.float64
+                ),
                 "gear_params": {
                     "base_radius": float(candidate.gear.base_radius),
                     "face_width_mm": float(candidate.gear.face_width_mm),
@@ -209,7 +229,11 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             },
             response_payload={
                 "loss_total": float(gear_result.loss_total),
-                "diag": {"hertz_stress_max": float((gear_result.diag or {}).get("hertz_stress_max", np.nan))},
+                "diag": {
+                    "hertz_stress_max": float(
+                        (gear_result.diag or {}).get("hertz_stress_max", np.nan)
+                    )
+                },
             },
         )
     except Exception as exc:
@@ -219,7 +243,9 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             status="error",
             request_payload={
                 "ctx": {"fidelity": int(ctx.fidelity)},
-                "i_req_profile": np.asarray(thermo_result.requested_ratio_profile, dtype=np.float64),
+                "i_req_profile": np.asarray(
+                    thermo_result.requested_ratio_profile, dtype=np.float64
+                ),
                 "gear_params": {
                     "base_radius": float(candidate.gear.base_radius),
                     "face_width_mm": float(candidate.gear.face_width_mm),
@@ -332,7 +358,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
                 "tolerance_threshold_mm": float(ctx.tolerance_threshold_mm),
             }
         },
-        response_payload={"tooling_cost": float(tooling_cost_val), "tol_penalty": float(tol_penalty)},
+        response_payload={
+            "tooling_cost": float(tooling_cost_val),
+            "tol_penalty": float(tol_penalty),
+        },
     )
 
     # ===================================================================
@@ -842,7 +871,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             "gear_G": list(gear_G_list),
             "constraint_phase": str(ctx.constraint_phase),
         },
-        response_payload={"G": np.asarray(G, dtype=np.float64), "diag": {"constraints": constraint_diag}},
+        response_payload={
+            "G": np.asarray(G, dtype=np.float64),
+            "diag": {"constraints": constraint_diag},
+        },
     )
 
     # ===================================================================
