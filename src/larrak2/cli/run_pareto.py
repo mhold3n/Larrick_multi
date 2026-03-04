@@ -14,6 +14,7 @@ Outputs:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -26,6 +27,25 @@ from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import get_constraint_names, get_constraint_scales
 from ..core.encoding import ENCODING_VERSION
 from ..core.types import BreathingConfig
+from ..optimization.production_gate import (
+    STRICT_PRODUCTION_PROFILE,
+    evaluate_production_gate,
+)
+
+
+def _file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _deterministic_order(F: np.ndarray, X: np.ndarray) -> np.ndarray:
+    if F.ndim != 2 or X.ndim != 2 or F.shape[0] == 0 or X.shape[0] == 0:
+        return np.arange(int(F.shape[0] if F.ndim == 2 else 0), dtype=int)
+    key = np.hstack([np.asarray(F, dtype=np.float64), np.asarray(X, dtype=np.float64)])
+    return np.lexsort(key.T[::-1]).astype(int)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rpm", type=float, default=3000.0, help="Engine speed (rpm)")
     parser.add_argument("--torque", type=float, default=200.0, help="Torque demand (Nm)")
     parser.add_argument(
-        "--fidelity", type=int, default=0, choices=[0, 1, 2], help="Model fidelity (0=toy, 1=v1)"
+        "--fidelity", type=int, default=2, choices=[0, 1, 2], help="Model fidelity (0=toy, 1=v1)"
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument(
@@ -53,14 +73,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--algorithm",
         type=str,
-        default="nsga2",
+        default="nsga3",
         choices=["nsga2", "nsga3"],
         help="Optimization algorithm",
     )
     parser.add_argument(
         "--constraint-phase",
         type=str,
-        default="explore",
+        default="downselect",
         choices=["explore", "downselect"],
         help="Constraint enforcement phase",
     )
@@ -80,8 +100,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--partitions",
         type=int,
-        default=12,
+        default=4,
         help="Reference direction partitions (NSGA-III only)",
+    )
+    parser.add_argument(
+        "--nsga3-max-ref-dirs",
+        type=int,
+        default=192,
+        help="Maximum reference directions allowed for NSGA-III",
     )
 
     # Breathing/BC/timing inputs for OpenFOAM NN (fidelity>=2)
@@ -179,6 +205,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Fail if observed edge engine_mode violates the fidelity routing policy",
     )
+    parser.add_argument(
+        "--allow-nonproduction-paths",
+        action="store_true",
+        help="Allow non-production fallback paths and mark run as non-release",
+    )
 
     args = parser.parse_args(argv)
 
@@ -234,6 +265,8 @@ def main(argv: list[str] | None = None) -> int:
         surrogate_validation_mode=str(args.surrogate_validation_mode),
         machining_mode=str(args.machining_mode),
         machining_model_path=str(args.machining_model_path).strip() or None,
+        production_profile=STRICT_PRODUCTION_PROFILE,
+        allow_nonproduction_paths=bool(args.allow_nonproduction_paths),
     )
 
     contract_trace_path = output_dir / "contract_trace.jsonl"
@@ -246,39 +279,59 @@ def main(argv: list[str] | None = None) -> int:
         enforce_routing=bool(args.enforce_contract_routing),
     ):
         problem = ParetoProblem(ctx=ctx)
+        requested_pop = int(args.pop)
+        requested_partitions = int(args.partitions)
+        effective_pop = int(requested_pop)
+        effective_partitions = int(requested_partitions)
+        n_ref_dirs = 0
+        algorithm_used = str(args.algorithm)
+        ref_dirs = None
 
         if args.algorithm == "nsga3":
-            if problem.n_obj < 3:
-                # Not strictly required, but NSGA-III is usually for many-objective
-                pass
+            max_ref_dirs = int(max(1, args.nsga3_max_ref_dirs))
+            chosen_ref_dirs = None
+            chosen_partitions = None
+            for part in range(int(max(1, requested_partitions)), 0, -1):
+                rd = get_reference_directions("das-dennis", problem.n_obj, n_partitions=part)
+                if int(len(rd)) <= max_ref_dirs:
+                    chosen_ref_dirs = rd
+                    chosen_partitions = part
+                    break
+            if chosen_ref_dirs is None or chosen_partitions is None:
+                raise RuntimeError(
+                    "Unable to satisfy NSGA-III reference direction cap. "
+                    f"Try smaller --partitions or larger --nsga3-max-ref-dirs "
+                    f"(requested partitions={requested_partitions}, cap={max_ref_dirs})."
+                )
 
-            # Setup reference directions
-            ref_dirs = get_reference_directions(
-                "das-dennis", problem.n_obj, n_partitions=args.partitions
-            )
+            ref_dirs = np.asarray(chosen_ref_dirs, dtype=np.float64)
+            n_ref_dirs = int(ref_dirs.shape[0])
+            effective_partitions = int(chosen_partitions)
+            effective_pop = int(max(requested_pop, n_ref_dirs))
 
             if args.verbose:
-                print(f"Reference directions: {len(ref_dirs)} points")
-
-            if args.pop < len(ref_dirs):
-                if args.verbose:
-                    print(
-                        f"WARNING: Population size ({args.pop}) < Reference directions ({len(ref_dirs)})"
-                    )
-                    print("Increasing population size to match reference directions.")
-                args.pop = len(ref_dirs)
+                print(f"Reference directions: {n_ref_dirs} points")
 
             algorithm = NSGA3(
-                pop_size=args.pop,
+                pop_size=effective_pop,
                 ref_dirs=ref_dirs,
                 prob_neighbor_mating=0.7,
             )
         else:
-            algorithm = NSGA2(pop_size=args.pop)
+            algorithm = NSGA2(pop_size=effective_pop)
         termination = get_termination("n_gen", args.gen)
 
         if args.verbose:
-            print(f"Starting {args.algorithm.upper()}: pop={args.pop}, gen={args.gen}")
+            print(
+                f"Starting {args.algorithm.upper()}: pop={effective_pop}, gen={args.gen}"
+            )
+            if args.algorithm == "nsga3":
+                print(
+                    "NSGA-III settings: "
+                    f"requested_pop={requested_pop}, effective_pop={effective_pop}, "
+                    f"requested_partitions={requested_partitions}, effective_partitions={effective_partitions}, "
+                    f"n_ref_dirs={n_ref_dirs}, ref_dir_cap={int(args.nsga3_max_ref_dirs)}"
+                )
             print(f"Context: rpm={args.rpm}, torque={args.torque}, fidelity={args.fidelity}")
             print(
                 "Constraint phase: "
@@ -308,6 +361,8 @@ def main(argv: list[str] | None = None) -> int:
         X = result.X
         F = result.F
         G_result = getattr(result, "G", None)
+        n_eval_errors = int(getattr(problem, "n_eval_errors", 0))
+        eval_error_signatures = dict(getattr(problem, "eval_error_signatures", {}))
         X_pop = result.pop.get("X") if result.pop is not None else None
         F_pop = result.pop.get("F") if result.pop is not None else None
         G_pop = result.pop.get("G") if result.pop is not None else None
@@ -330,22 +385,35 @@ def main(argv: list[str] | None = None) -> int:
         if X is None or len(X) == 0:
             n_pareto = 0
             G = np.array([]).reshape(0, problem.N_CONSTR)
+            X = np.array([]).reshape(0, problem.n_var)
+            F = np.array([]).reshape(0, problem.n_obj)
             # Save empty arrays
-            np.save(output_dir / "pareto_X.npy", np.array([]).reshape(0, problem.n_var))
-            np.save(output_dir / "pareto_F.npy", np.array([]).reshape(0, problem.n_obj))
+            np.save(output_dir / "pareto_X.npy", X)
+            np.save(output_dir / "pareto_F.npy", F)
             np.save(output_dir / "pareto_G.npy", G)
         else:
             # Get constraint values for Pareto solutions (reuse result.G if present)
-            n_pareto = X.shape[0]
+            X = np.asarray(X, dtype=np.float64)
+            F = np.asarray(F, dtype=np.float64)
+            n_pareto = int(X.shape[0])
             if G_result is not None and getattr(G_result, "shape", (0,))[0] == n_pareto:
-                G = G_result
+                G = np.asarray(G_result, dtype=np.float64)
             else:
                 from ..core.evaluator import evaluate_candidate
 
                 G = np.zeros((n_pareto, problem.N_CONSTR), dtype=np.float64)
                 for i, x in enumerate(X):
-                    res = evaluate_candidate(x, ctx)
-                    G[i] = res.G
+                    try:
+                        res = evaluate_candidate(x, ctx)
+                        G[i] = res.G
+                    except Exception:
+                        G[i] = np.full(problem.N_CONSTR, 1.0e3, dtype=np.float64)
+
+            order = _deterministic_order(F=F, X=X)
+            if order.size == n_pareto and n_pareto > 0:
+                X = X[order]
+                F = F[order]
+                G = G[order]
 
             # Save results
             np.save(output_dir / "pareto_X.npy", X)
@@ -386,8 +454,17 @@ def main(argv: list[str] | None = None) -> int:
         "n_pareto": n_pareto,
         "n_final_pop": int(X_pop.shape[0]) if X_pop is not None else 0,
         "n_evals": problem.n_evals,
+        "n_eval_errors": int(n_eval_errors),
+        "eval_error_signatures": eval_error_signatures,
         "elapsed_s": t_elapsed,
-        "pop_size": args.pop,
+        "pop_size": int(effective_pop),
+        "requested_pop": int(requested_pop),
+        "effective_pop": int(effective_pop),
+        "requested_partitions": int(requested_partitions),
+        "effective_partitions": int(effective_partitions),
+        "n_ref_dirs": int(n_ref_dirs),
+        "nsga3_max_ref_dirs": int(args.nsga3_max_ref_dirs),
+        "algorithm": str(algorithm_used),
         "n_gen": args.gen,
         "rpm": args.rpm,
         "torque": args.torque,
@@ -404,6 +481,8 @@ def main(argv: list[str] | None = None) -> int:
         "tribology_scuff_method": str(args.tribology_scuff_method),
         "strict_data": bool(args.strict_data),
         "strict_tribology_data": args.strict_tribology_data,
+        "production_profile": STRICT_PRODUCTION_PROFILE,
+        "allow_nonproduction_paths": bool(args.allow_nonproduction_paths),
         "surrogate_validation_mode": str(args.surrogate_validation_mode),
         "machining_mode": str(args.machining_mode),
         "encoding_version": ENCODING_VERSION,
@@ -439,6 +518,32 @@ def main(argv: list[str] | None = None) -> int:
         "contract_summary": contract_summary,
     }
 
+    fallback_paths_used: list[str] = []
+    if int(n_pareto) == 0:
+        fallback_paths_used.append("empty_pareto_front")
+    if int(n_eval_errors) > 0:
+        fallback_paths_used.append("candidate_eval_error_penalties")
+
+    nonproduction_overrides: list[str] = []
+    if bool(args.allow_nonproduction_paths):
+        nonproduction_overrides.append("allow_nonproduction_paths")
+
+    production_gate = evaluate_production_gate(
+        production_profile=STRICT_PRODUCTION_PROFILE,
+        allow_nonproduction_paths=bool(args.allow_nonproduction_paths),
+        fallback_paths_used=fallback_paths_used,
+        nonproduction_overrides=nonproduction_overrides,
+        n_pareto=int(n_pareto),
+        effective_pop=int(effective_pop),
+        feasible_fraction=float(summary["feasible_fraction"]),
+        n_eval_errors=int(n_eval_errors),
+        algorithm_used=str(algorithm_used),
+        fidelity=int(args.fidelity),
+        constraint_phase=str(args.constraint_phase),
+    )
+    summary["production_gate"] = production_gate
+    summary["production_gate_pass"] = bool(production_gate.get("production_gate_pass", False))
+
     X_archive = (
         np.asarray(X, dtype=np.float64)
         if X is not None
@@ -456,6 +561,25 @@ def main(argv: list[str] | None = None) -> int:
 
     save_archive(output_dir, X_archive, F_archive, np.asarray(G, dtype=np.float64), summary)
 
+    artifact_hashes = {
+        "pareto_X_sha256": _file_sha256(output_dir / "pareto_X.npy"),
+        "pareto_F_sha256": _file_sha256(output_dir / "pareto_F.npy"),
+        "pareto_G_sha256": _file_sha256(output_dir / "pareto_G.npy"),
+        "final_pop_X_sha256": _file_sha256(output_dir / "final_pop_X.npy"),
+        "final_pop_F_sha256": _file_sha256(output_dir / "final_pop_F.npy"),
+        "final_pop_G_sha256": _file_sha256(output_dir / "final_pop_G.npy"),
+    }
+    summary_path = output_dir / "summary.json"
+    if summary_path.exists():
+        try:
+            persisted = json.loads(summary_path.read_text(encoding="utf-8"))
+        except Exception:
+            persisted = {}
+        persisted["artifact_hashes"] = artifact_hashes
+        persisted["pareto_ordering"] = "lexicographic_F_then_X"
+        summary_path.write_text(json.dumps(persisted, indent=2), encoding="utf-8")
+        summary = persisted
+
     if args.verbose:
         print(f"\nCompleted in {t_elapsed:.1f}s")
         print(f"Pareto front: {n_pareto} solutions")
@@ -467,8 +591,17 @@ def main(argv: list[str] | None = None) -> int:
             f"η_gear={summary['best_eta_gear']:.3f}, "
             f"η_total={summary['best_eta_total']:.3f}"
         )
+        if not bool(summary.get("production_gate_pass", False)):
+            print(
+                "Production gate failed: "
+                f"{summary.get('production_gate', {}).get('production_gate_failures', [])}"
+            )
         print(f"Results saved to: {output_dir}")
 
+    if not bool(summary.get("production_gate_pass", False)) and not bool(
+        args.allow_nonproduction_paths
+    ):
+        return 2
     return 0
 
 

@@ -73,6 +73,8 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
     def _mock_workflow(args):
         captured["thermo_symbolic_mode"] = str(args.thermo_symbolic_mode)
         captured["fidelity"] = int(args.fidelity)
+        captured["constraint_phase"] = str(args.constraint_phase)
+        captured["allow_nonproduction_paths"] = bool(args.allow_nonproduction_paths)
         captured["enforce_contract_routing"] = bool(args.enforce_contract_routing)
         captured["thermo_constants_path"] = str(args.thermo_constants_path)
         captured["thermo_anchor_manifest"] = str(args.thermo_anchor_manifest)
@@ -83,7 +85,9 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
         code = run_main()
     assert code == 0
     assert captured["thermo_symbolic_mode"] == "strict"
-    assert captured["fidelity"] == 0
+    assert captured["fidelity"] == 2
+    assert captured["constraint_phase"] == "downselect"
+    assert captured["allow_nonproduction_paths"] is False
     assert captured["enforce_contract_routing"] is False
     assert captured["thermo_constants_path"] == ""
     assert captured["thermo_anchor_manifest"] == ""

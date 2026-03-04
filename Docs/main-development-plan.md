@@ -238,10 +238,10 @@ Explore -> Exploit -> Lifetime (A->C) and F2 probe status.
 
 1. A->C strict artifact/data prerequisites are green
    (`a_to_c_hard_failed == 0` in `artifact_contract_audit.json`).
-2. A strict CasADi-backed A->C pass remains blocked in the active probe
-   interpreter (`/opt/miniconda3/bin/python`) where `casadi` is not installed.
-   CasADi is declared as an optional project dependency (`.[casadi]`), so this
-   is an environment/runtime availability issue, not a missing project feature.
+2. CasADi is available in the active probe interpreter
+   (`/opt/miniconda3/bin/python`, `casadi==3.7.0`); remaining strict A->C/F2
+   blockers are tracked as runtime/asset readiness issues in the linked
+   readiness artifacts.
 3. F2 probe blockers are captured and categorized in
    `outputs/readiness/f2_blockers.json`.
 
@@ -271,3 +271,59 @@ readiness for Pareto -> Explore/Exploit -> Single-candidate Lifetime.
    edges are expected with placeholder engine mode and required key coverage.
 3. Fidelity 2 probe failures remain tracked as blockers but are not treated as
    evidence of contract-shape closure unless key and routing requirements pass.
+
+## 11. Principles-First Explore-Exploit Status (2026-03-03)
+
+This appendix records the principles-first frontier expansion for
+`explore-exploit`.
+
+### 11.1 Design Note and Inputs
+
+1. Design and behavior note:
+   `Docs/explore-exploit-principles-mode.md`
+2. Principles profile:
+   `data/optimization/principles_frontier_profile_v1.json`
+3. Canonical source mapping:
+   `Docs/sources` remains the source-of-truth bundle and legacy ISO paths are
+   mapped via `Docs/items/legacy_migration_map.csv`.
+
+### 11.2 Readiness Artifact Links
+
+1. `outputs/readiness/architecture/architecture_gap_ledger.json`
+2. `outputs/readiness/architecture/edge_coverage_report.json`
+3. `outputs/readiness/architecture/key_parity_report_f0_vs_f2.json`
+4. `outputs/readiness/architecture/workflow_probe_results.json`
+5. `outputs/readiness/architecture/pipeline_arch_readiness_summary.md`
+
+## 12. Multi-Objective Production Hardening Status (2026-03-04)
+
+This appendix tracks strict-production hardening for multi-objective
+optimization execution (no surrogate training scope).
+
+### 12.1 Status Summary
+
+1. Strict production profile is default across Pareto, explore-exploit, and
+   orchestration entry points (`strict_prod`).
+2. `allow_nonproduction_paths` is explicit and auditable; non-production runs
+   are tagged with `nonproduction_overrides` and are not production-gate pass.
+3. NSGA-III default execution is bounded (`partitions=4`,
+   `nsga3_max_ref_dirs=192`) with deterministic partition fallback and emitted
+   effective-capacity metadata.
+4. Candidate-level evaluator exceptions are isolated with deterministic
+   penalties, counted in diagnostics, and enforced as strict failures via
+   production gate when nonzero.
+5. Candidate ranking/downselect scoring is normalized using robust objective
+   scales (`p95 - p05`, floored at `1e-9`) to remove objective-unit dominance.
+6. Deterministic archive ordering and artifact hash metadata are emitted for
+   Pareto outputs.
+
+### 12.2 Operator Reference
+
+1. Production runbook:
+   `Docs/multi-objective-production-runbook.md`
+2. Shared gate implementation:
+   `src/larrak2/optimization/production_gate.py`
+3. Core gate diagnostics keys:
+   `production_profile`, `production_gate_pass`, `production_gate_failures`,
+   `fallback_paths_used`, `nonproduction_overrides`, `n_eval_errors`,
+   `algorithm_used`, `fidelity`, `constraint_phase`

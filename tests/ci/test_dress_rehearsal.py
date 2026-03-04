@@ -36,10 +36,14 @@ def test_dress_rehearsal_end_to_end_smoke():
                 "--single-condition",
                 "--fidelity",
                 "0",
+                "--allow-nonproduction-paths",
+                "--allow-gate-failure",
                 "--pop",
                 "8",
                 "--gen",
                 "2",
+                "--algorithm",
+                "nsga2",
                 "--cem-top",
                 "5",
                 "--cem-min-feasible",
@@ -62,8 +66,9 @@ def test_dress_rehearsal_end_to_end_smoke():
 
         manifest = json.loads(manifest_path.read_text())
         assert manifest["workflow"] == "dress_rehearsal"
-        assert manifest["ready_for_quality_analysis"] is True
+        assert manifest["ready_for_quality_analysis"] is False
         assert manifest["steps"]["verify_surrogates"]["ok"] is True
         assert manifest["steps"]["unit_tests"]["ok"] is True
+        assert manifest["steps"]["unit_tests"].get("skipped") is True
         assert manifest["steps"]["optimization"]["ok"] is True
         assert manifest["steps"]["cem_validation"]["ok"] is True

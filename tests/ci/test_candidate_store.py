@@ -46,3 +46,42 @@ def test_candidate_store_feasible_filter_rank_and_export(tmp_path):
     assert payload["candidate_index"] == 2
     assert len(payload["x_full"]) == N_TOTAL
     assert payload["n_var"] == N_TOTAL
+
+
+def test_candidate_store_from_arrays_roundtrip_export(tmp_path):
+    x0 = mid_bounds_candidate()
+    X = np.vstack([x0, x0 * 0.98])
+    F = np.array(
+        [
+            [0.9, 1.1, 1.2],
+            [1.2, 0.8, 1.0],
+        ],
+        dtype=np.float64,
+    )
+    G = np.array(
+        [
+            [0.0, -0.1],
+            [0.05, 0.0],
+        ],
+        dtype=np.float64,
+    )
+    summary = {"fidelity": 0, "seed": 42, "rpm": 2100.0, "torque": 140.0}
+
+    store = CandidateStore.from_arrays(
+        X=X,
+        F=F,
+        G=G,
+        summary=summary,
+        source_dir=tmp_path,
+    )
+    assert store.n_candidates == 2
+    assert store.summary["fidelity"] == 0
+    assert store.source_dir == tmp_path
+    assert store.rank_indices(feasible_only=True) == [0]
+    assert store.rank_indices(feasible_only=False) == [0, 1]
+
+    out = store.export_x_full_star(0, tmp_path / "x_star_from_arrays.json")
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["candidate_index"] == 0
+    assert payload["source_dir"] == str(tmp_path)
+    assert len(payload["x_full"]) == N_TOTAL

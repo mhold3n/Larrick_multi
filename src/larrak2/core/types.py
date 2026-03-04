@@ -70,6 +70,8 @@ class EvalContext:
     thermo_anchor_manifest_path: str | None = None
     thermo_symbolic_mode: str = "strict"
     thermo_symbolic_artifact_path: str | None = None
+    production_profile: str = "strict_prod"
+    allow_nonproduction_paths: bool = False
     strict_data: bool = True
     strict_tribology_data: bool | None = None
     tribology_scuff_method: Literal["auto", "flash", "integral"] = "auto"
@@ -130,6 +132,8 @@ class EvalContext:
             raise ValueError(
                 f"machining_mode must be 'nn' or 'analytical', got {self.machining_mode}"
             )
+        if not str(self.production_profile).strip():
+            raise ValueError("production_profile must be non-empty")
 
 
 @dataclass

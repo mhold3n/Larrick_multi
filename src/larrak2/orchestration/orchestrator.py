@@ -21,6 +21,10 @@ from larrak2.architecture.contracts import (
 )
 from larrak2.core.encoding import N_TOTAL
 from larrak2.core.types import EvalContext
+from larrak2.optimization.production_gate import (
+    STRICT_PRODUCTION_PROFILE,
+    evaluate_production_gate,
+)
 
 from .budget import BudgetManager
 from .cache import EvaluationCache
@@ -123,8 +127,8 @@ class OrchestrationConfig:
 
     rpm: float = 3000.0
     torque: float = 200.0
-    fidelity: int = 0
-    constraint_phase: str = "explore"
+    fidelity: int = 2
+    constraint_phase: str = "downselect"
     tolerance_constraint_mode: str = "capability_floor"
     tolerance_threshold_mm: float = 0.24
 
@@ -150,6 +154,8 @@ class OrchestrationConfig:
     use_provenance: bool = True
     run_id: str | None = None
     enforce_contract_routing: bool = False
+    production_profile: str = STRICT_PRODUCTION_PROFILE
+    allow_nonproduction_paths: bool = False
 
     ipopt_options: dict[str, Any] = field(default_factory=dict)
 
@@ -160,6 +166,8 @@ class OrchestrationConfig:
             raise ValueError("batch_size must be > 0")
         if int(self.max_iterations) <= 0:
             raise ValueError("max_iterations must be > 0")
+        if str(self.constraint_phase) not in {"explore", "downselect"}:
+            raise ValueError("constraint_phase must be 'explore' or 'downselect'")
         if self.truth_dispatch_mode not in {"off", "manual", "auto"}:
             raise ValueError(
                 "truth_dispatch_mode must be one of {'off', 'manual', 'auto'}, "
@@ -187,6 +195,8 @@ class OrchestrationConfig:
             raise ValueError("thermo_symbolic_mode must be one of {'strict', 'warn', 'off'}")
         if self.machining_mode not in {"nn", "analytical"}:
             raise ValueError("machining_mode must be 'nn' or 'analytical'")
+        if not str(self.production_profile).strip():
+            raise ValueError("production_profile must be non-empty")
 
 
 @dataclass
@@ -295,6 +305,9 @@ class Orchestrator:
         self._truth_plan_tokens = self._normalize_truth_plan(self.config.truth_plan)
         self._lifetime_input_modes_seen: set[str] = set()
         self._lifetime_status_seen: set[str] = set()
+        self._heuristic_fallback_enabled = bool(
+            getattr(self.surrogate, "allow_heuristic_fallback", False)
+        )
 
     @property
     def run_id(self) -> str:
@@ -488,6 +501,8 @@ class Orchestrator:
                 if self.config.thermo_symbolic_artifact_path
                 else None
             ),
+            production_profile=str(self.config.production_profile),
+            allow_nonproduction_paths=bool(self.config.allow_nonproduction_paths),
             thermo_constants_path=(
                 str(self.config.thermo_constants_path).strip()
                 if self.config.thermo_constants_path
@@ -927,6 +942,29 @@ class Orchestrator:
         if bool(self.config.strict_data) and degraded_life_statuses:
             release_reasons.append("strict_lifetime_data_degraded")
         release_ready = len(release_reasons) == 0
+        production_gate = evaluate_production_gate(
+            production_profile=str(self.config.production_profile),
+            allow_nonproduction_paths=bool(self.config.allow_nonproduction_paths),
+            fallback_paths_used=list(release_reasons),
+            nonproduction_overrides=(
+                ["allow_nonproduction_paths"]
+                if bool(self.config.allow_nonproduction_paths)
+                else []
+            ),
+            n_eval_errors=0,
+            release_ready=bool(release_ready),
+            used_heuristic_fallback=bool(self._heuristic_fallback_enabled),
+            algorithm_used="orchestration_loop",
+            fidelity=int(self.config.fidelity),
+            constraint_phase=str(self.config.constraint_phase),
+        )
+        release_ready_final = bool(release_ready and production_gate.get("production_gate_pass", False))
+        release_reasons_final = sorted(
+            set(
+                list(release_reasons)
+                + [str(v) for v in production_gate.get("production_gate_failures", [])]
+            )
+        )
 
         manifest: dict[str, Any] = {
             "workflow": "orchestrate",
@@ -960,11 +998,12 @@ class Orchestrator:
                 "degraded_statuses": degraded_life_statuses,
             },
             "release_readiness": {
-                "release_ready": bool(release_ready),
+                "release_ready": bool(release_ready_final),
                 "strict_data": bool(self.config.strict_data),
                 "constraint_phase": str(self.config.constraint_phase),
-                "reasons": release_reasons,
+                "reasons": release_reasons_final,
             },
+            "production_gate": _json_safe(production_gate),
             "stats": {
                 "budget": _json_safe(self.budget.get_statistics()),
                 "cache": _json_safe(self.cache.get_statistics()),

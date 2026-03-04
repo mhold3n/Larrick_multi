@@ -18,7 +18,11 @@ import numpy as np
 
 from larrak2.adapters.calculix import CalculiXRunner
 from larrak2.adapters.openfoam import OpenFoamRunner
-from larrak2.architecture.contracts import CONTRACT_VERSION, active_contract_tracer
+from larrak2.architecture.contracts import (
+    CONTRACT_VERSION,
+    active_contract_tracer,
+    get_active_contract_tracer,
+)
 from larrak2.cli.run_pareto import main as run_pareto_main
 from larrak2.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,
@@ -78,6 +82,12 @@ def run_pareto_grid_workflow(args: argparse.Namespace) -> int:
                 str(args.pop),
                 "--gen",
                 str(args.gen),
+                "--algorithm",
+                str(getattr(args, "algorithm", "nsga3")),
+                "--partitions",
+                str(getattr(args, "partitions", 4)),
+                "--nsga3-max-ref-dirs",
+                str(getattr(args, "nsga3_max_ref_dirs", 192)),
                 "--rpm",
                 str(rpm),
                 "--torque",
@@ -134,6 +144,8 @@ def run_pareto_grid_workflow(args: argparse.Namespace) -> int:
                 argv.append("--strict-tribology-data")
             elif strict_trib is False:
                 argv.append("--no-strict-tribology-data")
+            if bool(getattr(args, "allow_nonproduction_paths", False)):
+                argv.append("--allow-nonproduction-paths")
             if args.verbose:
                 argv.append("--verbose")
 
@@ -428,6 +440,8 @@ def _build_eval_context_from_args(
             getattr(args, "thermo_symbolic_artifact_path", "")
         ).strip()
         or None,
+        production_profile="strict_prod",
+        allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
         machining_mode=str(getattr(args, "machining_mode", "nn")),
         machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,
     )
@@ -1524,6 +1538,12 @@ def run_dress_rehearsal_workflow(args: argparse.Namespace) -> int:
             str(args.pop),
             "--gen",
             str(args.gen),
+            "--algorithm",
+            str(getattr(args, "algorithm", "nsga3")),
+            "--partitions",
+            str(getattr(args, "partitions", 4)),
+            "--nsga3-max-ref-dirs",
+            str(getattr(args, "nsga3_max_ref_dirs", 192)),
             "--rpm",
             str(rpm_i),
             "--torque",
@@ -1575,6 +1595,8 @@ def run_dress_rehearsal_workflow(args: argparse.Namespace) -> int:
         ]
         if args.verbose:
             pareto_argv.append("--verbose")
+        if bool(getattr(args, "allow_nonproduction_paths", False)):
+            pareto_argv.append("--allow-nonproduction-paths")
         _log(
             "Invoking run_pareto",
             index=i,
@@ -1724,7 +1746,7 @@ def run_dress_rehearsal_workflow(args: argparse.Namespace) -> int:
     X_source = X
     F_source = F
     source_contexts = pareto_contexts
-    if n_pareto == 0:
+    if n_pareto == 0 and bool(getattr(args, "allow_nonproduction_paths", False)):
         source = "final_population_fallback"
         X_source = final_pop_X
         F_source = final_pop_F
@@ -1926,15 +1948,23 @@ def _parse_int_list(raw: str) -> list[int] | None:
 def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
     """Two-stage pipeline: explore Pareto set then exploit selected slices via CasADi."""
     from larrak2.pipelines.explore_exploit import run_two_stage_pipeline
+    from larrak2.pipelines.principles_frontier import synthesize_principles_frontier
 
+    source_mode = str(getattr(args, "explore_source", "principles")).strip().lower()
     pareto_dir = Path(args.pareto_dir)
-    if bool(args.run_explore):
+    if source_mode == "archive" and bool(args.run_explore):
         pareto_dir.mkdir(parents=True, exist_ok=True)
         explore_argv = [
             "--pop",
             str(args.pop),
             "--gen",
             str(args.gen),
+            "--algorithm",
+            str(getattr(args, "algorithm", "nsga3")),
+            "--partitions",
+            str(getattr(args, "partitions", 4)),
+            "--nsga3-max-ref-dirs",
+            str(getattr(args, "nsga3_max_ref_dirs", 192)),
             "--rpm",
             str(args.rpm),
             "--torque",
@@ -1959,6 +1989,8 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
             explore_argv.append("--strict-tribology-data")
         elif strict_trib is False:
             explore_argv.append("--no-strict-tribology-data")
+        if bool(getattr(args, "allow_nonproduction_paths", False)):
+            explore_argv.append("--allow-nonproduction-paths")
         if bool(args.verbose):
             explore_argv.append("--verbose")
         code = run_pareto_main(explore_argv)
@@ -1966,13 +1998,14 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
             print("Explore stage failed: run_pareto returned non-zero exit code")
             return int(code)
 
-    for name in ("pareto_X.npy", "pareto_F.npy", "pareto_G.npy"):
-        if not (pareto_dir / name).exists():
-            print(
-                f"Missing Pareto artifact '{name}' in {pareto_dir}. "
-                "Run with --run-explore or point --pareto-dir to a completed archive."
-            )
-            return 1
+    if source_mode == "archive":
+        for name in ("pareto_X.npy", "pareto_F.npy", "pareto_G.npy"):
+            if not (pareto_dir / name).exists():
+                print(
+                    f"Missing Pareto artifact '{name}' in {pareto_dir}. "
+                    "Run with --run-explore or point --pareto-dir to a completed archive."
+                )
+                return 1
 
     lowfi_ctx = EvalContext(
         rpm=float(args.rpm),
@@ -1989,6 +2022,8 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
             getattr(args, "thermo_symbolic_artifact_path", "")
         ).strip()
         or None,
+        production_profile="strict_prod",
+        allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
         tribology_scuff_method=str(getattr(args, "tribology_scuff_method", "auto")),
     )
@@ -2007,6 +2042,8 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
             str(getattr(args, "thermo_symbolic_artifact_path", "")).strip()
             or str(DEFAULT_THERMO_SYMBOLIC_ARTIFACT)
         ),
+        production_profile="strict_prod",
+        allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
         tribology_scuff_method=str(getattr(args, "tribology_scuff_method", "auto")),
     )
@@ -2026,6 +2063,7 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+    principles_result = None
     trace_path = outdir / "contract_trace.jsonl"
     summary_path = outdir / "contract_summary.json"
     tracer_fidelity = (
@@ -2037,32 +2075,110 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         fidelity=tracer_fidelity,
         enforce_routing=bool(getattr(args, "enforce_contract_routing", False)),
     ):
-        manifest = run_two_stage_pipeline(
-            pareto_dir=pareto_dir,
-            outdir=outdir,
-            lowfi_ctx=lowfi_ctx,
-            hifi_ctx=hifi_ctx,
-            top_k=int(args.top_k),
-            candidate_index=None if int(args.candidate_index) < 0 else int(args.candidate_index),
-            rank_weights=weights,
-            refine_indices=refine_indices,
-            mode=str(args.mode),
-            backend=str(args.backend),
-            active_k=args.active_k,
-            min_per_group=int(args.min_per_group),
-            slice_method=str(args.slice_method),
-            trust_radius=args.trust_radius,
-            max_iter=int(args.max_iter),
-            tol=float(args.tol),
-            eps_margin=float(args.eps_margin),
-            run_tribology_stage=not bool(args.skip_tribology),
-            ipopt_options=ipopt_options or None,
-            stack_model_path=str(args.stack_model_path).strip() or None,
-            contract_version=CONTRACT_VERSION,
-            contract_trace_file=str(trace_path),
-            contract_summary_file=str(summary_path),
-            architecture_probe_mode=bool(getattr(args, "architecture_probe_mode", False)),
-        )
+        candidate_store = None
+        effective_pareto_source = pareto_dir
+        if source_mode == "principles":
+            export_archive = (
+                str(getattr(args, "principles_export_archive_dir", "")).strip()
+                or str(outdir / "principles_pareto")
+            )
+            principles_result = synthesize_principles_frontier(
+                outdir=outdir,
+                ctx=lowfi_ctx,
+                profile_name=str(getattr(args, "principles_profile", "iso_litvin_v1")),
+                seed=int(args.seed),
+                seed_count=int(getattr(args, "principles_seed_count", 64)),
+                min_frontier_size=int(getattr(args, "principles_frontier_min_size", 8)),
+                root_max_iter=int(getattr(args, "principles_root_max_iter", 80)),
+                export_archive_dir=export_archive,
+                contract_version=CONTRACT_VERSION,
+                allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
+            )
+            candidate_store = principles_result.store
+            effective_pareto_source = Path(principles_result.pareto_source)
+
+        try:
+            manifest = run_two_stage_pipeline(
+                pareto_dir=effective_pareto_source,
+                candidate_store=candidate_store,
+                outdir=outdir,
+                lowfi_ctx=lowfi_ctx,
+                hifi_ctx=hifi_ctx,
+                top_k=int(args.top_k),
+                candidate_index=None if int(args.candidate_index) < 0 else int(args.candidate_index),
+                rank_weights=weights,
+                refine_indices=refine_indices,
+                mode=str(args.mode),
+                backend=str(args.backend),
+                active_k=args.active_k,
+                min_per_group=int(args.min_per_group),
+                slice_method=str(args.slice_method),
+                trust_radius=args.trust_radius,
+                max_iter=int(args.max_iter),
+                tol=float(args.tol),
+                eps_margin=float(args.eps_margin),
+                run_tribology_stage=not bool(args.skip_tribology),
+                ipopt_options=ipopt_options or None,
+                stack_model_path=str(args.stack_model_path).strip() or None,
+                contract_version=CONTRACT_VERSION,
+                contract_trace_file=str(trace_path),
+                contract_summary_file=str(summary_path),
+                architecture_probe_mode=bool(getattr(args, "architecture_probe_mode", False)),
+                explore_source=source_mode,
+                principles_profile=(
+                    str(principles_result.profile_name)
+                    if principles_result is not None
+                    else str(getattr(args, "principles_profile", ""))
+                ),
+                principles_frontier_gate=(
+                    dict(principles_result.gate) if principles_result is not None else {}
+                ),
+                principles_artifacts=(
+                    dict(principles_result.artifacts) if principles_result is not None else {}
+                ),
+                production_profile="strict_prod",
+                allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
+            )
+        except Exception:
+            if bool(getattr(args, "architecture_probe_mode", False)):
+                tracer = get_active_contract_tracer()
+                contract_summary = tracer.summary_payload() if tracer is not None else {}
+                failure_manifest = {
+                    "workflow": "explore_exploit",
+                    "selected_indices": [],
+                    "pareto_source": str(effective_pareto_source),
+                    "explore_source": source_mode,
+                    "principles_profile": (
+                        str(principles_result.profile_name)
+                        if principles_result is not None
+                        else str(getattr(args, "principles_profile", ""))
+                    ),
+                    "principles_frontier_gate": (
+                        dict(principles_result.gate) if principles_result is not None else {}
+                    ),
+                    "principles_artifacts": (
+                        dict(principles_result.artifacts) if principles_result is not None else {}
+                    ),
+                    "contract_version": CONTRACT_VERSION,
+                    "contract_trace_file": str(trace_path),
+                    "contract_summary_file": str(summary_path),
+                    "contract_summary": contract_summary,
+                    "release_readiness": {
+                        "release_ready": False,
+                        "strict_data": bool(hifi_ctx.strict_data),
+                        "constraint_phase": str(hifi_ctx.constraint_phase),
+                        "reasons": ["architecture_probe_runtime_exception"],
+                    },
+                    "failure": {
+                        "error_type": str(sys.exc_info()[0].__name__) if sys.exc_info()[0] else "",
+                        "error_message": str(sys.exc_info()[1]) if sys.exc_info()[1] else "",
+                    },
+                }
+                (outdir / "explore_exploit_manifest.json").write_text(
+                    json.dumps(failure_manifest, indent=2),
+                    encoding="utf-8",
+                )
+            raise
 
     manifest_path = Path(args.outdir) / "explore_exploit_manifest.json"
     print("Explore->Exploit pipeline complete.")
@@ -2144,7 +2260,8 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         seed=int(args.seed),
         rpm=float(args.rpm),
         torque=float(args.torque),
-        fidelity=int(getattr(args, "fidelity", 0)),
+        fidelity=int(getattr(args, "fidelity", 2)),
+        constraint_phase=str(getattr(args, "constraint_phase", "downselect")),
         enforce_contract_routing=bool(getattr(args, "enforce_contract_routing", False)),
         truth_dispatch_mode=str(args.truth_dispatch_mode),
         truth_plan=truth_tokens,
@@ -2169,6 +2286,8 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         or None,
         machining_mode=str(getattr(args, "machining_mode", "nn")),
         machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,
+        allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
+        production_profile="strict_prod",
     )
 
     cem = CEMAdapter()

@@ -39,6 +39,15 @@ def _fit_weights(raw: np.ndarray | None, n_obj: int) -> np.ndarray:
     return weights[:n_obj]
 
 
+def _objective_scales(F: np.ndarray) -> np.ndarray:
+    arr = np.asarray(F, dtype=np.float64)
+    if arr.ndim != 2 or arr.shape[0] == 0:
+        return np.ones(arr.shape[1] if arr.ndim == 2 else 0, dtype=np.float64)
+    q05 = np.quantile(arr, 0.05, axis=0)
+    q95 = np.quantile(arr, 0.95, axis=0)
+    return np.maximum(q95 - q05, 1e-9)
+
+
 class CandidateStore:
     """Repository-backed candidate pool loaded from Pareto artifacts."""
 
@@ -75,6 +84,20 @@ class CandidateStore:
         root = Path(source_dir)
         X, F, G, summary = load_archive(root)
         return cls(source_dir=root, X=X, F=F, G=G, summary=summary)
+
+    @classmethod
+    def from_arrays(
+        cls,
+        *,
+        X: np.ndarray,
+        F: np.ndarray,
+        G: np.ndarray,
+        summary: dict[str, Any] | None = None,
+        source_dir: str | Path | None = None,
+    ) -> CandidateStore:
+        root = Path(source_dir) if source_dir is not None else Path(".")
+        payload = dict(summary or {})
+        return cls(source_dir=root, X=X, F=F, G=G, summary=payload)
 
     @property
     def n_candidates(self) -> int:
@@ -119,13 +142,16 @@ class CandidateStore:
         n_obj = int(self.F.shape[1])
         weights = _fit_weights(objective_weights, n_obj)
         feasible = self.feasible_mask(tolerance=tolerance)
+        scales = _objective_scales(self.F)
 
         rows: list[tuple[float, int]] = []
         for i in range(self.n_candidates):
             if feasible_only and not bool(feasible[i]):
                 continue
             max_v = float(max(0.0, np.max(self.G[i]))) if self.G.shape[1] > 0 else 0.0
-            score = float(np.dot(weights, self.F[i])) + float(violation_penalty) * max_v * max_v
+            score = float(np.dot(weights, self.F[i] / np.maximum(scales, 1e-9))) + float(
+                violation_penalty
+            ) * max_v * max_v
             rows.append((score, int(i)))
 
         if not rows and feasible_only:

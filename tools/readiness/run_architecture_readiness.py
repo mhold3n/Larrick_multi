@@ -7,6 +7,7 @@ import argparse
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -14,8 +15,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src"
@@ -28,9 +27,6 @@ from larrak2.architecture.contracts import (  # noqa: E402
     CRITICAL_REAL_KEY_PATHS_STAGE_A_TO_C,
     EDGE_IDS,
 )
-from larrak2.core.archive_io import save_archive  # noqa: E402
-from larrak2.core.encoding import mid_bounds_candidate  # noqa: E402
-
 THERMO_CONSTANTS_REL_PATH = Path("data/thermo/literature_constants_v1.json")
 THERMO_ANCHOR_REL_PATH = Path("data/thermo/anchor_manifest_v1.json")
 KNOWN_BLOCKER_TYPES = {
@@ -80,22 +76,24 @@ def _classify_failure(message: str) -> str:
     if "contract routing violation" in text or "routing violation" in text:
         return "fidelity_routing_gap"
     if (
-        "missing required" in text
-        or "objective dimensionality mismatch" in text
-        or "objective name mismatch" in text
-    ):
-        return "contract_shape_gap"
-    if (
         "no module named" in text
         or "filenotfounderror" in text
         or "quality_report" in text
         or "missing artifact" in text
         or "no hard-feasible high-fidelity candidates qualified for downselect" in text
+        or "no_hard_feasible_high_fidelity_candidates" in text
         or "thermo validation failed" in text
         or "anchor manifest" in text
         or "not found" in text
     ):
         return "runtime_dependency_gap"
+    if (
+        "missing required" in text
+        or "objective dimensionality mismatch" in text
+        or "objective name mismatch" in text
+        or "principles_frontier_gate_failed" in text
+    ):
+        return "contract_shape_gap"
     return "orchestration_wiring_gap"
 
 
@@ -152,29 +150,6 @@ def _probe_operating_point(fidelity: int) -> tuple[float, float]:
     return 2000.0, 80.0
 
 
-def _seed_pareto_archive(pareto_dir: Path, fidelity: int, *, rpm: float, torque: float) -> None:
-    pareto_dir.mkdir(parents=True, exist_ok=True)
-    x = mid_bounds_candidate()
-    X = x.reshape(1, -1)
-    F = [[1.0, 1.1, 0.9, 0.2, 0.1, 0.05]]
-    G = [[0.0] * 23]
-    summary = {
-        "n_pareto": 1,
-        "n_obj": 6,
-        "n_constr": 23,
-        "fidelity": int(fidelity),
-        "rpm": float(rpm),
-        "torque": float(torque),
-    }
-    save_archive(
-        pareto_dir,
-        X,
-        np.asarray(F, dtype=np.float64),
-        np.asarray(G, dtype=np.float64),
-        summary,
-    )
-
-
 def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
     specs: list[ProbeSpec] = []
     for fidelity in (0, 1, 2):
@@ -221,7 +196,6 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
         )
 
         ee_out = outdir / f"explore_exploit_f{fidelity}"
-        ee_pareto = ee_out / "pareto"
         specs.append(
             ProbeSpec(
                 workflow="explore_exploit",
@@ -233,8 +207,6 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     "-m",
                     "larrak2.cli.run",
                     "explore-exploit",
-                    "--pareto-dir",
-                    str(ee_pareto),
                     "--outdir",
                     str(ee_out),
                     "--rpm",
@@ -243,6 +215,16 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     str(torque),
                     "--seed",
                     str(200 + fidelity),
+                    "--explore-source",
+                    "principles",
+                    "--principles-profile",
+                    "iso_litvin_v1",
+                    "--principles-frontier-min-size",
+                    "2",
+                    "--principles-seed-count",
+                    "12",
+                    "--principles-root-max-iter",
+                    "12",
                     "--top-k",
                     "1",
                     "--mode",
@@ -333,10 +315,9 @@ def run_probes(outdir: Path) -> dict[str, Any]:
     manifests_by_probe: dict[str, dict[str, Any]] = {}
 
     for spec in probe_specs:
+        if spec.outdir.exists():
+            shutil.rmtree(spec.outdir)
         spec.outdir.mkdir(parents=True, exist_ok=True)
-        if spec.workflow == "explore_exploit":
-            rpm, torque = _probe_operating_point(spec.fidelity)
-            _seed_pareto_archive(spec.outdir / "pareto", spec.fidelity, rpm=rpm, torque=torque)
         log_path = logs_dir / f"{spec.workflow}_f{spec.fidelity}.log"
         env = os.environ.copy()
         env["PYTHONPATH"] = str(SRC_ROOT)
@@ -380,9 +361,23 @@ def run_probes(outdir: Path) -> dict[str, Any]:
         contract_artifacts_emitted = bool(
             manifest_exists and contract_trace_exists and contract_summary_exists
         )
+        principles_gate_payload = (
+            manifest_payload.get("principles_frontier_gate", {})
+            if isinstance(manifest_payload, dict)
+            else {}
+        )
+        principles_gate_present = bool(
+            isinstance(principles_gate_payload, dict) and len(principles_gate_payload) > 0
+        )
+        principles_gate_pass = bool(
+            isinstance(principles_gate_payload, dict)
+            and principles_gate_payload.get("frontier_gate_pass", False)
+        )
         lower_output = full_output.lower()
         no_hard_feasible_winner = (
-            "no hard-feasible high-fidelity candidates qualified for downselect" in lower_output
+            "no hard-feasible high-fidelity candidates qualified for downselect"
+            in lower_output
+            or "no_hard_feasible_high_fidelity_candidates" in lower_output
         )
         f0_no_winner_nonblocking = bool(
             spec.workflow == "explore_exploit"
@@ -394,6 +389,13 @@ def run_probes(outdir: Path) -> dict[str, Any]:
         if proc.returncode != 0 and not f0_no_winner_nonblocking:
             blocker_type = _classify_failure(full_output)
             blocker_detail = (full_output.strip().splitlines() or [""])[-1][:400]
+        elif (
+            spec.workflow == "explore_exploit"
+            and int(spec.fidelity) == 0
+            and not bool(principles_gate_present and principles_gate_pass)
+        ):
+            blocker_type = "contract_shape_gap"
+            blocker_detail = "principles_frontier_gate missing or failed for fidelity=0"
 
         probe_results.append(
             {
@@ -412,6 +414,8 @@ def run_probes(outdir: Path) -> dict[str, Any]:
                 "contract_trace_exists": contract_trace_exists,
                 "contract_summary_exists": contract_summary_exists,
                 "contract_artifacts_emitted": contract_artifacts_emitted,
+                "principles_frontier_gate_present": bool(principles_gate_present),
+                "principles_frontier_gate_pass": bool(principles_gate_pass),
                 "expected_non_blocking": bool(f0_no_winner_nonblocking),
                 "expected_non_blocking_reason": (
                     "f0_explore_exploit_no_hard_feasible_winner_manifest_emitted"
@@ -847,6 +851,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     outdir = Path(args.outdir)
+    if outdir.exists():
+        shutil.rmtree(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
     probe_data = run_probes(outdir)

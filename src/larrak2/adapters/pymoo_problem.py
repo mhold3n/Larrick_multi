@@ -56,6 +56,10 @@ class ParetoProblem(Problem):
 
         self.ctx = ctx
         self._n_evals = 0
+        self._n_eval_errors = 0
+        self._eval_error_signatures: dict[str, int] = {}
+        self._penalty_F = np.full(self.N_OBJ, 1.0e6, dtype=np.float64)
+        self._penalty_G = np.full(self.N_CONSTR, 1.0e3, dtype=np.float64)
 
     def _evaluate(
         self,
@@ -75,9 +79,18 @@ class ParetoProblem(Problem):
         G = np.zeros((n_pop, self.N_CONSTR), dtype=np.float64)
 
         for i, x in enumerate(X):
-            result = evaluate_candidate(x, self.ctx)
-            F[i] = result.F
-            G[i] = result.G
+            try:
+                result = evaluate_candidate(x, self.ctx)
+                F[i] = result.F
+                G[i] = result.G
+            except Exception as exc:
+                F[i] = self._penalty_F
+                G[i] = self._penalty_G
+                self._n_eval_errors += 1
+                signature = f"{type(exc).__name__}:{str(exc).strip()}"
+                self._eval_error_signatures[signature] = (
+                    int(self._eval_error_signatures.get(signature, 0)) + 1
+                )
             self._n_evals += 1
 
         out["F"] = F
@@ -88,11 +101,21 @@ class ParetoProblem(Problem):
         """Total number of evaluations performed."""
         return self._n_evals
 
+    @property
+    def n_eval_errors(self) -> int:
+        """Total number of candidate evaluations handled via deterministic penalty."""
+        return int(self._n_eval_errors)
+
+    @property
+    def eval_error_signatures(self) -> dict[str, int]:
+        """Counted evaluation error signatures observed while scoring populations."""
+        return dict(self._eval_error_signatures)
+
 
 def create_problem(
     rpm: float = 3000.0,
     torque: float = 200.0,
-    fidelity: int = 0,
+    fidelity: int = 2,
     seed: int = 42,
 ) -> ParetoProblem:
     """Create ParetoProblem with given context.

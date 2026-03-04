@@ -45,9 +45,17 @@ def main() -> int:
     pg.add_argument("--outdir-root", type=str, default="outputs/pareto_grid")
     pg.add_argument("--pop", type=int, default=64)
     pg.add_argument("--gen", type=int, default=50)
+    pg.add_argument("--algorithm", type=str, default="nsga3", choices=["nsga2", "nsga3"])
+    pg.add_argument("--partitions", type=int, default=4)
+    pg.add_argument("--nsga3-max-ref-dirs", type=int, default=192)
     pg.add_argument("--fidelity", type=int, default=2, choices=[0, 1, 2])
     pg.add_argument("--seed", type=int, default=42)
     pg.add_argument("--verbose", action="store_true")
+    pg.add_argument(
+        "--allow-nonproduction-paths",
+        action="store_true",
+        help="Allow non-production fallback paths and mark manifest as non-release",
+    )
     pg.add_argument("--bore-mm", type=float, default=80.0)
     pg.add_argument("--stroke-mm", type=float, default=90.0)
     pg.add_argument("--intake-port-area-m2", type=float, default=4.0e-4)
@@ -350,6 +358,9 @@ def main() -> int:
     dr.add_argument("--outdir", type=str, default="outputs/dress_rehearsal")
     dr.add_argument("--pop", type=int, default=16)
     dr.add_argument("--gen", type=int, default=5)
+    dr.add_argument("--algorithm", type=str, default="nsga3", choices=["nsga2", "nsga3"])
+    dr.add_argument("--partitions", type=int, default=4)
+    dr.add_argument("--nsga3-max-ref-dirs", type=int, default=192)
     dr.add_argument("--rpm", type=float, default=3000.0)
     dr.add_argument("--torque", type=float, default=200.0)
     dr.add_argument(
@@ -375,7 +386,7 @@ def main() -> int:
     dr.add_argument(
         "--constraint-phase",
         type=str,
-        default="explore",
+        default="downselect",
         choices=["explore", "downselect"],
     )
     dr.add_argument(
@@ -433,6 +444,11 @@ def main() -> int:
         help="Do not fail the command if the CEM gate is not met",
     )
     dr.set_defaults(fail_on_gate=True)
+    dr.add_argument(
+        "--allow-nonproduction-paths",
+        action="store_true",
+        help="Allow non-production fallback paths and mark manifest as non-release",
+    )
     dr.add_argument("--verbose", action="store_true")
     dr.add_argument("--bore-mm", type=float, default=80.0)
     dr.add_argument("--stroke-mm", type=float, default=90.0)
@@ -484,15 +500,55 @@ def main() -> int:
         help="Two-stage pipeline: Pareto explore then CasADi slice refinement",
     )
     ee.add_argument("--pareto-dir", type=str, default="outputs/diagnostic_results")
+    ee.add_argument(
+        "--explore-source",
+        type=str,
+        default="principles",
+        choices=["principles", "archive"],
+        help="Candidate source policy for exploit stage (principles synthesis or archive)",
+    )
+    ee.add_argument(
+        "--principles-profile",
+        type=str,
+        default="iso_litvin_v1",
+        help="Principles frontier profile id or JSON path",
+    )
+    ee.add_argument(
+        "--principles-frontier-min-size",
+        type=int,
+        default=8,
+        help="Minimum hard-feasible non-dominated frontier size required by principles gate",
+    )
+    ee.add_argument(
+        "--principles-seed-count",
+        type=int,
+        default=64,
+        help="Number of synthesized seed candidates for principles frontier generation",
+    )
+    ee.add_argument(
+        "--principles-root-max-iter",
+        type=int,
+        default=80,
+        help="Maximum rootfinding/minimization iterations used during principles restoration",
+    )
+    ee.add_argument(
+        "--principles-export-archive-dir",
+        type=str,
+        default="",
+        help="Optional output archive dir for synthesized principles frontier (defaults to <outdir>/principles_pareto)",
+    )
     ee.add_argument("--outdir", type=str, default="outputs/explore_exploit")
     ee.add_argument("--run-explore", action="store_true")
     ee.add_argument("--pop", type=int, default=64)
     ee.add_argument("--gen", type=int, default=50)
+    ee.add_argument("--algorithm", type=str, default="nsga3", choices=["nsga2", "nsga3"])
+    ee.add_argument("--partitions", type=int, default=4)
+    ee.add_argument("--nsga3-max-ref-dirs", type=int, default=192)
     ee.add_argument("--rpm", type=float, default=3000.0)
     ee.add_argument("--torque", type=float, default=200.0)
     ee.add_argument("--seed", type=int, default=42)
-    ee.add_argument("--explore-fidelity", type=int, default=1, choices=[0, 1, 2])
-    ee.add_argument("--hifi-fidelity", type=int, default=1, choices=[0, 1, 2])
+    ee.add_argument("--explore-fidelity", type=int, default=2, choices=[0, 1, 2])
+    ee.add_argument("--hifi-fidelity", type=int, default=2, choices=[0, 1, 2])
     ee.add_argument(
         "--hifi-constraint-phase",
         type=str,
@@ -505,9 +561,9 @@ def main() -> int:
         "--candidate-index",
         type=int,
         default=-1,
-        help="Explicit index from Pareto archive; -1 means ranked top-k selection",
+        help="Explicit index from selected candidate source; -1 means ranked top-k selection",
     )
-    ee.add_argument("--rank-weights", type=str, default="1,1,1,0,0,0")
+    ee.add_argument("--rank-weights", type=str, default="1,1,1,1,1,1")
     ee.add_argument("--refine-indices", type=str, default="")
     ee.add_argument(
         "--mode",
@@ -586,6 +642,11 @@ def main() -> int:
         action="store_true",
         help="Emit explore-exploit manifest/contract artifacts even when downselect has no hard-feasible winner",
     )
+    ee.add_argument(
+        "--allow-nonproduction-paths",
+        action="store_true",
+        help="Allow non-production fallback paths and mark manifest as non-release",
+    )
     ee.add_argument("--verbose", action="store_true")
 
     # --- Backend Orchestration ---
@@ -596,7 +657,14 @@ def main() -> int:
     orch.add_argument("--outdir", type=str, default="outputs/orchestration")
     orch.add_argument("--rpm", type=float, default=3000.0)
     orch.add_argument("--torque", type=float, default=200.0)
-    orch.add_argument("--fidelity", type=int, default=0, choices=[0, 1, 2])
+    orch.add_argument("--fidelity", type=int, default=2, choices=[0, 1, 2])
+    orch.add_argument(
+        "--constraint-phase",
+        type=str,
+        default="downselect",
+        choices=["explore", "downselect"],
+        help="Constraint phase used for release-readiness gating",
+    )
     orch.add_argument(
         "--enforce-contract-routing",
         action="store_true",
@@ -632,6 +700,11 @@ def main() -> int:
         "--allow-heuristic-surrogate-fallback",
         action="store_true",
         help="Explicit non-production override to allow heuristic surrogate fallback",
+    )
+    orch.add_argument(
+        "--allow-nonproduction-paths",
+        action="store_true",
+        help="Allow non-production fallback paths and mark manifest as non-release",
     )
     orch.add_argument(
         "--surrogate-validation-mode",
