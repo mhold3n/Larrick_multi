@@ -63,7 +63,9 @@ def _resolve_profile_path(profile_name: str, repo_root: Path) -> Path:
     return (repo_root / raw).resolve()
 
 
-def load_principles_profile(profile_name: str, *, repo_root: Path | None = None) -> tuple[Path, dict[str, Any]]:
+def load_principles_profile(
+    profile_name: str, *, repo_root: Path | None = None
+) -> tuple[Path, dict[str, Any]]:
     root = _repo_root() if repo_root is None else Path(repo_root)
     path = _resolve_profile_path(profile_name, root)
     if not path.exists():
@@ -93,7 +95,9 @@ def load_principles_profile(profile_name: str, *, repo_root: Path | None = None)
     return path, payload
 
 
-def _load_anchor_manifest(profile_payload: dict[str, Any], repo_root: Path) -> tuple[Path, dict[str, Any]]:
+def _load_anchor_manifest(
+    profile_payload: dict[str, Any], repo_root: Path
+) -> tuple[Path, dict[str, Any]]:
     raw = Path(str(profile_payload.get("anchor_manifest", "")))
     path = raw if raw.is_absolute() else (repo_root / raw)
     if not path.exists():
@@ -371,7 +375,9 @@ def _halton_samples(n: int, d: int, seed: int) -> np.ndarray:
         return rng.random((n_eff, d_eff))
 
 
-def _generate_seed_vectors(*, seed_count: int, seed: int, xl: np.ndarray, xu: np.ndarray) -> np.ndarray:
+def _generate_seed_vectors(
+    *, seed_count: int, seed: int, xl: np.ndarray, xu: np.ndarray
+) -> np.ndarray:
     n = int(max(1, seed_count))
     mid = np.asarray(mid_bounds_candidate(), dtype=np.float64)
     samples = _halton_samples(n=n, d=N_TOTAL, seed=seed)

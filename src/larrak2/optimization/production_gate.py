@@ -41,9 +41,7 @@ def evaluate_production_gate(
     eff_pop_i = int(effective_pop) if effective_pop is not None else None
     n_pareto_i = int(n_pareto) if n_pareto is not None else None
     n_eval_errors_i = int(max(0, int(n_eval_errors or 0)))
-    feasible_fraction_f = (
-        float(feasible_fraction) if feasible_fraction is not None else None
-    )
+    feasible_fraction_f = float(feasible_fraction) if feasible_fraction is not None else None
     phase = str(constraint_phase).strip()
     profile = str(production_profile).strip() or STRICT_PRODUCTION_PROFILE
     fidelity_i = int(fidelity) if fidelity is not None else None
@@ -125,9 +123,7 @@ def evaluate_production_gate(
             "frontier_gate_basis": str(frontier_gate_basis or ""),
             "release_ready": None if release_ready is None else bool(release_ready),
             "used_heuristic_fallback": (
-                None
-                if used_heuristic_fallback is None
-                else bool(used_heuristic_fallback)
+                None if used_heuristic_fallback is None else bool(used_heuristic_fallback)
             ),
         },
     }

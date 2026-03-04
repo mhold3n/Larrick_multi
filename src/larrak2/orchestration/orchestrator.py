@@ -947,9 +947,7 @@ class Orchestrator:
             allow_nonproduction_paths=bool(self.config.allow_nonproduction_paths),
             fallback_paths_used=list(release_reasons),
             nonproduction_overrides=(
-                ["allow_nonproduction_paths"]
-                if bool(self.config.allow_nonproduction_paths)
-                else []
+                ["allow_nonproduction_paths"] if bool(self.config.allow_nonproduction_paths) else []
             ),
             n_eval_errors=0,
             release_ready=bool(release_ready),
@@ -958,7 +956,9 @@ class Orchestrator:
             fidelity=int(self.config.fidelity),
             constraint_phase=str(self.config.constraint_phase),
         )
-        release_ready_final = bool(release_ready and production_gate.get("production_gate_pass", False))
+        release_ready_final = bool(
+            release_ready and production_gate.get("production_gate_pass", False)
+        )
         release_reasons_final = sorted(
             set(
                 list(release_reasons)

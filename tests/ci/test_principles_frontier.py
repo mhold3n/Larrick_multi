@@ -83,7 +83,9 @@ def test_synthesize_principles_frontier_emits_artifacts_and_gate(
         }
         return x, payload, F, G
 
-    monkeypatch.setattr("larrak2.pipelines.principles_frontier._build_operating_points", _fake_points)
+    monkeypatch.setattr(
+        "larrak2.pipelines.principles_frontier._build_operating_points", _fake_points
+    )
     monkeypatch.setattr("larrak2.pipelines.principles_frontier._restore_candidate", _fake_restore)
 
     result = synthesize_principles_frontier(
@@ -138,7 +140,9 @@ def test_synthesize_principles_frontier_f0_disallows_placeholder_gate_basis_when
         }
         return x, payload, F, G
 
-    monkeypatch.setattr("larrak2.pipelines.principles_frontier._build_operating_points", _fake_points)
+    monkeypatch.setattr(
+        "larrak2.pipelines.principles_frontier._build_operating_points", _fake_points
+    )
     monkeypatch.setattr("larrak2.pipelines.principles_frontier._restore_candidate", _fake_restore)
 
     result = synthesize_principles_frontier(
@@ -192,7 +196,9 @@ def test_synthesize_principles_frontier_f0_allows_placeholder_with_nonproduction
         }
         return x, payload, F, G
 
-    monkeypatch.setattr("larrak2.pipelines.principles_frontier._build_operating_points", _fake_points)
+    monkeypatch.setattr(
+        "larrak2.pipelines.principles_frontier._build_operating_points", _fake_points
+    )
     monkeypatch.setattr("larrak2.pipelines.principles_frontier._restore_candidate", _fake_restore)
 
     result = synthesize_principles_frontier(

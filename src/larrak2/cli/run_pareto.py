@@ -322,9 +322,7 @@ def main(argv: list[str] | None = None) -> int:
         termination = get_termination("n_gen", args.gen)
 
         if args.verbose:
-            print(
-                f"Starting {args.algorithm.upper()}: pop={effective_pop}, gen={args.gen}"
-            )
+            print(f"Starting {args.algorithm.upper()}: pop={effective_pop}, gen={args.gen}")
             if args.algorithm == "nsga3":
                 print(
                     "NSGA-III settings: "

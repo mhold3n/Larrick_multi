@@ -27,6 +27,7 @@ from larrak2.architecture.contracts import (  # noqa: E402
     CRITICAL_REAL_KEY_PATHS_STAGE_A_TO_C,
     EDGE_IDS,
 )
+
 THERMO_CONSTANTS_REL_PATH = Path("data/thermo/literature_constants_v1.json")
 THERMO_ANCHOR_REL_PATH = Path("data/thermo/anchor_manifest_v1.json")
 KNOWN_BLOCKER_TYPES = {
@@ -375,8 +376,7 @@ def run_probes(outdir: Path) -> dict[str, Any]:
         )
         lower_output = full_output.lower()
         no_hard_feasible_winner = (
-            "no hard-feasible high-fidelity candidates qualified for downselect"
-            in lower_output
+            "no hard-feasible high-fidelity candidates qualified for downselect" in lower_output
             or "no_hard_feasible_high_fidelity_candidates" in lower_output
         )
         f0_no_winner_nonblocking = bool(

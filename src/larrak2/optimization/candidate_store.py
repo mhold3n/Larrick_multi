@@ -149,9 +149,10 @@ class CandidateStore:
             if feasible_only and not bool(feasible[i]):
                 continue
             max_v = float(max(0.0, np.max(self.G[i]))) if self.G.shape[1] > 0 else 0.0
-            score = float(np.dot(weights, self.F[i] / np.maximum(scales, 1e-9))) + float(
-                violation_penalty
-            ) * max_v * max_v
+            score = (
+                float(np.dot(weights, self.F[i] / np.maximum(scales, 1e-9)))
+                + float(violation_penalty) * max_v * max_v
+            )
             rows.append((score, int(i)))
 
         if not rows and feasible_only:

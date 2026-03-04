@@ -2078,9 +2078,8 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         candidate_store = None
         effective_pareto_source = pareto_dir
         if source_mode == "principles":
-            export_archive = (
-                str(getattr(args, "principles_export_archive_dir", "")).strip()
-                or str(outdir / "principles_pareto")
+            export_archive = str(getattr(args, "principles_export_archive_dir", "")).strip() or str(
+                outdir / "principles_pareto"
             )
             principles_result = synthesize_principles_frontier(
                 outdir=outdir,
@@ -2105,7 +2104,9 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                 lowfi_ctx=lowfi_ctx,
                 hifi_ctx=hifi_ctx,
                 top_k=int(args.top_k),
-                candidate_index=None if int(args.candidate_index) < 0 else int(args.candidate_index),
+                candidate_index=None
+                if int(args.candidate_index) < 0
+                else int(args.candidate_index),
                 rank_weights=weights,
                 refine_indices=refine_indices,
                 mode=str(args.mode),
