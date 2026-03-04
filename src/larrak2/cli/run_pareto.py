@@ -528,6 +528,7 @@ def main(argv: list[str] | None = None) -> int:
 
     production_gate = evaluate_production_gate(
         production_profile=STRICT_PRODUCTION_PROFILE,
+        require_pareto_metrics=True,
         allow_nonproduction_paths=bool(args.allow_nonproduction_paths),
         fallback_paths_used=fallback_paths_used,
         nonproduction_overrides=nonproduction_overrides,
@@ -541,6 +542,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     summary["production_gate"] = production_gate
     summary["production_gate_pass"] = bool(production_gate.get("production_gate_pass", False))
+    summary["production_gate_failures"] = list(
+        production_gate.get("production_gate_failures", [])
+    )
+    summary["fallback_paths_used"] = list(production_gate.get("fallback_paths_used", []))
+    summary["nonproduction_overrides"] = list(
+        production_gate.get("nonproduction_overrides", [])
+    )
+    summary["n_eval_errors"] = int(production_gate.get("n_eval_errors", n_eval_errors))
+    summary["algorithm_used"] = str(production_gate.get("algorithm_used", algorithm_used))
+    summary["constraint_phase"] = str(
+        production_gate.get("constraint_phase", summary.get("constraint_phase", ""))
+    )
+    summary["fidelity"] = int(production_gate.get("fidelity", summary.get("fidelity", args.fidelity)))
+    summary["production_profile"] = str(
+        production_gate.get("production_profile", summary.get("production_profile", ""))
+    )
 
     X_archive = (
         np.asarray(X, dtype=np.float64)

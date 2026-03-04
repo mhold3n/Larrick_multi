@@ -144,6 +144,7 @@ class OrchestrationConfig:
     surrogate_validation_mode: str = "strict"
     thermo_symbolic_mode: str = "strict"
     thermo_symbolic_artifact_path: str | None = None
+    stack_model_path: str | None = None
     thermo_constants_path: str | None = None
     thermo_anchor_manifest_path: str | None = None
     machining_mode: str = "nn"
@@ -1003,6 +1004,23 @@ class Orchestrator:
                 "constraint_phase": str(self.config.constraint_phase),
                 "reasons": release_reasons_final,
             },
+            "production_profile": str(
+                production_gate.get("production_profile", self.config.production_profile)
+            ),
+            "production_gate_pass": bool(production_gate.get("production_gate_pass", False)),
+            "production_gate_failures": list(
+                production_gate.get("production_gate_failures", [])
+            ),
+            "fallback_paths_used": list(production_gate.get("fallback_paths_used", [])),
+            "nonproduction_overrides": list(
+                production_gate.get("nonproduction_overrides", [])
+            ),
+            "n_eval_errors": int(production_gate.get("n_eval_errors", 0)),
+            "algorithm_used": str(production_gate.get("algorithm_used", "")),
+            "fidelity": int(production_gate.get("fidelity", self.config.fidelity)),
+            "constraint_phase": str(
+                production_gate.get("constraint_phase", self.config.constraint_phase)
+            ),
             "production_gate": _json_safe(production_gate),
             "stats": {
                 "budget": _json_safe(self.budget.get_statistics()),

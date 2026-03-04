@@ -105,3 +105,5 @@ def test_nsga3_ref_dir_cap_and_effective_metadata_are_reported():
             "constraint_phase",
         ):
             assert key in gate
+            assert key in summary
+            assert summary[key] == gate[key]

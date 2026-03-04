@@ -9,8 +9,7 @@ from typing import Any
 import numpy as np
 
 from ..core.artifact_paths import (
-    DEFAULT_STACK_SURROGATE_ARTIFACT,
-    assert_not_legacy_models_path,
+    resolve_stack_artifact_path,
 )
 from ..core.encoding import N_TOTAL, bounds
 from ..core.evaluator import evaluate_candidate
@@ -243,8 +242,13 @@ def refine_candidate(
     }
 
     if backend == "casadi":
-        stack_path = surrogate_stack_path or str(DEFAULT_STACK_SURROGATE_ARTIFACT)
-        stack_path = str(assert_not_legacy_models_path(stack_path, purpose="stack surrogate model"))
+        stack_path = str(
+            resolve_stack_artifact_path(
+                fidelity=int(fidelity),
+                explicit_path=surrogate_stack_path,
+                must_exist=True,
+            )
+        )
         slice_result = solve_slice_with_ipopt(
             x0,
             ctx_refine,

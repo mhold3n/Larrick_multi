@@ -5,15 +5,20 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from larrak2.architecture.contracts import CONTRACT_VERSION
 from larrak2.cli.run import main as run_main
+from larrak2.cli.run_workflows import run_orchestrate_workflow
 
 
 def test_orchestrate_cli_smoke(tmp_path: Path) -> None:
     outdir = tmp_path / "orchestrate_smoke"
+    stack_model = tmp_path / "stack_f2_surrogate.npz"
+    stack_model.write_bytes(b"placeholder")
     proc = subprocess.run(
         [
             sys.executable,
@@ -41,6 +46,8 @@ def test_orchestrate_cli_smoke(tmp_path: Path) -> None:
             "off",
             "--thermo-symbolic-mode",
             "off",
+            "--stack-model-path",
+            str(stack_model),
         ],
         capture_output=True,
         text=True,
@@ -65,6 +72,20 @@ def test_orchestrate_cli_smoke(tmp_path: Path) -> None:
     assert manifest["contract_trace_file"] == str(contract_trace_path)
     assert manifest["contract_summary_file"] == str(contract_summary_path)
     assert isinstance(manifest.get("contract_summary", {}), dict)
+    gate = manifest["production_gate"]
+    for key in (
+        "production_profile",
+        "production_gate_pass",
+        "production_gate_failures",
+        "fallback_paths_used",
+        "nonproduction_overrides",
+        "n_eval_errors",
+        "algorithm_used",
+        "fidelity",
+        "constraint_phase",
+    ):
+        assert key in manifest
+        assert manifest[key] == gate[key]
 
 
 def test_orchestrate_cli_defaults(monkeypatch) -> None:
@@ -78,6 +99,10 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
         captured["enforce_contract_routing"] = bool(args.enforce_contract_routing)
         captured["thermo_constants_path"] = str(args.thermo_constants_path)
         captured["thermo_anchor_manifest"] = str(args.thermo_anchor_manifest)
+        captured["stack_model_path"] = str(args.stack_model_path)
+        captured["ipopt_max_iter"] = args.ipopt_max_iter
+        captured["ipopt_tol"] = args.ipopt_tol
+        captured["ipopt_linear_solver"] = args.ipopt_linear_solver
         return 0
 
     monkeypatch.setattr("larrak2.cli.run.run_orchestrate_workflow", _mock_workflow)
@@ -91,3 +116,141 @@ def test_orchestrate_cli_defaults(monkeypatch) -> None:
     assert captured["enforce_contract_routing"] is False
     assert captured["thermo_constants_path"] == ""
     assert captured["thermo_anchor_manifest"] == ""
+    assert captured["stack_model_path"] == ""
+    assert captured["ipopt_max_iter"] is None
+    assert captured["ipopt_tol"] is None
+    assert captured["ipopt_linear_solver"] is None
+
+
+def test_orchestrate_cli_passthroughs_casadi_options(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _mock_workflow(args):
+        captured["stack_model_path"] = str(args.stack_model_path)
+        captured["ipopt_max_iter"] = args.ipopt_max_iter
+        captured["ipopt_tol"] = args.ipopt_tol
+        captured["ipopt_linear_solver"] = args.ipopt_linear_solver
+        return 0
+
+    monkeypatch.setattr("larrak2.cli.run.run_orchestrate_workflow", _mock_workflow)
+    with patch.object(
+        sys,
+        "argv",
+        [
+            "run.py",
+            "orchestrate",
+            "--stack-model-path",
+            "outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz",
+            "--ipopt-max-iter",
+            "123",
+            "--ipopt-tol",
+            "1e-7",
+            "--ipopt-linear-solver",
+            "mumps",
+        ],
+    ):
+        code = run_main()
+    assert code == 0
+    assert captured["stack_model_path"] == "outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz"
+    assert captured["ipopt_max_iter"] == 123
+    assert captured["ipopt_tol"] == 1e-7
+    assert captured["ipopt_linear_solver"] == "mumps"
+
+
+def test_orchestrate_workflow_wires_solver_stack_and_ipopt(
+    tmp_path: Path, monkeypatch
+) -> None:
+    captured: dict[str, object] = {}
+    stack_model = tmp_path / "stack_f2_surrogate.npz"
+    stack_model.write_bytes(b"placeholder")
+
+    class _DummyCEMAdapter:
+        pass
+
+    class _DummySurrogateAdapter:
+        def __init__(self, *args, **kwargs):
+            _ = args
+            _ = kwargs
+
+    class _DummySolverAdapter:
+        def __init__(self, **kwargs):
+            captured["solver_kwargs"] = dict(kwargs)
+
+    class _DummySimulationAdapter:
+        def __init__(self, *args, **kwargs):
+            _ = args
+            _ = kwargs
+
+    class _DummyOrchestrator:
+        def __init__(self, **kwargs):
+            captured["config"] = kwargs["config"]
+
+        def optimize(self, initial_params=None):
+            _ = initial_params
+            return SimpleNamespace(
+                best_objective=0.0,
+                best_source="surrogate",
+                manifest_path=str(tmp_path / "orchestrate_manifest.json"),
+            )
+
+    monkeypatch.setattr("larrak2.orchestration.adapters.CEMAdapter", _DummyCEMAdapter)
+    monkeypatch.setattr(
+        "larrak2.orchestration.adapters.HifiSurrogateAdapter", _DummySurrogateAdapter
+    )
+    monkeypatch.setattr("larrak2.orchestration.adapters.CasadiSolverAdapter", _DummySolverAdapter)
+    monkeypatch.setattr(
+        "larrak2.orchestration.adapters.PhysicsSimulationAdapter", _DummySimulationAdapter
+    )
+    monkeypatch.setattr("larrak2.orchestration.Orchestrator", _DummyOrchestrator)
+
+    args = Namespace(
+        outdir=str(tmp_path / "orchestrate"),
+        rpm=2200.0,
+        torque=120.0,
+        fidelity=2,
+        constraint_phase="downselect",
+        enforce_contract_routing=False,
+        seed=123,
+        sim_budget=4,
+        batch_size=4,
+        max_iterations=2,
+        truth_dispatch_mode="off",
+        truth_plan="",
+        truth_auto_top_k=2,
+        truth_auto_min_uncertainty=0.0,
+        truth_auto_min_feasibility=0.0,
+        truth_auto_min_pred_quantile=0.0,
+        hifi_model_dir=str(tmp_path / "hifi"),
+        allow_heuristic_surrogate_fallback=True,
+        allow_nonproduction_paths=False,
+        surrogate_validation_mode="off",
+        thermo_symbolic_mode="off",
+        thermo_symbolic_artifact_path="",
+        stack_model_path=str(stack_model),
+        ipopt_max_iter=123,
+        ipopt_tol=1e-7,
+        ipopt_linear_solver="mumps",
+        thermo_constants_path="",
+        thermo_anchor_manifest="",
+        strict_data=True,
+        strict_tribology_data=None,
+        tribology_scuff_method="auto",
+        machining_mode="nn",
+        machining_model_path="",
+        control_backend="file",
+        provenance_backend="off",
+        cache_path="",
+        multi_start=False,
+    )
+    code = run_orchestrate_workflow(args)
+    assert code == 0
+    assert captured["solver_kwargs"] == {
+        "backend": "casadi",
+        "mode": "weighted_sum",
+        "stack_model_path": str(stack_model),
+        "ipopt_options": {"max_iter": 123, "tol": 1e-7, "linear_solver": "mumps"},
+        "trust_radius": None,
+    }
+    config = captured["config"]
+    assert config.stack_model_path == str(stack_model)
+    assert config.ipopt_options == {"max_iter": 123, "tol": 1e-7, "linear_solver": "mumps"}

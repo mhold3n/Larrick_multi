@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from larrak2.adapters.casadi_refine import RefinementResult
 from larrak2.cli.refine_pareto import main as refine_main
 from larrak2.core.encoding import N_TOTAL, mid_bounds_candidate
 from larrak2.core.types import EvalResult
@@ -130,3 +131,77 @@ def test_refine_pareto_slice_metadata_and_full_dimensionality():
         assert row["thermo_symbolic_version"] == "thermohash123"
         assert row["thermo_symbolic_overlay_objectives"] == ["eta_comb_gap"]
         assert row["thermo_symbolic_overlay_constraints"] == ["mass_balance"]
+
+
+def test_refine_pareto_defaults_resolve_artifacts_by_fidelity(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        x0 = mid_bounds_candidate()
+        np.save(tmp / "pareto_X.npy", np.tile(x0, (1, 1)))
+        np.save(tmp / "pareto_F.npy", np.zeros((1, 6), dtype=np.float64))
+        np.save(tmp / "pareto_G.npy", np.zeros((1, 10), dtype=np.float64))
+
+        calls: dict[str, tuple[int, bool]] = {}
+
+        def _mock_resolve_stack(*, fidelity, explicit_path=None, must_exist=True):
+            _ = explicit_path
+            calls["stack"] = (int(fidelity), bool(must_exist))
+            return tmp / "outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz"
+
+        def _mock_resolve_thermo(*, fidelity, explicit_path=None, must_exist=True):
+            _ = explicit_path
+            calls["thermo"] = (int(fidelity), bool(must_exist))
+            return (
+                tmp
+                / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
+            )
+
+        def _mock_refine_candidate(x0, ctx, **_kwargs):
+            eval_res = EvalResult(
+                F=np.array([0.1, 0.2, 0.3, 0.0, 0.0, 0.0], dtype=np.float64),
+                G=np.zeros(23, dtype=np.float64),
+                diag={},
+            )
+            return RefinementResult(
+                x_refined=np.asarray(x0, dtype=np.float64),
+                F_refined=eval_res.F,
+                G_refined=eval_res.G,
+                diag={
+                    "active_indices": [],
+                    "frozen_indices": list(range(N_TOTAL)),
+                    "thermo_symbolic_mode": str(ctx.thermo_symbolic_mode),
+                },
+                success=True,
+                message="mock refine ok",
+                backend_used="casadi",
+                ipopt_status="Solve_Succeeded",
+            )
+
+        monkeypatch.setattr("larrak2.cli.refine_pareto.resolve_stack_artifact_path", _mock_resolve_stack)
+        monkeypatch.setattr(
+            "larrak2.cli.refine_pareto.resolve_thermo_symbolic_artifact_path",
+            _mock_resolve_thermo,
+        )
+        monkeypatch.setattr("larrak2.adapters.casadi_refine.refine_candidate", _mock_refine_candidate)
+
+        code = refine_main(
+            [
+                "--input",
+                tmpdir,
+                "--top-k",
+                "1",
+                "--backend",
+                "casadi",
+                "--fidelity",
+                "2",
+            ]
+        )
+        assert code == 0
+        assert calls["stack"] == (2, True)
+        assert calls["thermo"] == (2, True)
+
+        summary = json.loads((tmp / "refinement_summary.json").read_text(encoding="utf-8"))
+        assert summary["stack_model_path"].endswith("stack_f2/stack_f2_surrogate.npz")
+        assert summary["thermo_symbolic_artifact_path"].endswith(
+            "thermo_symbolic_f2/thermo_symbolic_f2.npz"
+        )

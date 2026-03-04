@@ -1,7 +1,7 @@
 # Thermo Symbolic Hardening Runbook
 
 Status: active  
-Last updated: 2026-03-03
+Last updated: 2026-03-04
 
 ## 1. Default Runtime Behavior
 
@@ -50,21 +50,30 @@ Refinement and orchestration payloads should always carry:
 
 ## 5. Remediation Commands
 
-Train a default thermo symbolic artifact:
+Train a fidelity-matching thermo symbolic artifact:
 
 ```bash
 python -m larrak2.cli.run train-thermo-symbolic \
-  --fidelity 1 \
+  --fidelity <fidelity> \
   --rpm 3000 \
   --torque 200
 ```
+
+Canonical artifact path:
+
+1. `outputs/artifacts/surrogates/thermo_symbolic_f{fidelity}/thermo_symbolic_f{fidelity}.npz`
+
+Legacy compatibility note:
+
+1. `fidelity=1` may auto-resolve legacy path
+   `outputs/artifacts/surrogates/thermo_symbolic/thermo_symbolic_f1.npz`
+   with a deprecation warning.
 
 Run entrypoint with explicit artifact override:
 
 ```bash
 python -m larrak2.cli.run explore-exploit \
-  --thermo-symbolic-artifact-path outputs/artifacts/surrogates/thermo_symbolic/thermo_symbolic_f1.npz
+  --thermo-symbolic-artifact-path outputs/artifacts/surrogates/thermo_symbolic_f<fidelity>/thermo_symbolic_f<fidelity>.npz
 ```
 
 Equivalent flags are available on `orchestrate` and `larrak2.cli.refine_pareto`.
-

@@ -327,3 +327,23 @@ optimization execution (no surrogate training scope).
    `production_profile`, `production_gate_pass`, `production_gate_failures`,
    `fallback_paths_used`, `nonproduction_overrides`, `n_eval_errors`,
    `algorithm_used`, `fidelity`, `constraint_phase`
+
+### 12.3 CasADi Artifact Matrix (Strict Production)
+
+This matrix defines canonical artifact expectations for CasADi entrypoints.
+
+| Requested fidelity | Stack artifact (canonical) | Thermo symbolic artifact (canonical) | Strict behavior |
+| --- | --- | --- | --- |
+| 0 | `outputs/artifacts/surrogates/stack_f0/stack_f0_surrogate.npz` | `outputs/artifacts/surrogates/thermo_symbolic_f0/thermo_symbolic_f0.npz` | Missing/mismatch fails fast; no cross-fidelity fallback |
+| 1 | `outputs/artifacts/surrogates/stack_f1/stack_f1_surrogate.npz` | `outputs/artifacts/surrogates/thermo_symbolic_f1/thermo_symbolic_f1.npz` | Missing/mismatch fails fast; legacy thermo path may auto-resolve with warning |
+| 2 | `outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz` | `outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz` | Missing/mismatch fails fast; no fallback |
+
+Readiness checks:
+
+1. Every CasADi workflow run (`explore-exploit`, `orchestrate`, `refine_pareto`)
+   resolves artifacts against requested fidelity before solve execution.
+2. Missing artifacts include remediation commands:
+   - `python -m larrak2.cli.run train-stack-surrogate --fidelity <f>`
+   - `python -m larrak2.cli.run train-thermo-symbolic --fidelity <f>`
+3. CI includes a dedicated CasADi lane (`.[dev,casadi]`) executing symbolic
+   stack/slice tests and strict no-fallback backend behavior checks.

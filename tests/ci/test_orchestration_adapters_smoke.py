@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
+from larrak2.adapters.casadi_refine import RefinementResult
 from larrak2.core.encoding import N_TOTAL, bounds
 from larrak2.core.types import EvalContext
 from larrak2.orchestration.adapters import (
@@ -69,3 +70,45 @@ def test_surrogate_solver_simulation_smoke(tmp_path: Path) -> None:
     result = sim.evaluate(refined, context=ctx)
     assert "objective" in result
     assert np.isfinite(float(result["objective"]))
+
+
+def test_casadi_solver_adapter_passes_stack_path_and_ipopt(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _mock_refine_candidate(x0, ctx, **kwargs):
+        captured["surrogate_stack_path"] = kwargs.get("surrogate_stack_path")
+        captured["fidelity"] = kwargs.get("fidelity")
+        captured["ipopt_options"] = kwargs.get("ipopt_options")
+        captured["trust_radius"] = kwargs.get("trust_radius")
+        return RefinementResult(
+            x_refined=np.asarray(x0, dtype=np.float64),
+            F_refined=np.zeros(6, dtype=np.float64),
+            G_refined=np.zeros(10, dtype=np.float64),
+            diag={},
+            success=True,
+            message="ok",
+            backend_used="casadi",
+            ipopt_status="Solve_Succeeded",
+        )
+
+    monkeypatch.setattr(
+        "larrak2.orchestration.adapters.solver_adapter.refine_candidate", _mock_refine_candidate
+    )
+
+    solver = CasadiSolverAdapter(
+        backend="casadi",
+        mode="weighted_sum",
+        stack_model_path="outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz",
+        ipopt_options={"max_iter": 17, "tol": 1e-7},
+        trust_radius=0.12,
+    )
+    candidate = _midpoint_candidate()
+    ctx = EvalContext(rpm=2500.0, torque=120.0, fidelity=2, seed=123)
+    solver.refine(candidate, context=ctx, max_step=np.ones(N_TOTAL, dtype=np.float64) * 0.05)
+
+    assert captured["surrogate_stack_path"] == (
+        "outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz"
+    )
+    assert captured["fidelity"] == 2
+    assert captured["ipopt_options"] == {"max_iter": 17, "tol": 1e-7}
+    assert captured["trust_radius"] == 0.12

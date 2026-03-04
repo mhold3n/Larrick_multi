@@ -67,3 +67,17 @@ def test_production_gate_disallows_placeholder_frontier_basis() -> None:
     )
     assert payload["production_gate_pass"] is False
     assert "placeholder_frontier_basis_disallowed" in payload["production_gate_failures"]
+
+
+def test_production_gate_requires_pareto_metrics_when_requested() -> None:
+    payload = evaluate_production_gate(
+        require_pareto_metrics=True,
+        n_eval_errors=0,
+        algorithm_used="slice_refine",
+        fidelity=2,
+        constraint_phase="downselect",
+    )
+    assert payload["production_gate_pass"] is False
+    assert "n_pareto_missing" in payload["production_gate_failures"]
+    assert "effective_pop_missing" in payload["production_gate_failures"]
+    assert "feasible_fraction_missing" in payload["production_gate_failures"]

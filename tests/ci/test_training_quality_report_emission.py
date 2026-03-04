@@ -168,3 +168,84 @@ def test_train_thermo_symbolic_emits_quality_report(tmp_path: Path) -> None:
     assert report["metrics"]["val"]["per_target"]
     assert report["metrics"]["test"]["per_target"]
     assert Path(summary["artifact_path"]).exists()
+
+
+def test_train_stack_defaults_follow_fidelity(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    n = 12
+    x_cols = 12
+    y_cols = 4
+    data_path = tmp_path / "stack_data.npz"
+    np.savez(
+        data_path,
+        X=np.random.default_rng(8).normal(size=(n, x_cols)).astype(np.float64),
+        Y=np.random.default_rng(9).normal(size=(n, y_cols)).astype(np.float64),
+        feature_names=np.array([f"x_{i:03d}" for i in range(x_cols)], dtype=object),
+        objective_names=np.array([f"obj{i}" for i in range(3)], dtype=object),
+        constraint_names=np.array([f"g{i}" for i in range(1)], dtype=object),
+    )
+
+    args = argparse.Namespace(
+        outdir="",
+        name="",
+        dataset=str(data_path),
+        pareto_dir="",
+        fidelity=2,
+        rpm=2500.0,
+        torque=150.0,
+        hidden="16,16",
+        activation="relu",
+        leaky_relu_slope=0.01,
+        epochs=5,
+        lr=1e-3,
+        weight_decay=1e-6,
+        val_frac=0.2,
+        seed=11,
+    )
+    summary = train_stack_surrogate_workflow(args)
+    expected = tmp_path / "outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz"
+    assert Path(summary["artifact_path"]).resolve() == expected.resolve()
+    assert expected.exists()
+
+
+def test_train_thermo_defaults_follow_fidelity(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    n = 20
+    x_cols = 12
+    y_cols = 5
+    data_path = tmp_path / "thermo_symbolic_data.npz"
+    np.savez(
+        data_path,
+        X=np.random.default_rng(10).normal(size=(n, x_cols)).astype(np.float64),
+        Y=np.random.default_rng(11).normal(size=(n, y_cols)).astype(np.float64),
+        feature_names=np.array([f"x_{i:03d}" for i in range(10)] + ["rpm", "torque"], dtype=object),
+        objective_names=np.array(
+            ["eta_comb_gap", "eta_exp_gap", "motion_law_penalty"], dtype=object
+        ),
+        constraint_names=np.array(["thermo_power_balance", "thermo_pressure_limit"], dtype=object),
+    )
+
+    args = argparse.Namespace(
+        outdir="",
+        name="",
+        dataset=str(data_path),
+        dataset_out="",
+        n_samples=64,
+        fidelity=2,
+        rpm=2600.0,
+        torque=130.0,
+        objective_names="eta_comb_gap,eta_exp_gap,motion_law_penalty",
+        constraint_names="thermo_power_balance,thermo_pressure_limit",
+        val_frac=0.2,
+        seed=17,
+        thermo_model="two_zone_eq_v1",
+        thermo_constants_path="",
+        thermo_anchor_manifest="",
+        surrogate_validation_mode="strict",
+    )
+    summary = train_thermo_symbolic_workflow(args)
+    expected = (
+        tmp_path / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
+    )
+    assert Path(summary["artifact_path"]).resolve() == expected.resolve()
+    assert expected.exists()

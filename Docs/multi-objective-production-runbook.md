@@ -22,6 +22,25 @@ without surrogate retraining. It applies to:
    `fidelity=2`, `constraint_phase=downselect`.
 4. Thermo symbolic mode remains strict by default.
 
+## CasADi Artifact Contract
+
+When `backend=casadi`, artifact resolution is fidelity-specific and strict:
+
+1. Stack surrogate canonical path:
+   `outputs/artifacts/surrogates/stack_f{fidelity}/stack_f{fidelity}_surrogate.npz`
+2. Thermo symbolic canonical path:
+   `outputs/artifacts/surrogates/thermo_symbolic_f{fidelity}/thermo_symbolic_f{fidelity}.npz`
+3. No cross-fidelity fallback is allowed in strict production paths.
+4. Missing artifacts fail fast with remediation commands:
+   - `python -m larrak2.cli.run train-stack-surrogate --fidelity <f>`
+   - `python -m larrak2.cli.run train-thermo-symbolic --fidelity <f>`
+
+Legacy compatibility note:
+
+1. `fidelity=1` thermo symbolic may temporarily auto-resolve from legacy path
+   `outputs/artifacts/surrogates/thermo_symbolic/thermo_symbolic_f1.npz`
+   with a deprecation warning.
+
 ## Production Gate Contract
 
 All production manifests/summaries emit:
@@ -35,6 +54,10 @@ All production manifests/summaries emit:
 7. `algorithm_used`
 8. `fidelity`
 9. `constraint_phase`
+
+These keys are emitted both inside `production_gate` and as top-level fields
+for uniform downstream parsing across Pareto, explore/exploit, and
+orchestration manifests.
 
 Balanced strict thresholds:
 
@@ -64,6 +87,7 @@ If strict production gate fails:
 2. Resolve the specific failure:
    - low Pareto size/feasibility: increase budget (`--pop`, `--gen`) and verify constraints,
    - eval errors: inspect evaluator exceptions in run logs/signatures,
+   - CasADi artifact mismatch/missing: train/publish fidelity-matching stack + thermo symbolic artifacts,
    - frontier gate failures: fix principles profile/anchors and hard-feasibility coverage,
    - release readiness issues: run with `constraint_phase=downselect` and strict data.
 3. Re-run without `--allow-nonproduction-paths` for release candidates.

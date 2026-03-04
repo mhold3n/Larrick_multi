@@ -231,6 +231,14 @@ class TestParetoFidelity1:
             assert summary["fidelity"] == 1
             assert summary["seed"] == 123
             assert summary["allow_nonproduction_paths"] is True
+            assert "production_profile" in summary
+            assert "production_gate_pass" in summary
+            assert "production_gate_failures" in summary
+            assert "fallback_paths_used" in summary
+            assert "nonproduction_overrides" in summary
+            assert "n_eval_errors" in summary
+            assert "algorithm_used" in summary
+            assert "constraint_phase" in summary
             assert "feasible_fraction" in summary
             assert "best_eta_comb" in summary
             assert "best_eta_exp" in summary

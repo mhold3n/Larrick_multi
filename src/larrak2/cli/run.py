@@ -31,8 +31,6 @@ from larrak2.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_DIR,
     DEFAULT_HIFI_SURROGATE_DIR,
     DEFAULT_OPENFOAM_NN_DIR,
-    DEFAULT_STACK_SURROGATE_DIR,
-    DEFAULT_THERMO_SYMBOLIC_DIR,
 )
 
 
@@ -263,10 +261,15 @@ def main() -> int:
     tss.add_argument(
         "--outdir",
         type=str,
-        default=str(DEFAULT_STACK_SURROGATE_DIR),
-        help="Output directory for stack surrogate artifact",
+        default="",
+        help="Output directory for stack surrogate artifact (default: auto by --fidelity)",
     )
-    tss.add_argument("--name", type=str, default="stack_f1_surrogate.npz")
+    tss.add_argument(
+        "--name",
+        type=str,
+        default="",
+        help="Artifact name (default: auto by --fidelity)",
+    )
     tss.add_argument(
         "--dataset",
         type=str,
@@ -300,10 +303,15 @@ def main() -> int:
     tts.add_argument(
         "--outdir",
         type=str,
-        default=str(DEFAULT_THERMO_SYMBOLIC_DIR),
-        help="Output directory for thermo symbolic artifact",
+        default="",
+        help="Output directory for thermo symbolic artifact (default: auto by --fidelity)",
     )
-    tts.add_argument("--name", type=str, default="thermo_symbolic_f1.npz")
+    tts.add_argument(
+        "--name",
+        type=str,
+        default="",
+        help="Artifact name (default: auto by --fidelity)",
+    )
     tts.add_argument(
         "--dataset",
         type=str,
@@ -724,6 +732,15 @@ def main() -> int:
         default="",
         help="Thermo symbolic artifact path for CasADi thermo overlay",
     )
+    orch.add_argument(
+        "--stack-model-path",
+        type=str,
+        default="",
+        help="Stack surrogate artifact path for CasADi symbolic refinement",
+    )
+    orch.add_argument("--ipopt-max-iter", type=int, default=None)
+    orch.add_argument("--ipopt-tol", type=float, default=None)
+    orch.add_argument("--ipopt-linear-solver", type=str, default=None)
     orch.add_argument(
         "--thermo-constants-path",
         type=str,

@@ -11,10 +11,10 @@ import numpy as np
 
 from larrak2.core.archive_io import load_archive
 from larrak2.core.artifact_paths import (
-    DEFAULT_STACK_SURROGATE_DIR,
-    DEFAULT_THERMO_SYMBOLIC_DIR,
     assert_not_legacy_models_path,
     assert_not_legacy_models_write,
+    stack_artifact_dir_for_fidelity,
+    thermo_symbolic_dir_for_fidelity,
 )
 from larrak2.core.constraints import (
     THERMO_CONSTRAINTS_FID0,
@@ -343,20 +343,20 @@ def _load_stack_training_dataset(
 def train_stack_surrogate_workflow(args: argparse.Namespace) -> dict[str, Any]:
     """Workflow for global stack surrogate training and artifact export."""
     print("Starting stack surrogate training workflow...")
+    fidelity = int(args.fidelity)
+    default_outdir = stack_artifact_dir_for_fidelity(fidelity)
     outdir = _resolve_artifact_outdir(
-        str(args.outdir or DEFAULT_STACK_SURROGATE_DIR),
+        str(getattr(args, "outdir", "")).strip() or str(default_outdir),
         purpose="Stack surrogate artifact output",
     )
-    artifact_name = (
-        str(getattr(args, "name", "stack_f1_surrogate.npz")).strip() or "stack_f1_surrogate.npz"
-    )
+    artifact_name = str(getattr(args, "name", "")).strip() or f"stack_f{fidelity}_surrogate.npz"
     out_path = outdir / artifact_name
 
     X, Y, feature_names, objective_names, constraint_names, source_meta = (
         _load_stack_training_dataset(
             dataset_path=str(getattr(args, "dataset", "")),
             pareto_dir=str(getattr(args, "pareto_dir", "")),
-            fidelity=int(args.fidelity),
+            fidelity=fidelity,
             rpm=float(args.rpm),
             torque=float(args.torque),
         )
@@ -383,7 +383,7 @@ def train_stack_surrogate_workflow(args: argparse.Namespace) -> dict[str, Any]:
         feature_names=feature_names,
         objective_names=objective_names,
         constraint_names=constraint_names,
-        fidelity=int(args.fidelity),
+        fidelity=fidelity,
         hidden_layers=_parse_hidden(getattr(args, "hidden", None)),
         activation=str(getattr(args, "activation", "relu")),
         leaky_relu_slope=float(getattr(args, "leaky_relu_slope", 0.01)),
@@ -397,7 +397,7 @@ def train_stack_surrogate_workflow(args: argparse.Namespace) -> dict[str, Any]:
 
     summary = {
         "artifact_path": str(out_path),
-        "fidelity": int(args.fidelity),
+        "fidelity": fidelity,
         "feature_names": list(feature_names),
         "objective_names": list(objective_names),
         "constraint_names": list(constraint_names),
@@ -528,17 +528,17 @@ def _generate_thermo_symbolic_dataset(
 def train_thermo_symbolic_workflow(args: argparse.Namespace) -> dict[str, Any]:
     """Workflow for thermo symbolic surrogate artifact training/export."""
     print("Starting thermo symbolic surrogate training workflow...")
+    fidelity = int(args.fidelity)
+    default_outdir = thermo_symbolic_dir_for_fidelity(fidelity)
     outdir = _resolve_artifact_outdir(
-        str(args.outdir or DEFAULT_THERMO_SYMBOLIC_DIR),
+        str(getattr(args, "outdir", "")).strip() or str(default_outdir),
         purpose="Thermo symbolic artifact output",
     )
-    artifact_name = (
-        str(getattr(args, "name", "thermo_symbolic_f1.npz")).strip() or "thermo_symbolic_f1.npz"
-    )
+    artifact_name = str(getattr(args, "name", "")).strip() or f"thermo_symbolic_f{fidelity}.npz"
     out_path = outdir / artifact_name
 
     default_constraints = (
-        THERMO_CONSTRAINTS_FID1 if int(args.fidelity) >= 1 else THERMO_CONSTRAINTS_FID0
+        THERMO_CONSTRAINTS_FID1 if fidelity >= 1 else THERMO_CONSTRAINTS_FID0
     )
     objective_names = _parse_name_list(
         getattr(args, "objective_names", ""),
@@ -579,7 +579,7 @@ def train_thermo_symbolic_workflow(args: argparse.Namespace) -> dict[str, Any]:
             seed=int(args.seed),
             rpm=float(args.rpm),
             torque=float(args.torque),
-            fidelity=int(args.fidelity),
+            fidelity=fidelity,
             objective_names=objective_names,
             constraint_names=constraint_names,
             thermo_model=str(getattr(args, "thermo_model", "two_zone_eq_v1")),
@@ -616,7 +616,7 @@ def train_thermo_symbolic_workflow(args: argparse.Namespace) -> dict[str, Any]:
         feature_names=feature_names,
         objective_names=objective_names,
         constraint_names=constraint_names,
-        fidelity=int(args.fidelity),
+        fidelity=fidelity,
         seed=int(args.seed),
         val_frac=float(getattr(args, "val_frac", 0.2)),
     )
@@ -648,7 +648,7 @@ def train_thermo_symbolic_workflow(args: argparse.Namespace) -> dict[str, Any]:
 
     summary = {
         "artifact_path": str(out_path),
-        "fidelity": int(args.fidelity),
+        "fidelity": fidelity,
         "feature_names": list(feature_names),
         "objective_names": list(objective_names),
         "constraint_names": list(constraint_names),

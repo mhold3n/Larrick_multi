@@ -17,6 +17,7 @@ def required_pareto_min(effective_pop: int) -> int:
 def evaluate_production_gate(
     *,
     production_profile: str = STRICT_PRODUCTION_PROFILE,
+    require_pareto_metrics: bool = False,
     allow_nonproduction_paths: bool = False,
     fallback_paths_used: list[str] | None = None,
     nonproduction_overrides: list[str] | None = None,
@@ -55,6 +56,14 @@ def evaluate_production_gate(
         failures.append("constraint_phase_not_downselect")
     if fidelity_i is not None and fidelity_i < 2:
         failures.append("fidelity_below_production")
+
+    if bool(require_pareto_metrics):
+        if n_pareto_i is None:
+            failures.append("n_pareto_missing")
+        if eff_pop_i is None:
+            failures.append("effective_pop_missing")
+        if feasible_fraction_f is None:
+            failures.append("feasible_fraction_missing")
 
     if n_eval_errors_i != 0:
         failures.append("n_eval_errors_nonzero")
@@ -100,6 +109,7 @@ def evaluate_production_gate(
         "algorithm_used": str(algorithm_used or ""),
         "fidelity": fidelity_i,
         "constraint_phase": phase,
+        "require_pareto_metrics": bool(require_pareto_metrics),
         "thresholds": {
             "n_pareto_min": pareto_min_required,
             "feasible_fraction_min": 0.20,

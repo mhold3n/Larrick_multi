@@ -29,9 +29,10 @@ from larrak2.core.artifact_paths import (
     DEFAULT_GEAR_LOSS_NN_DIR,
     DEFAULT_HIFI_SURROGATE_DIR,
     DEFAULT_OPENFOAM_NN_ARTIFACT,
-    DEFAULT_THERMO_SYMBOLIC_ARTIFACT,
     assert_not_legacy_models_path,
     assert_not_legacy_models_write,
+    resolve_stack_artifact_path,
+    resolve_thermo_symbolic_artifact_path,
 )
 from larrak2.core.constraints import (
     get_constraint_kinds_for_phase,
@@ -2007,6 +2008,35 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                 )
                 return 1
 
+    backend_mode = str(getattr(args, "backend", "casadi"))
+    thermo_symbolic_mode = str(getattr(args, "thermo_symbolic_mode", "strict"))
+    explicit_thermo_symbolic_path = (
+        str(getattr(args, "thermo_symbolic_artifact_path", "")).strip() or None
+    )
+    explicit_stack_model_path = str(getattr(args, "stack_model_path", "")).strip() or None
+    try:
+        resolved_hifi_thermo_symbolic_path = str(
+            resolve_thermo_symbolic_artifact_path(
+                fidelity=int(args.hifi_fidelity),
+                explicit_path=explicit_thermo_symbolic_path,
+                must_exist=(backend_mode == "casadi" and thermo_symbolic_mode.lower() == "strict"),
+            )
+        )
+    except Exception as exc:
+        print(str(exc))
+        return 1
+    try:
+        resolved_stack_model_path = str(
+            resolve_stack_artifact_path(
+                fidelity=int(args.hifi_fidelity),
+                explicit_path=explicit_stack_model_path,
+                must_exist=backend_mode == "casadi",
+            )
+        )
+    except Exception as exc:
+        print(str(exc))
+        return 1
+
     lowfi_ctx = EvalContext(
         rpm=float(args.rpm),
         torque=float(args.torque),
@@ -2017,11 +2047,8 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
         or None,
-        thermo_symbolic_mode=str(getattr(args, "thermo_symbolic_mode", "strict")),
-        thermo_symbolic_artifact_path=str(
-            getattr(args, "thermo_symbolic_artifact_path", "")
-        ).strip()
-        or None,
+        thermo_symbolic_mode=thermo_symbolic_mode,
+        thermo_symbolic_artifact_path=explicit_thermo_symbolic_path,
         production_profile="strict_prod",
         allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
@@ -2037,11 +2064,8 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
         or None,
-        thermo_symbolic_mode=str(getattr(args, "thermo_symbolic_mode", "strict")),
-        thermo_symbolic_artifact_path=(
-            str(getattr(args, "thermo_symbolic_artifact_path", "")).strip()
-            or str(DEFAULT_THERMO_SYMBOLIC_ARTIFACT)
-        ),
+        thermo_symbolic_mode=thermo_symbolic_mode,
+        thermo_symbolic_artifact_path=resolved_hifi_thermo_symbolic_path,
         production_profile="strict_prod",
         allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
@@ -2120,7 +2144,7 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                 eps_margin=float(args.eps_margin),
                 run_tribology_stage=not bool(args.skip_tribology),
                 ipopt_options=ipopt_options or None,
-                stack_model_path=str(args.stack_model_path).strip() or None,
+                stack_model_path=(resolved_stack_model_path if backend_mode == "casadi" else None),
                 contract_version=CONTRACT_VERSION,
                 contract_trace_file=str(trace_path),
                 contract_summary_file=str(summary_path),
@@ -2226,6 +2250,43 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
+    thermo_symbolic_mode = str(getattr(args, "thermo_symbolic_mode", "strict"))
+    explicit_thermo_symbolic_path = (
+        str(getattr(args, "thermo_symbolic_artifact_path", "")).strip() or None
+    )
+    explicit_stack_model_path = str(getattr(args, "stack_model_path", "")).strip() or None
+    try:
+        resolved_thermo_symbolic_path = str(
+            resolve_thermo_symbolic_artifact_path(
+                fidelity=int(getattr(args, "fidelity", 2)),
+                explicit_path=explicit_thermo_symbolic_path,
+                must_exist=thermo_symbolic_mode.lower() == "strict",
+            )
+        )
+    except Exception as exc:
+        print(str(exc))
+        return 1
+    try:
+        resolved_stack_model_path = str(
+            resolve_stack_artifact_path(
+                fidelity=int(getattr(args, "fidelity", 2)),
+                explicit_path=explicit_stack_model_path,
+                must_exist=True,
+            )
+        )
+    except Exception as exc:
+        print(str(exc))
+        return 1
+    ipopt_options = {
+        k: v
+        for k, v in {
+            "max_iter": getattr(args, "ipopt_max_iter", None),
+            "tol": getattr(args, "ipopt_tol", None),
+            "linear_solver": getattr(args, "ipopt_linear_solver", None),
+        }.items()
+        if v is not None
+    }
+
     truth_tokens: list[str] | None = None
     if str(args.truth_dispatch_mode) == "manual":
         if not str(args.truth_plan).strip():
@@ -2277,18 +2338,17 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
         tribology_scuff_method=str(getattr(args, "tribology_scuff_method", "auto")),
         surrogate_validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
-        thermo_symbolic_mode=str(getattr(args, "thermo_symbolic_mode", "strict")),
-        thermo_symbolic_artifact_path=str(
-            getattr(args, "thermo_symbolic_artifact_path", "")
-        ).strip()
-        or None,
+        thermo_symbolic_mode=thermo_symbolic_mode,
+        thermo_symbolic_artifact_path=resolved_thermo_symbolic_path,
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
         or None,
         machining_mode=str(getattr(args, "machining_mode", "nn")),
         machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,
+        stack_model_path=resolved_stack_model_path,
         allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
         production_profile="strict_prod",
+        ipopt_options=ipopt_options,
     )
 
     cem = CEMAdapter()
@@ -2302,7 +2362,13 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         allow_heuristic_fallback=bool(getattr(args, "allow_heuristic_surrogate_fallback", False)),
         validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
     )
-    solver = CasadiSolverAdapter(backend="casadi", mode="weighted_sum")
+    solver = CasadiSolverAdapter(
+        backend="casadi",
+        mode="weighted_sum",
+        stack_model_path=str(config.stack_model_path).strip() or None,
+        ipopt_options=config.ipopt_options,
+        trust_radius=None,
+    )
     simulation = PhysicsSimulationAdapter(work_dir=outdir / "truth_runs")
 
     orchestrator = Orchestrator(

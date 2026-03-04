@@ -9,7 +9,10 @@ from pathlib import Path
 
 import numpy as np
 
-from ..core.artifact_paths import DEFAULT_STACK_SURROGATE_ARTIFACT, assert_not_legacy_models_path
+from ..core.artifact_paths import (
+    resolve_stack_artifact_path,
+    resolve_thermo_symbolic_artifact_path,
+)
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import get_constraint_names, get_constraint_scales
 from ..core.encoding import ENCODING_VERSION, N_TOTAL
@@ -179,6 +182,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Loaded {X.shape[0]} Pareto solutions")
 
     indices = np.argsort(F[:, 0])[: args.top_k]
+    try:
+        resolved_thermo_symbolic_path = resolve_thermo_symbolic_artifact_path(
+            fidelity=int(args.fidelity),
+            explicit_path=str(args.thermo_symbolic_artifact_path).strip() or None,
+            must_exist=(
+                args.backend == "casadi" and str(args.thermo_symbolic_mode).strip().lower() == "strict"
+            ),
+        )
+    except Exception as exc:
+        print(str(exc))
+        return 1
+
     ctx = EvalContext(
         rpm=args.rpm,
         torque=args.torque,
@@ -188,25 +203,22 @@ def main(argv: list[str] | None = None) -> int:
         thermo_constants_path=str(args.thermo_constants_path).strip() or None,
         thermo_anchor_manifest_path=str(args.thermo_anchor_manifest).strip() or None,
         thermo_symbolic_mode=str(args.thermo_symbolic_mode),
-        thermo_symbolic_artifact_path=str(args.thermo_symbolic_artifact_path).strip() or None,
+        thermo_symbolic_artifact_path=str(resolved_thermo_symbolic_path),
     )
     mode = RefinementMode(args.mode)
 
     freeze_mask = _load_freeze_mask(args.freeze_mask_path)
-    stack_model_path = (
-        str(assert_not_legacy_models_path(args.stack_model_path, purpose="stack surrogate model"))
-        if str(args.stack_model_path).strip()
-        else str(DEFAULT_STACK_SURROGATE_ARTIFACT)
-    )
-    if args.backend == "casadi":
-        stack_candidate = Path(stack_model_path)
-        if not stack_candidate.exists():
-            print(
-                "CasADi symbolic refinement requires a stack surrogate artifact at "
-                f"'{stack_candidate}'. Run `larrak-run train-stack-surrogate` first "
-                "or pass --stack-model-path."
+    try:
+        stack_model_path = str(
+            resolve_stack_artifact_path(
+                fidelity=int(args.fidelity),
+                explicit_path=str(args.stack_model_path).strip() or None,
+                must_exist=args.backend == "casadi",
             )
-            return 1
+        )
+    except Exception as exc:
+        print(str(exc))
+        return 1
 
     ipopt_options = {
         k: v

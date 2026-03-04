@@ -26,6 +26,8 @@ class CasadiSolverAdapter:
         eps_constraints: np.ndarray | None = None,
         active_set: list[int] | None = None,
         ipopt_options: dict[str, Any] | None = None,
+        stack_model_path: str | None = None,
+        trust_radius: float | None = None,
         slice_method: str = "sensitivity",
         active_k: int | None = None,
         min_per_group: int = 1,
@@ -38,6 +40,8 @@ class CasadiSolverAdapter:
         )
         self.active_set = list(active_set) if active_set is not None else None
         self.ipopt_options = dict(ipopt_options or {})
+        self.stack_model_path = str(stack_model_path).strip() if stack_model_path else None
+        self.trust_radius = trust_radius
         self.slice_method = str(slice_method)
         self.active_k = active_k
         self.min_per_group = int(min_per_group)
@@ -72,6 +76,8 @@ class CasadiSolverAdapter:
                 fidelity=int(context.fidelity),
                 active_set=self.active_set,
                 ipopt_options=self.ipopt_options,
+                surrogate_stack_path=self.stack_model_path,
+                trust_radius=self.trust_radius,
                 freeze_mask=freeze_mask,
                 active_k=self.active_k,
                 min_per_group=self.min_per_group,
