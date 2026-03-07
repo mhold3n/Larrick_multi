@@ -10,12 +10,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from larrak2.architecture.contracts import CONTRACT_VERSION
 from larrak2.cli.run import main as run_main
 from larrak2.cli.run_workflows import run_orchestrate_workflow
 
 
 def test_orchestrate_cli_smoke(tmp_path: Path) -> None:
+    pytest.importorskip("casadi")
     outdir = tmp_path / "orchestrate_smoke"
     stack_model = tmp_path / "stack_f2_surrogate.npz"
     stack_model.write_bytes(b"placeholder")
@@ -170,7 +173,7 @@ def test_orchestrate_workflow_wires_solver_stack_and_ipopt(
     class _DummySurrogateAdapter:
         def __init__(self, *args, **kwargs):
             _ = args
-            _ = kwargs
+            captured["surrogate_kwargs"] = dict(kwargs)
 
     class _DummySolverAdapter:
         def __init__(self, **kwargs):
@@ -196,6 +199,9 @@ def test_orchestrate_workflow_wires_solver_stack_and_ipopt(
     monkeypatch.setattr("larrak2.orchestration.adapters.CEMAdapter", _DummyCEMAdapter)
     monkeypatch.setattr(
         "larrak2.orchestration.adapters.HifiSurrogateAdapter", _DummySurrogateAdapter
+    )
+    monkeypatch.setattr(
+        "larrak2.cli.run_workflows._ensure_casadi_available", lambda **_kwargs: None
     )
     monkeypatch.setattr("larrak2.orchestration.adapters.CasadiSolverAdapter", _DummySolverAdapter)
     monkeypatch.setattr(
@@ -254,3 +260,10 @@ def test_orchestrate_workflow_wires_solver_stack_and_ipopt(
     config = captured["config"]
     assert config.stack_model_path == str(stack_model)
     assert config.ipopt_options == {"max_iter": 123, "tol": 1e-7, "linear_solver": "mumps"}
+    surrogate_kwargs = captured["surrogate_kwargs"]
+    assert "required_quality_artifacts" in surrogate_kwargs
+    required = surrogate_kwargs["required_quality_artifacts"]
+    assert isinstance(required, list)
+    assert any(str(v).endswith("pipeline_readiness_summary.md") for v in required)
+    assert any(str(v).endswith("f2_blockers.json") for v in required)
+    assert any(str(v).endswith("artifact_contract_audit.json") for v in required)

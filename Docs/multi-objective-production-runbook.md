@@ -41,6 +41,18 @@ Legacy compatibility note:
    `outputs/artifacts/surrogates/thermo_symbolic/thermo_symbolic_f1.npz`
    with a deprecation warning.
 
+## Orchestration HiFi Readiness Contract
+
+For strict orchestration runs (`strict_data=true`), HiFi quality-contract checks
+also require readiness artifacts to exist:
+
+1. `outputs/readiness/pipeline_readiness_summary.md`
+2. `outputs/readiness/f2_blockers.json`
+3. `outputs/readiness/artifact_contract_audit.json`
+
+If `pipeline_readiness_summary.md` is absent, orchestration accepts
+`outputs/readiness/architecture/pipeline_arch_readiness_summary.md` as the summary source.
+
 ## Production Gate Contract
 
 All production manifests/summaries emit:

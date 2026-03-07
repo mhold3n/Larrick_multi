@@ -86,13 +86,14 @@ def _classify_failure(message: str) -> str:
         or "thermo validation failed" in text
         or "anchor manifest" in text
         or "not found" in text
+        or "source_region_not_ready" in text
+        or "source_region_classification:" in text
     ):
         return "runtime_dependency_gap"
     if (
         "missing required" in text
         or "objective dimensionality mismatch" in text
         or "objective name mismatch" in text
-        or "principles_frontier_gate_failed" in text
     ):
         return "contract_shape_gap"
     return "orchestration_wiring_gap"
@@ -219,11 +220,13 @@ def _build_probe_specs(outdir: Path) -> list[ProbeSpec]:
                     "--explore-source",
                     "principles",
                     "--principles-profile",
-                    "iso_litvin_v1",
-                    "--principles-frontier-min-size",
+                    "iso_litvin_v2",
+                    "--principles-region-min-size",
                     "2",
-                    "--principles-seed-count",
-                    "12",
+                    "--principles-alignment-mode",
+                    "blend",
+                    "--principles-canonical-alignment-fidelity",
+                    "1",
                     "--principles-root-max-iter",
                     "12",
                     "--top-k",
@@ -362,40 +365,34 @@ def run_probes(outdir: Path) -> dict[str, Any]:
         contract_artifacts_emitted = bool(
             manifest_exists and contract_trace_exists and contract_summary_exists
         )
-        principles_gate_payload = (
-            manifest_payload.get("principles_frontier_gate", {})
+        source_region_fields_present = bool(
+            isinstance(manifest_payload, dict)
+            and "principles_problem" in manifest_payload
+            and "reduced_core" in manifest_payload
+            and "expansion_policy" in manifest_payload
+            and "region_summary" in manifest_payload
+            and "proxy_vs_canonical" in manifest_payload
+            and "diagnosis_classification" in manifest_payload
+            and "source_region_pass" in manifest_payload
+            and "optimization_pass" in manifest_payload
+        )
+        source_region_pass = bool(
+            manifest_payload.get("source_region_pass", False)
             if isinstance(manifest_payload, dict)
-            else {}
+            else False
         )
-        principles_gate_present = bool(
-            isinstance(principles_gate_payload, dict) and len(principles_gate_payload) > 0
-        )
-        principles_gate_pass = bool(
-            isinstance(principles_gate_payload, dict)
-            and principles_gate_payload.get("frontier_gate_pass", False)
-        )
-        lower_output = full_output.lower()
-        no_hard_feasible_winner = (
-            "no hard-feasible high-fidelity candidates qualified for downselect" in lower_output
-            or "no_hard_feasible_high_fidelity_candidates" in lower_output
-        )
-        f0_no_winner_nonblocking = bool(
-            spec.workflow == "explore_exploit"
-            and int(spec.fidelity) == 0
-            and no_hard_feasible_winner
-            and contract_artifacts_emitted
-        )
+        diagnosis_classification = str(
+            manifest_payload.get("diagnosis_classification", "")
+            if isinstance(manifest_payload, dict)
+            else ""
+        ).strip()
 
-        if proc.returncode != 0 and not f0_no_winner_nonblocking:
+        if proc.returncode != 0:
             blocker_type = _classify_failure(full_output)
             blocker_detail = (full_output.strip().splitlines() or [""])[-1][:400]
-        elif (
-            spec.workflow == "explore_exploit"
-            and int(spec.fidelity) == 0
-            and not bool(principles_gate_present and principles_gate_pass)
-        ):
+        elif spec.workflow == "explore_exploit" and not source_region_fields_present:
             blocker_type = "contract_shape_gap"
-            blocker_detail = "principles_frontier_gate missing or failed for fidelity=0"
+            blocker_detail = "explore-exploit manifest missing required source-region contract fields"
 
         probe_results.append(
             {
@@ -406,7 +403,7 @@ def run_probes(outdir: Path) -> dict[str, Any]:
                 "log_file": str(log_path),
                 "exit_code": int(proc.returncode),
                 "process_success": bool(proc.returncode == 0),
-                "success": bool(proc.returncode == 0 or f0_no_winner_nonblocking),
+                "success": bool(proc.returncode == 0),
                 "manifest_file": str(spec.manifest_path),
                 "manifest_exists": manifest_exists,
                 "contract_trace_file": str(trace_path),
@@ -414,14 +411,9 @@ def run_probes(outdir: Path) -> dict[str, Any]:
                 "contract_trace_exists": contract_trace_exists,
                 "contract_summary_exists": contract_summary_exists,
                 "contract_artifacts_emitted": contract_artifacts_emitted,
-                "principles_frontier_gate_present": bool(principles_gate_present),
-                "principles_frontier_gate_pass": bool(principles_gate_pass),
-                "expected_non_blocking": bool(f0_no_winner_nonblocking),
-                "expected_non_blocking_reason": (
-                    "f0_explore_exploit_no_hard_feasible_winner_manifest_emitted"
-                    if f0_no_winner_nonblocking
-                    else ""
-                ),
+                "source_region_fields_present": bool(source_region_fields_present),
+                "source_region_pass": bool(source_region_pass),
+                "diagnosis_classification": diagnosis_classification,
                 "blocker_type": blocker_type,
                 "blocker_detail": blocker_detail,
             }
@@ -659,6 +651,11 @@ def build_gap_ledger(
         if not bool(probe.get("manifest_exists", False)):
             manifest_fields_ok = False
             wiring_ok = False
+        if (
+            str(probe.get("workflow", "")) == "explore_exploit"
+            and not bool(probe.get("source_region_fields_present", False))
+        ):
+            manifest_fields_ok = False
 
     routing_violations = 0
     for fidelity_payload in edge_coverage.get("by_fidelity", {}).values():
@@ -875,6 +872,7 @@ def main(argv: list[str] | None = None) -> int:
     critical_real_keys = build_critical_real_key_report(
         probe_data["traces_by_fidelity"], probe_data["manifests_by_probe"]
     )
+    _json_dump(outdir / "critical_real_key_report_f1.json", critical_real_keys)
 
     ledger = build_gap_ledger(
         workflow_probe_results=workflow_probe_results,

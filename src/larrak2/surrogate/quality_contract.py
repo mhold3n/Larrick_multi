@@ -77,7 +77,7 @@ def _raise_or_warn(mode: str, message: str, *, exc_type: type[Exception]) -> Non
 
 
 def _report_path_for_artifact(artifact_path: Path) -> Path:
-    if artifact_path.is_dir():
+    if artifact_path.is_dir() or (not artifact_path.exists() and artifact_path.suffix == ""):
         return artifact_path / "quality_report.json"
     return artifact_path.parent / "quality_report.json"
 
@@ -299,13 +299,29 @@ def validate_artifact_quality(
         )
         return None
 
-    required = list(required_artifacts or [])
-    if not required and isinstance(report.get("required_artifacts"), list):
-        required = [str(x) for x in report["required_artifacts"]]
+    required: list[str] = []
+    if isinstance(report.get("required_artifacts"), list):
+        required.extend([str(x) for x in report["required_artifacts"]])
+    required.extend([str(x) for x in (required_artifacts or [])])
 
-    root = target if target.is_dir() else target.parent
-    for rel in required:
-        rp = root / str(rel)
+    # Stable de-dup preserving first-seen order.
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in required:
+        token = str(item).strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        deduped.append(token)
+
+    root = (
+        target
+        if target.is_dir() or (not target.exists() and target.suffix == "")
+        else target.parent
+    )
+    for rel in deduped:
+        rel_path = Path(rel)
+        rp = rel_path if rel_path.is_absolute() else root / rel_path
         if not rp.exists():
             _raise_or_warn(
                 mode,

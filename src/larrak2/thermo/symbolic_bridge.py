@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,12 @@ def _import_casadi():
     try:
         import casadi as ca
     except Exception as exc:  # pragma: no cover - handled by caller
-        raise ImportError(f"CasADi is required for thermo symbolic bridge: {exc}") from exc
+        raise ImportError(
+            "CasADi import failed in active runtime "
+            f"({sys.executable}) for thermo symbolic bridge: "
+            f"{type(exc).__name__}: {exc}. "
+            "Install optional dependency in this interpreter: pip install -e '.[casadi]'"
+        ) from exc
     return ca
 
 

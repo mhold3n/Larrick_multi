@@ -32,6 +32,7 @@ class HifiSurrogateAdapter:
         default_torque: float = 200.0,
         allow_heuristic_fallback: bool = False,
         validation_mode: str = "strict",
+        required_quality_artifacts: list[str | Path] | None = None,
     ) -> None:
         requested = Path(model_dir)
         self.model_dir = Path(
@@ -49,6 +50,23 @@ class HifiSurrogateAdapter:
                 "validation_mode must be one of {'strict', 'warn', 'off'}, "
                 f"got {self.validation_mode!r}"
             )
+        required = [
+            "thermal_surrogate.pt",
+            "structural_surrogate.pt",
+            "flow_surrogate.pt",
+            "normalization.json",
+        ]
+        if required_quality_artifacts:
+            required.extend(str(v) for v in required_quality_artifacts)
+        # Stable de-dup preserving order.
+        self.required_quality_artifacts: list[str] = []
+        seen: set[str] = set()
+        for item in required:
+            token = str(item).strip()
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            self.required_quality_artifacts.append(token)
 
         self.norm = NormalizationParams()
         self.thermal_model: ThermalSurrogate | None = None
@@ -67,12 +85,7 @@ class HifiSurrogateAdapter:
             self.model_dir,
             surrogate_kind="hifi",
             validation_mode=self.validation_mode,
-            required_artifacts=[
-                "thermal_surrogate.pt",
-                "structural_surrogate.pt",
-                "flow_surrogate.pt",
-                "normalization.json",
-            ],
+            required_artifacts=list(self.required_quality_artifacts),
         )
         norm_path = self.model_dir / "normalization.json"
         if norm_path.exists():

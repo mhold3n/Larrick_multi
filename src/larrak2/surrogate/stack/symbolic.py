@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 
 from .artifact import StackSurrogateArtifact
@@ -12,7 +14,12 @@ def _import_casadi():
     try:
         import casadi as ca
     except Exception as exc:  # pragma: no cover - exercised by caller handling
-        raise ImportError(f"CasADi is required for symbolic stack evaluation: {exc}") from exc
+        raise ImportError(
+            "CasADi import failed in active runtime "
+            f"({sys.executable}) for symbolic stack evaluation: "
+            f"{type(exc).__name__}: {exc}. "
+            "Install optional dependency in this interpreter: pip install -e '.[casadi]'"
+        ) from exc
     return ca
 
 

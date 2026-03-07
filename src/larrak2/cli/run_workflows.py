@@ -47,6 +47,14 @@ from larrak2.core.types import BreathingConfig, EvalContext
 from larrak2.pipelines.openfoam import OpenFoamPipeline
 from larrak2.promote.staged import StagedWorkflow
 
+DEFAULT_READINESS_ROOT = Path("outputs/readiness")
+DEFAULT_PIPELINE_READINESS_SUMMARY = DEFAULT_READINESS_ROOT / "pipeline_readiness_summary.md"
+DEFAULT_F2_BLOCKERS = DEFAULT_READINESS_ROOT / "f2_blockers.json"
+DEFAULT_ARTIFACT_CONTRACT_AUDIT = DEFAULT_READINESS_ROOT / "artifact_contract_audit.json"
+ALT_PIPELINE_READINESS_SUMMARY = (
+    DEFAULT_READINESS_ROOT / "architecture" / "pipeline_arch_readiness_summary.md"
+)
+
 # ---------------------------------------------------------------------------
 # Pareto Grid
 # ---------------------------------------------------------------------------
@@ -1946,6 +1954,28 @@ def _parse_int_list(raw: str) -> list[int] | None:
     return vals or None
 
 
+def _ensure_casadi_available(*, purpose: str) -> None:
+    try:
+        import casadi as _ca  # noqa: F401
+    except Exception as exc:
+        raise ImportError(
+            "CasADi import failed in active runtime "
+            f"({sys.executable}) for {purpose}: {type(exc).__name__}: {exc}. "
+            "Install optional dependency in this interpreter: pip install -e '.[casadi]'"
+        ) from exc
+
+
+def _resolve_default_hifi_quality_contract_artifacts() -> list[str]:
+    summary = DEFAULT_PIPELINE_READINESS_SUMMARY
+    if not summary.exists() and ALT_PIPELINE_READINESS_SUMMARY.exists():
+        summary = ALT_PIPELINE_READINESS_SUMMARY
+    return [
+        str(summary.resolve(strict=False)),
+        str(DEFAULT_F2_BLOCKERS.resolve(strict=False)),
+        str(DEFAULT_ARTIFACT_CONTRACT_AUDIT.resolve(strict=False)),
+    ]
+
+
 def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
     """Two-stage pipeline: explore Pareto set then exploit selected slices via CasADi."""
     from larrak2.pipelines.explore_exploit import run_two_stage_pipeline
@@ -2009,6 +2039,41 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                 return 1
 
     backend_mode = str(getattr(args, "backend", "casadi"))
+    if backend_mode == "casadi":
+        try:
+            _ensure_casadi_available(purpose="explore-exploit casadi backend")
+        except Exception as exc:
+            print(str(exc))
+            if bool(getattr(args, "architecture_probe_mode", False)):
+                outdir = Path(args.outdir)
+                outdir.mkdir(parents=True, exist_ok=True)
+                trace_path = outdir / "contract_trace.jsonl"
+                summary_path = outdir / "contract_summary.json"
+                failure_manifest = {
+                    "workflow": "explore_exploit",
+                    "selected_indices": [],
+                    "pareto_source": str(Path(args.pareto_dir)),
+                    "explore_source": str(getattr(args, "explore_source", "principles")),
+                    "contract_version": CONTRACT_VERSION,
+                    "contract_trace_file": str(trace_path),
+                    "contract_summary_file": str(summary_path),
+                    "contract_summary": {},
+                    "release_readiness": {
+                        "release_ready": False,
+                        "strict_data": True,
+                        "constraint_phase": str(getattr(args, "hifi_constraint_phase", "downselect")),
+                        "reasons": ["architecture_probe_runtime_exception"],
+                    },
+                    "failure": {
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    },
+                }
+                (outdir / "explore_exploit_manifest.json").write_text(
+                    json.dumps(failure_manifest, indent=2),
+                    encoding="utf-8",
+                )
+            return 1
     thermo_symbolic_mode = str(getattr(args, "thermo_symbolic_mode", "strict"))
     explicit_thermo_symbolic_path = (
         str(getattr(args, "thermo_symbolic_artifact_path", "")).strip() or None
@@ -2037,12 +2102,33 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         print(str(exc))
         return 1
 
+    breathing = BreathingConfig(
+        bore_mm=float(getattr(args, "bore_mm", 80.0)),
+        stroke_mm=float(getattr(args, "stroke_mm", 90.0)),
+        intake_port_area_m2=float(getattr(args, "intake_port_area_m2", 4.0e-4)),
+        exhaust_port_area_m2=float(getattr(args, "exhaust_port_area_m2", 4.0e-4)),
+        p_manifold_Pa=float(getattr(args, "p_manifold_pa", 101325.0)),
+        p_back_Pa=float(getattr(args, "p_back_pa", 101325.0)),
+        overlap_deg=float(getattr(args, "overlap_deg", 0.0)),
+        intake_open_deg=float(getattr(args, "intake_open_deg", 0.0)),
+        intake_close_deg=float(getattr(args, "intake_close_deg", 0.0)),
+        exhaust_open_deg=float(getattr(args, "exhaust_open_deg", 0.0)),
+        exhaust_close_deg=float(getattr(args, "exhaust_close_deg", 0.0)),
+        compression_ratio=float(getattr(args, "compression_ratio", 10.0)),
+    )
+
     lowfi_ctx = EvalContext(
         rpm=float(args.rpm),
         torque=float(args.torque),
         fidelity=int(args.explore_fidelity),
         seed=int(args.seed),
+        breathing=breathing,
         constraint_phase="explore",
+        openfoam_model_path=str(getattr(args, "openfoam_model_path", "")).strip() or None,
+        calculix_stress_mode=str(getattr(args, "calculix_stress_mode", "nn")),
+        calculix_model_path=str(getattr(args, "calculix_model_path", "")).strip() or None,
+        gear_loss_mode=str(getattr(args, "gear_loss_mode", "physics")),
+        gear_loss_model_dir=str(getattr(args, "gear_loss_model_dir", "")).strip() or None,
         thermo_model=str(getattr(args, "thermo_model", "two_zone_eq_v1")),
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
@@ -2051,15 +2137,25 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         thermo_symbolic_artifact_path=explicit_thermo_symbolic_path,
         production_profile="strict_prod",
         allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
+        strict_data=bool(getattr(args, "strict_data", True)),
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
         tribology_scuff_method=str(getattr(args, "tribology_scuff_method", "auto")),
+        surrogate_validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
+        machining_mode=str(getattr(args, "machining_mode", "nn")),
+        machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,
     )
     hifi_ctx = EvalContext(
         rpm=float(args.rpm),
         torque=float(args.torque),
         fidelity=int(args.hifi_fidelity),
         seed=int(args.seed),
+        breathing=breathing,
         constraint_phase=str(getattr(args, "hifi_constraint_phase", "downselect")),
+        openfoam_model_path=str(getattr(args, "openfoam_model_path", "")).strip() or None,
+        calculix_stress_mode=str(getattr(args, "calculix_stress_mode", "nn")),
+        calculix_model_path=str(getattr(args, "calculix_model_path", "")).strip() or None,
+        gear_loss_mode=str(getattr(args, "gear_loss_mode", "physics")),
+        gear_loss_model_dir=str(getattr(args, "gear_loss_model_dir", "")).strip() or None,
         thermo_model=str(getattr(args, "thermo_model", "two_zone_eq_v1")),
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
@@ -2068,8 +2164,12 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         thermo_symbolic_artifact_path=resolved_hifi_thermo_symbolic_path,
         production_profile="strict_prod",
         allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
+        strict_data=bool(getattr(args, "strict_data", True)),
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
         tribology_scuff_method=str(getattr(args, "tribology_scuff_method", "auto")),
+        surrogate_validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
+        machining_mode=str(getattr(args, "machining_mode", "nn")),
+        machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,
     )
 
     weights = _parse_float_list(str(args.rank_weights))
@@ -2108,14 +2208,18 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
             principles_result = synthesize_principles_frontier(
                 outdir=outdir,
                 ctx=lowfi_ctx,
-                profile_name=str(getattr(args, "principles_profile", "iso_litvin_v1")),
+                profile_name=str(getattr(args, "principles_profile", "iso_litvin_v2")),
                 seed=int(args.seed),
                 seed_count=int(getattr(args, "principles_seed_count", 64)),
-                min_frontier_size=int(getattr(args, "principles_frontier_min_size", 8)),
+                min_frontier_size=int(getattr(args, "principles_region_min_size", 12)),
                 root_max_iter=int(getattr(args, "principles_root_max_iter", 80)),
                 export_archive_dir=export_archive,
                 contract_version=CONTRACT_VERSION,
                 allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
+                alignment_mode=str(getattr(args, "principles_alignment_mode", "blend")),
+                alignment_fidelity=int(
+                    getattr(args, "principles_canonical_alignment_fidelity", 1)
+                ),
             )
             candidate_store = principles_result.store
             effective_pareto_source = Path(principles_result.pareto_source)
@@ -2161,11 +2265,23 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                 principles_artifacts=(
                     dict(principles_result.artifacts) if principles_result is not None else {}
                 ),
+                principles_region_summary=(
+                    dict(principles_result.region_summary) if principles_result is not None else {}
+                ),
+                principles_proxy_vs_canonical=(
+                    dict(principles_result.proxy_vs_canonical)
+                    if principles_result is not None
+                    else {}
+                ),
+                principles_diagnosis=(
+                    dict(principles_result.diagnosis) if principles_result is not None else {}
+                ),
                 production_profile="strict_prod",
                 allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
             )
         except Exception:
-            if bool(getattr(args, "architecture_probe_mode", False)):
+            manifest_path = outdir / "explore_exploit_manifest.json"
+            if not manifest_path.exists():
                 tracer = get_active_contract_tracer()
                 contract_summary = tracer.summary_payload() if tracer is not None else {}
                 failure_manifest = {
@@ -2184,6 +2300,54 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                     "principles_artifacts": (
                         dict(principles_result.artifacts) if principles_result is not None else {}
                     ),
+                    "principles_region_summary": (
+                        dict(principles_result.region_summary)
+                        if principles_result is not None
+                        else {}
+                    ),
+                    "principles_proxy_vs_canonical": (
+                        dict(principles_result.proxy_vs_canonical)
+                        if principles_result is not None
+                        else {}
+                    ),
+                    "principles_problem": {
+                        "profile": (
+                            str(principles_result.profile_name)
+                            if principles_result is not None
+                            else str(getattr(args, "principles_profile", ""))
+                        ),
+                        "alignment": (
+                            dict((principles_result.region_summary or {}).get("canonical_alignment", {}))
+                            if principles_result is not None
+                            else {}
+                        ),
+                        "normalization_scales": (
+                            dict((principles_result.region_summary or {}).get("normalization_scales", {}))
+                            if principles_result is not None
+                            else {}
+                        ),
+                    },
+                    "reduced_core": (
+                        dict((principles_result.region_summary or {}).get("reduced_core", {}))
+                        if principles_result is not None
+                        else {}
+                    ),
+                    "expansion_policy": (
+                        dict((principles_result.region_summary or {}).get("expansion_policy", {}))
+                        if principles_result is not None
+                        else {}
+                    ),
+                    "diagnosis_classification": str(
+                        (principles_result.diagnosis or {}).get("classification", "")
+                    )
+                    if principles_result is not None
+                    else "",
+                    "source_region_pass": bool(
+                        (principles_result.diagnosis or {}).get("source_region_pass", False)
+                    )
+                    if principles_result is not None
+                    else False,
+                    "optimization_pass": False,
                     "contract_version": CONTRACT_VERSION,
                     "contract_trace_file": str(trace_path),
                     "contract_summary_file": str(summary_path),
@@ -2192,14 +2356,14 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                         "release_ready": False,
                         "strict_data": bool(hifi_ctx.strict_data),
                         "constraint_phase": str(hifi_ctx.constraint_phase),
-                        "reasons": ["architecture_probe_runtime_exception"],
+                        "reasons": ["runtime_exception_before_manifest"],
                     },
                     "failure": {
                         "error_type": str(sys.exc_info()[0].__name__) if sys.exc_info()[0] else "",
                         "error_message": str(sys.exc_info()[1]) if sys.exc_info()[1] else "",
                     },
                 }
-                (outdir / "explore_exploit_manifest.json").write_text(
+                manifest_path.write_text(
                     json.dumps(failure_manifest, indent=2),
                     encoding="utf-8",
                 )
@@ -2249,6 +2413,11 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+    try:
+        _ensure_casadi_available(purpose="orchestrate casadi solver adapter")
+    except Exception as exc:
+        print(str(exc))
+        return 1
 
     thermo_symbolic_mode = str(getattr(args, "thermo_symbolic_mode", "strict"))
     explicit_thermo_symbolic_path = (
@@ -2361,6 +2530,11 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         default_torque=float(args.torque),
         allow_heuristic_fallback=bool(getattr(args, "allow_heuristic_surrogate_fallback", False)),
         validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
+        required_quality_artifacts=(
+            _resolve_default_hifi_quality_contract_artifacts()
+            if bool(getattr(args, "strict_data", True))
+            else []
+        ),
     )
     solver = CasadiSolverAdapter(
         backend="casadi",

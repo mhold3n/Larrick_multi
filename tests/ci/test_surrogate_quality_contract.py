@@ -111,6 +111,20 @@ def test_validate_artifact_quality_missing_report_fails_strict(tmp_path: Path) -
         )
 
 
+def test_validate_artifact_quality_missing_report_for_missing_dir_points_to_dir_report(
+    tmp_path: Path,
+) -> None:
+    missing_dir = tmp_path / "hifi"
+    with pytest.raises(FileNotFoundError) as excinfo:
+        validate_artifact_quality(
+            missing_dir,
+            surrogate_kind="hifi",
+            validation_mode="strict",
+            required_artifacts=["thermal_surrogate.pt"],
+        )
+    assert str(missing_dir / "quality_report.json") in str(excinfo.value)
+
+
 def test_validate_artifact_quality_passes_with_valid_report(tmp_path: Path) -> None:
     artifact = tmp_path / "stack.npz"
     artifact.write_bytes(b"artifact-bytes")
@@ -155,6 +169,40 @@ def test_validate_artifact_quality_checks_hash_linkage(tmp_path: Path) -> None:
             validation_mode="strict",
             required_artifacts=[artifact.name],
         )
+
+
+def test_validate_artifact_quality_merges_report_and_explicit_required_artifacts(
+    tmp_path: Path,
+) -> None:
+    model_dir = tmp_path / "hifi"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    (model_dir / "thermal_surrogate.pt").write_bytes(b"t")
+    (model_dir / "structural_surrogate.pt").write_bytes(b"s")
+    (model_dir / "flow_surrogate.pt").write_bytes(b"f")
+    (model_dir / "normalization.json").write_text("{}", encoding="utf-8")
+    extra_report_required = model_dir / "contract_bundle.json"
+    extra_report_required.write_text("{}", encoding="utf-8")
+    extra_abs_required = tmp_path / "external_gate.md"
+    extra_abs_required.write_text("# ok\n", encoding="utf-8")
+
+    report = _base_report("hifi", "")
+    report["required_artifacts"] = [
+        "thermal_surrogate.pt",
+        "structural_surrogate.pt",
+        "flow_surrogate.pt",
+        "normalization.json",
+        "contract_bundle.json",
+    ]
+    write_quality_report(model_dir / "quality_report.json", report)
+
+    loaded = validate_artifact_quality(
+        model_dir,
+        surrogate_kind="hifi",
+        validation_mode="strict",
+        required_artifacts=[str(extra_abs_required)],
+    )
+    assert loaded is not None
+    assert loaded["surrogate_kind"] == "hifi"
 
 
 def test_quality_report_schema_accepts_thermo_symbolic_kind() -> None:

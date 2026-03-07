@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -37,7 +38,11 @@ def _import_casadi():
     try:
         import casadi as ca
     except Exception as exc:  # pragma: no cover - dependency handled by caller
-        raise ImportError(f"CasADi unavailable: {exc}") from exc
+        raise ImportError(
+            "CasADi import failed in active runtime "
+            f"({sys.executable}): {type(exc).__name__}: {exc}. "
+            "Install optional dependency in this interpreter: pip install -e '.[casadi]'"
+        ) from exc
     return ca
 
 
@@ -229,7 +234,11 @@ def solve_symbolic_slice_with_ipopt(
     )
     if int(artifact.fidelity) != int(fidelity):
         raise ValueError(
-            f"Stack surrogate fidelity mismatch: artifact={artifact.fidelity}, requested={fidelity}"
+            "Stack surrogate fidelity mismatch: "
+            f"artifact={artifact.fidelity}, requested={fidelity}, "
+            f"path='{surrogate_stack_path}'. "
+            "Remediation: python -m larrak2.cli.run train-stack-surrogate "
+            f"--fidelity {int(fidelity)}"
         )
 
     ca = _import_casadi()

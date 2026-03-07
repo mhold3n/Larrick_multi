@@ -347,3 +347,8 @@ Readiness checks:
    - `python -m larrak2.cli.run train-thermo-symbolic --fidelity <f>`
 3. CI includes a dedicated CasADi lane (`.[dev,casadi]`) executing symbolic
    stack/slice tests and strict no-fallback backend behavior checks.
+4. Strict orchestration (`strict_data=true`) additionally enforces readiness
+   evidence artifacts:
+   - `outputs/readiness/pipeline_readiness_summary.md`
+   - `outputs/readiness/f2_blockers.json`
+   - `outputs/readiness/artifact_contract_audit.json`

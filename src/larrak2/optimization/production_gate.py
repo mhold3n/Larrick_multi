@@ -28,6 +28,8 @@ def evaluate_production_gate(
     winner_present: bool | None = None,
     frontier_gate_pass: bool | None = None,
     frontier_gate_basis: str | None = None,
+    source_region_pass: bool | None = None,
+    source_region_classification: str | None = None,
     release_ready: bool | None = None,
     used_heuristic_fallback: bool | None = None,
     algorithm_used: str = "",
@@ -79,10 +81,23 @@ def evaluate_production_gate(
 
     if winner_present is not None and not bool(winner_present):
         failures.append("no_hard_feasible_winner")
-    if frontier_gate_pass is not None and not bool(frontier_gate_pass):
+    legacy_frontier_gate_required = source_region_pass is None
+    if (
+        legacy_frontier_gate_required
+        and frontier_gate_pass is not None
+        and not bool(frontier_gate_pass)
+    ):
         failures.append("principles_frontier_gate_failed")
-    if str(frontier_gate_basis or "").strip() == "placeholder_frontier":
+    if legacy_frontier_gate_required and str(frontier_gate_basis or "").strip() == "placeholder_frontier":
         failures.append("placeholder_frontier_basis_disallowed")
+    if source_region_pass is not None and not bool(source_region_pass):
+        failures.append("source_region_not_ready")
+    if (
+        str(source_region_classification or "").strip()
+        and source_region_pass is not None
+        and not bool(source_region_pass)
+    ):
+        failures.append(f"source_region_classification:{str(source_region_classification).strip()}")
     if release_ready is not None and not bool(release_ready):
         failures.append("release_readiness_false")
     if used_heuristic_fallback is not None and bool(used_heuristic_fallback):
@@ -115,8 +130,9 @@ def evaluate_production_gate(
             "feasible_fraction_min": 0.20,
             "n_eval_errors_required": 0,
             "winner_required": True,
-            "frontier_gate_required": True,
-            "placeholder_frontier_allowed": False,
+            "frontier_gate_required": bool(legacy_frontier_gate_required),
+            "placeholder_frontier_allowed": bool(not legacy_frontier_gate_required),
+            "source_region_required": True,
             "release_ready_required": True,
             "heuristic_fallback_allowed": False,
             "constraint_phase_required": "downselect",
@@ -131,6 +147,8 @@ def evaluate_production_gate(
                 None if frontier_gate_pass is None else bool(frontier_gate_pass)
             ),
             "frontier_gate_basis": str(frontier_gate_basis or ""),
+            "source_region_pass": None if source_region_pass is None else bool(source_region_pass),
+            "source_region_classification": str(source_region_classification or ""),
             "release_ready": None if release_ready is None else bool(release_ready),
             "used_heuristic_fallback": (
                 None if used_heuristic_fallback is None else bool(used_heuristic_fallback)

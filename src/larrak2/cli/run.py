@@ -518,32 +518,52 @@ def main() -> int:
     ee.add_argument(
         "--principles-profile",
         type=str,
-        default="iso_litvin_v1",
+        default="iso_litvin_v2",
         help="Principles frontier profile id or JSON path",
     )
     ee.add_argument(
-        "--principles-frontier-min-size",
+        "--principles-region-min-size",
         type=int,
-        default=8,
-        help="Minimum hard-feasible non-dominated frontier size required by principles gate",
+        default=12,
+        help="Minimum representative candidate count required for a principles region to be ready",
+    )
+    ee.add_argument(
+        "--principles-frontier-min-size",
+        dest="principles_region_min_size",
+        type=int,
+        help="Deprecated alias for --principles-region-min-size",
     )
     ee.add_argument(
         "--principles-seed-count",
         type=int,
         default=64,
-        help="Number of synthesized seed candidates for principles frontier generation",
+        help="Deprecated compatibility input recorded in the manifest; default principles search is deterministic and seed-state driven",
     )
     ee.add_argument(
         "--principles-root-max-iter",
         type=int,
         default=80,
-        help="Maximum rootfinding/minimization iterations used during principles restoration",
+        help="Maximum iterations per deterministic principles continuation stage",
     )
     ee.add_argument(
         "--principles-export-archive-dir",
         type=str,
         default="",
         help="Optional output archive dir for synthesized principles frontier (defaults to <outdir>/principles_pareto)",
+    )
+    ee.add_argument(
+        "--principles-alignment-mode",
+        type=str,
+        default="blend",
+        choices=["blend", "proxy_only", "canonical_only"],
+        help="How principles search mixes reduced-order proxy scoring and canonical-alignment scoring",
+    )
+    ee.add_argument(
+        "--principles-canonical-alignment-fidelity",
+        type=int,
+        default=1,
+        choices=[0, 1, 2],
+        help="Canonical evaluator fidelity used by principles alignment scoring",
     )
     ee.add_argument("--outdir", type=str, default="outputs/explore_exploit")
     ee.add_argument("--run-explore", action="store_true")
@@ -627,6 +647,32 @@ def main() -> int:
     ee.add_argument("--ipopt-max-iter", type=int, default=None)
     ee.add_argument("--ipopt-tol", type=float, default=None)
     ee.add_argument("--ipopt-linear-solver", type=str, default=None)
+    ee.add_argument("--bore-mm", type=float, default=80.0)
+    ee.add_argument("--stroke-mm", type=float, default=90.0)
+    ee.add_argument("--intake-port-area-m2", type=float, default=4.0e-4)
+    ee.add_argument("--exhaust-port-area-m2", type=float, default=4.0e-4)
+    ee.add_argument("--p-manifold-pa", type=float, default=101325.0)
+    ee.add_argument("--p-back-pa", type=float, default=101325.0)
+    ee.add_argument("--overlap-deg", type=float, default=0.0)
+    ee.add_argument("--intake-open-deg", type=float, default=0.0)
+    ee.add_argument("--intake-close-deg", type=float, default=0.0)
+    ee.add_argument("--exhaust-open-deg", type=float, default=0.0)
+    ee.add_argument("--exhaust-close-deg", type=float, default=0.0)
+    ee.add_argument("--openfoam-model-path", type=str, default="")
+    ee.add_argument(
+        "--calculix-stress-mode",
+        type=str,
+        default="nn",
+        choices=["nn", "analytical"],
+    )
+    ee.add_argument("--calculix-model-path", type=str, default="")
+    ee.add_argument(
+        "--gear-loss-mode",
+        type=str,
+        default="physics",
+        choices=["physics", "nn"],
+    )
+    ee.add_argument("--gear-loss-model-dir", type=str, default="")
     ee.add_argument(
         "--tribology-scuff-method",
         type=str,
@@ -654,6 +700,37 @@ def main() -> int:
         "--allow-nonproduction-paths",
         action="store_true",
         help="Allow non-production fallback paths and mark manifest as non-release",
+    )
+    ee.add_argument(
+        "--surrogate-validation-mode",
+        type=str,
+        default="strict",
+        choices=["strict", "warn", "off"],
+    )
+    ee.add_argument(
+        "--strict-data",
+        dest="strict_data",
+        action="store_true",
+        help="Enable strict data-path checks (default)",
+    )
+    ee.add_argument(
+        "--no-strict-data",
+        dest="strict_data",
+        action="store_false",
+        help="Disable strict data-path checks",
+    )
+    ee.set_defaults(strict_data=True)
+    ee.add_argument(
+        "--machining-mode",
+        type=str,
+        default="nn",
+        choices=["nn", "analytical"],
+    )
+    ee.add_argument(
+        "--machining-model-path",
+        type=str,
+        default="",
+        help="Override machining NN artifact path",
     )
     ee.add_argument("--verbose", action="store_true")
 
