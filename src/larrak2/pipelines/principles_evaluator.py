@@ -211,7 +211,11 @@ def evaluate_principles_proxy(
         loss_corrected = float(gear_result.loss_total)
         omega = float(ctx.rpm) * 2.0 * np.pi / 60.0
         P_out = float(ctx.torque) * omega
-        eta_gear = float(np.clip(P_out / max(P_out + loss_corrected, 1e-12), 0.0, 1.0)) if P_out > 0 else 1.0
+        eta_gear = (
+            float(np.clip(P_out / max(P_out + loss_corrected, 1e-12), 0.0, 1.0))
+            if P_out > 0
+            else 1.0
+        )
 
         machining_eng = get_machining_engine(
             mode="analytical",
@@ -238,7 +242,9 @@ def evaluate_principles_proxy(
         tol_req, tol_penalty = calculate_tolerance_budget(
             min_ligament_mm=t_min_proxy,
             min_curvature_mm=min_curvature,
-            aspect_ratio=float(candidate.gear.face_width_mm / max(candidate.gear.base_radius, 1e-6)),
+            aspect_ratio=float(
+                candidate.gear.face_width_mm / max(candidate.gear.base_radius, 1e-6)
+            ),
             torque_nm=float(ctx.torque),
             budget_mm=float(ctx.tolerance_threshold_mm),
             mode=ctx.tolerance_constraint_mode,
@@ -260,7 +266,9 @@ def evaluate_principles_proxy(
         operating_temp_C = float(thermo_diag.get("T_mean_wall", 200.0))
         pitch_line_vel = omega * candidate.gear.base_radius / 1000.0
         strict_tribology_flag = (
-            bool(ctx.strict_data) if ctx.strict_tribology_data is None else bool(ctx.strict_tribology_data)
+            bool(ctx.strict_data)
+            if ctx.strict_tribology_data is None
+            else bool(ctx.strict_tribology_data)
         )
         if strict_tribology_flag:
             tribology_validation_mode = "strict"

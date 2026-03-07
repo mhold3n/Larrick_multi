@@ -244,8 +244,6 @@ def test_train_thermo_defaults_follow_fidelity(tmp_path: Path, monkeypatch) -> N
         surrogate_validation_mode="strict",
     )
     summary = train_thermo_symbolic_workflow(args)
-    expected = (
-        tmp_path / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
-    )
+    expected = tmp_path / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
     assert Path(summary["artifact_path"]).resolve() == expected.resolve()
     assert expected.exists()

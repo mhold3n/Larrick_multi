@@ -537,9 +537,7 @@ def train_thermo_symbolic_workflow(args: argparse.Namespace) -> dict[str, Any]:
     artifact_name = str(getattr(args, "name", "")).strip() or f"thermo_symbolic_f{fidelity}.npz"
     out_path = outdir / artifact_name
 
-    default_constraints = (
-        THERMO_CONSTRAINTS_FID1 if fidelity >= 1 else THERMO_CONSTRAINTS_FID0
-    )
+    default_constraints = THERMO_CONSTRAINTS_FID1 if fidelity >= 1 else THERMO_CONSTRAINTS_FID0
     objective_names = _parse_name_list(
         getattr(args, "objective_names", ""),
         default=("eta_comb_gap", "eta_exp_gap", "motion_law_penalty"),

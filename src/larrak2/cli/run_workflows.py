@@ -2061,7 +2061,9 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                     "release_readiness": {
                         "release_ready": False,
                         "strict_data": True,
-                        "constraint_phase": str(getattr(args, "hifi_constraint_phase", "downselect")),
+                        "constraint_phase": str(
+                            getattr(args, "hifi_constraint_phase", "downselect")
+                        ),
                         "reasons": ["architecture_probe_runtime_exception"],
                     },
                     "failure": {
@@ -2217,9 +2219,7 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                 contract_version=CONTRACT_VERSION,
                 allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
                 alignment_mode=str(getattr(args, "principles_alignment_mode", "blend")),
-                alignment_fidelity=int(
-                    getattr(args, "principles_canonical_alignment_fidelity", 1)
-                ),
+                alignment_fidelity=int(getattr(args, "principles_canonical_alignment_fidelity", 1)),
             )
             candidate_store = principles_result.store
             effective_pareto_source = Path(principles_result.pareto_source)
@@ -2317,12 +2317,20 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                             else str(getattr(args, "principles_profile", ""))
                         ),
                         "alignment": (
-                            dict((principles_result.region_summary or {}).get("canonical_alignment", {}))
+                            dict(
+                                (principles_result.region_summary or {}).get(
+                                    "canonical_alignment", {}
+                                )
+                            )
                             if principles_result is not None
                             else {}
                         ),
                         "normalization_scales": (
-                            dict((principles_result.region_summary or {}).get("normalization_scales", {}))
+                            dict(
+                                (principles_result.region_summary or {}).get(
+                                    "normalization_scales", {}
+                                )
+                            )
                             if principles_result is not None
                             else {}
                         ),

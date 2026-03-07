@@ -129,8 +129,12 @@ def test_synthesize_principles_frontier_emits_region_artifacts(
         reduced_a = reduced_mid_bounds()
         reduced_b = reduced_mid_bounds().copy()
         reduced_b[0] += 5.0
-        x_a, expansion_a = expand_reduced_vector(reduced_a, profile_payload=profile_payload, rpm=1800.0)
-        x_b, expansion_b = expand_reduced_vector(reduced_b, profile_payload=profile_payload, rpm=2600.0)
+        x_a, expansion_a = expand_reduced_vector(
+            reduced_a, profile_payload=profile_payload, rpm=1800.0
+        )
+        x_b, expansion_b = expand_reduced_vector(
+            reduced_b, profile_payload=profile_payload, rpm=2600.0
+        )
 
         proxy_a = PrinciplesProxyResult(
             F=np.array([1.0, 1.2, 0.9, 0.2, 0.3, 0.1], dtype=np.float64),
@@ -246,8 +250,12 @@ def test_synthesize_principles_frontier_emits_region_artifacts(
             ),
         }
 
-    monkeypatch.setattr("larrak2.pipelines.principles_frontier._build_operating_points", _fake_points)
-    monkeypatch.setattr("larrak2.pipelines.principles_frontier.search_principles_region", _fake_search)
+    monkeypatch.setattr(
+        "larrak2.pipelines.principles_frontier._build_operating_points", _fake_points
+    )
+    monkeypatch.setattr(
+        "larrak2.pipelines.principles_frontier.search_principles_region", _fake_search
+    )
 
     result = synthesize_principles_frontier(
         outdir=tmp_path / "out",

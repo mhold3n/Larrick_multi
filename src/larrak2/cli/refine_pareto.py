@@ -187,7 +187,8 @@ def main(argv: list[str] | None = None) -> int:
             fidelity=int(args.fidelity),
             explicit_path=str(args.thermo_symbolic_artifact_path).strip() or None,
             must_exist=(
-                args.backend == "casadi" and str(args.thermo_symbolic_mode).strip().lower() == "strict"
+                args.backend == "casadi"
+                and str(args.thermo_symbolic_mode).strip().lower() == "strict"
             ),
         )
     except Exception as exc:

@@ -1008,13 +1008,9 @@ class Orchestrator:
                 production_gate.get("production_profile", self.config.production_profile)
             ),
             "production_gate_pass": bool(production_gate.get("production_gate_pass", False)),
-            "production_gate_failures": list(
-                production_gate.get("production_gate_failures", [])
-            ),
+            "production_gate_failures": list(production_gate.get("production_gate_failures", [])),
             "fallback_paths_used": list(production_gate.get("fallback_paths_used", [])),
-            "nonproduction_overrides": list(
-                production_gate.get("nonproduction_overrides", [])
-            ),
+            "nonproduction_overrides": list(production_gate.get("nonproduction_overrides", [])),
             "n_eval_errors": int(production_gate.get("n_eval_errors", 0)),
             "algorithm_used": str(production_gate.get("algorithm_used", "")),
             "fidelity": int(production_gate.get("fidelity", self.config.fidelity)),

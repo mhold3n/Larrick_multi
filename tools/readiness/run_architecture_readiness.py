@@ -392,7 +392,9 @@ def run_probes(outdir: Path) -> dict[str, Any]:
             blocker_detail = (full_output.strip().splitlines() or [""])[-1][:400]
         elif spec.workflow == "explore_exploit" and not source_region_fields_present:
             blocker_type = "contract_shape_gap"
-            blocker_detail = "explore-exploit manifest missing required source-region contract fields"
+            blocker_detail = (
+                "explore-exploit manifest missing required source-region contract fields"
+            )
 
         probe_results.append(
             {
@@ -651,9 +653,8 @@ def build_gap_ledger(
         if not bool(probe.get("manifest_exists", False)):
             manifest_fields_ok = False
             wiring_ok = False
-        if (
-            str(probe.get("workflow", "")) == "explore_exploit"
-            and not bool(probe.get("source_region_fields_present", False))
+        if str(probe.get("workflow", "")) == "explore_exploit" and not bool(
+            probe.get("source_region_fields_present", False)
         ):
             manifest_fields_ok = False
 

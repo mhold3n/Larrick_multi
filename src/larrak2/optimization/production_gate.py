@@ -88,7 +88,10 @@ def evaluate_production_gate(
         and not bool(frontier_gate_pass)
     ):
         failures.append("principles_frontier_gate_failed")
-    if legacy_frontier_gate_required and str(frontier_gate_basis or "").strip() == "placeholder_frontier":
+    if (
+        legacy_frontier_gate_required
+        and str(frontier_gate_basis or "").strip() == "placeholder_frontier"
+    ):
         failures.append("placeholder_frontier_basis_disallowed")
     if source_region_pass is not None and not bool(source_region_pass):
         failures.append("source_region_not_ready")
