@@ -263,8 +263,7 @@ def validate_openfoam_strict_f2_provenance(
     if not bool(status["strict_f2_eligible"]):
         _raise_or_warn(
             mode,
-            "openfoam strict F2 provenance gate failed: "
-            + str(status["gate_failure_reason"]),
+            "openfoam strict F2 provenance gate failed: " + str(status["gate_failure_reason"]),
             exc_type=ValueError,
         )
     return status

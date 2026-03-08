@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 
 from larrak2.adapters.casadi_refine import RefinementMode, refine_candidate
 from larrak2.core.encoding import mid_bounds_candidate

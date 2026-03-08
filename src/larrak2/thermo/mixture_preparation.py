@@ -56,7 +56,9 @@ def evaluate_mixture_preparation(
     constants: Any,
 ) -> MixturePreparationResult:
     profile = load_thermo_chemistry_profile(getattr(ctx, "thermo_chemistry_profile_path", None))
-    fuel = fuel_profile_for_name(getattr(breathing, "fuel_name", "gasoline"), profile_path=profile.path)
+    fuel = fuel_profile_for_name(
+        getattr(breathing, "fuel_name", "gasoline"), profile_path=profile.path
+    )
     hw = profile.hardware
 
     rpm = max(float(ctx.rpm), 1.0)
@@ -96,10 +98,20 @@ def evaluate_mixture_preparation(
 
     base_homogeneity = float(hw.mixture_homogeneity_base) * float(fuel.mixture_homogeneity_factor)
     mixing_gain = float(hw.mixing_length_factor) * float(np.clip(residence_time_s / 0.03, 0.0, 1.0))
-    lambda_penalty = float(hw.mixture_inhomogeneity_lambda_gain) * abs(float(params.lambda_af) - 1.0)
+    lambda_penalty = float(hw.mixture_inhomogeneity_lambda_gain) * abs(
+        float(params.lambda_af) - 1.0
+    )
     rpm_penalty = float(hw.mixture_inhomogeneity_rpm_gain) * float(np.clip(rpm / 7000.0, 0.0, 1.0))
     mixture_homogeneity = float(
-        np.clip(base_homogeneity + mixing_gain - lambda_penalty - rpm_penalty - 0.7 * wall_film_fraction, 0.0, 1.0)
+        np.clip(
+            base_homogeneity
+            + mixing_gain
+            - lambda_penalty
+            - rpm_penalty
+            - 0.7 * wall_film_fraction,
+            0.0,
+            1.0,
+        )
     )
     mixture_inhomogeneity = float(np.clip(1.0 - mixture_homogeneity, 0.0, 1.0))
 

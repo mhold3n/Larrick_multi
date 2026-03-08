@@ -26,6 +26,12 @@ from larrak2.core.constraints import (
 from larrak2.core.encoding import N_TOTAL, bounds, mid_bounds_candidate
 from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import EvalContext
+from larrak2.surrogate.openfoam_authority import (
+    DEFAULT_OPENFOAM_AUTHORITY_ROOT,
+    build_openfoam_split_manifest,
+    inspect_truth_anchor_manifest,
+    write_staged_openfoam_authority_bundle,
+)
 from larrak2.surrogate.quality_contract import (
     dataset_manifest_for_file,
     openfoam_default_data_provenance,
@@ -37,22 +43,16 @@ from larrak2.surrogate.quality_contract import (
     thermo_symbolic_quality_fail_reasons,
     write_quality_report,
 )
-from larrak2.surrogate.openfoam_authority import (
-    DEFAULT_OPENFOAM_AUTHORITY_ROOT,
-    build_openfoam_split_manifest,
-    inspect_truth_anchor_manifest,
-    write_staged_openfoam_authority_bundle,
-)
 from larrak2.surrogate.stack import (
     default_feature_names,
     save_stack_artifact,
     train_stack_surrogate,
 )
+from larrak2.thermo.constants import load_anchor_manifest
 from larrak2.thermo.symbolic_artifact import (
     save_thermo_symbolic_artifact,
     train_thermo_symbolic_affine,
 )
-from larrak2.thermo.constants import load_anchor_manifest
 
 # OpenFOAM Imports
 try:
@@ -120,7 +120,11 @@ def _openfoam_data_provenance_from_args(
             "authoritative_for_strict_f2 requires kind in {'doe_generated', 'truth_records'} "
             "and a non-empty anchor manifest"
         )
-    if authoritative and anchor_truth_status is not None and not bool(anchor_truth_status["truth_backed"]):
+    if (
+        authoritative
+        and anchor_truth_status is not None
+        and not bool(anchor_truth_status["truth_backed"])
+    ):
         raise ValueError(
             "authoritative_for_strict_f2 requires an anchor manifest built from truth records; "
             f"got reasons={anchor_truth_status.get('reasons', [])}"
@@ -607,9 +611,7 @@ def train_thermo_symbolic_workflow(args: argparse.Namespace) -> dict[str, Any]:
     artifact_name = str(getattr(args, "name", "")).strip() or f"thermo_symbolic_f{fidelity}.npz"
     out_path = outdir / artifact_name
 
-    default_constraints = (
-        THERMO_CONSTRAINTS_FID1 if fidelity >= 1 else THERMO_CONSTRAINTS_FID0
-    )
+    default_constraints = THERMO_CONSTRAINTS_FID1 if fidelity >= 1 else THERMO_CONSTRAINTS_FID0
     objective_names = _parse_name_list(
         getattr(args, "objective_names", ""),
         default=("eta_comb_gap", "eta_exp_gap", "motion_law_penalty"),
@@ -761,10 +763,9 @@ def train_openfoam_workflow(args: argparse.Namespace):
         raise ValueError(f"Unsupported format: {suf}")
 
     provenance = _openfoam_data_provenance_from_args(args, data_path=data_path)
-    if (
-        str(provenance.get("kind", "")).strip() != "synthetic_rehearsal"
-        and outdir.resolve(strict=False) == DEFAULT_OPENFOAM_NN_DIR.resolve(strict=False)
-    ):
+    if str(provenance.get("kind", "")).strip() != "synthetic_rehearsal" and outdir.resolve(
+        strict=False
+    ) == DEFAULT_OPENFOAM_NN_DIR.resolve(strict=False):
         raise ValueError(
             "Refusing to write DOE/truth-backed OpenFOAM training output directly to the canonical "
             f"runtime directory '{DEFAULT_OPENFOAM_NN_DIR}'. Train into a staged directory and use "

@@ -35,7 +35,9 @@ class IgnitionStageResult:
 
     def as_dict(self) -> dict[str, float | str]:
         return {
-            "spark_timing_deg_from_compression_tdc": float(self.spark_timing_deg_from_compression_tdc),
+            "spark_timing_deg_from_compression_tdc": float(
+                self.spark_timing_deg_from_compression_tdc
+            ),
             "spark_absolute_deg": float(self.spark_absolute_deg),
             "ivc_deg": float(self.ivc_deg),
             "preignition_integral": float(self.preignition_integral),
@@ -54,7 +56,9 @@ class IgnitionStageResult:
         }
 
 
-def _interp_periodic(theta_deg: np.ndarray, values: np.ndarray, query_deg: np.ndarray) -> np.ndarray:
+def _interp_periodic(
+    theta_deg: np.ndarray, values: np.ndarray, query_deg: np.ndarray
+) -> np.ndarray:
     theta = np.asarray(theta_deg, dtype=np.float64).reshape(-1)
     vals = np.asarray(values, dtype=np.float64).reshape(-1)
     query = np.asarray(query_deg, dtype=np.float64).reshape(-1)
@@ -105,7 +109,9 @@ def evaluate_ignition_stage(
     fuel = fuel_profile_for_name(mixture.fuel_name, profile_path=profile.path)
 
     spark_rel = float(
-        getattr(params, "spark_timing_deg_from_compression_tdc", profile.spark_timing_legacy_default)
+        getattr(
+            params, "spark_timing_deg_from_compression_tdc", profile.spark_timing_legacy_default
+        )
     )
     spark_abs = float(motion_events.compression_end_tdc_deg + spark_rel)
     spark_abs_wrapped = float(np.mod(spark_abs, 360.0))

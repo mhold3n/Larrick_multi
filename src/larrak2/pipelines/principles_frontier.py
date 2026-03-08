@@ -111,21 +111,33 @@ def _upgrade_legacy_profile_if_needed(
 ) -> dict[str, Any]:
     if _CANONICAL_V2_FIELDS.issubset(payload.keys()):
         return payload
-    canonical_v2 = _read_json(repo_root / "data" / "optimization" / "principles_frontier_profile_v2.json")
+    canonical_v2 = _read_json(
+        repo_root / "data" / "optimization" / "principles_frontier_profile_v2.json"
+    )
     upgraded = dict(canonical_v2)
-    upgraded.update({
-        "profile_id": str(payload.get("profile_id", upgraded.get("profile_id", "iso_litvin_v2"))),
-        "profile_version": str(payload.get("profile_version", payload.get("profile_id", "1.0"))),
-        "description": str(payload.get("description", upgraded.get("description", ""))),
-        "anchor_manifest": str(payload.get("anchor_manifest", upgraded.get("anchor_manifest", ""))),
-        "envelope": dict(payload.get("envelope", upgraded.get("envelope", {}))),
-        "gate_thresholds": {
-            **dict(upgraded.get("gate_thresholds", {})),
-            **dict(payload.get("gate_thresholds", {})),
-        },
-        "source_references": list(payload.get("source_references", upgraded.get("source_references", []))),
-        "compatibility_profile_source": str(path),
-    })
+    upgraded.update(
+        {
+            "profile_id": str(
+                payload.get("profile_id", upgraded.get("profile_id", "iso_litvin_v2"))
+            ),
+            "profile_version": str(
+                payload.get("profile_version", payload.get("profile_id", "1.0"))
+            ),
+            "description": str(payload.get("description", upgraded.get("description", ""))),
+            "anchor_manifest": str(
+                payload.get("anchor_manifest", upgraded.get("anchor_manifest", ""))
+            ),
+            "envelope": dict(payload.get("envelope", upgraded.get("envelope", {}))),
+            "gate_thresholds": {
+                **dict(upgraded.get("gate_thresholds", {})),
+                **dict(payload.get("gate_thresholds", {})),
+            },
+            "source_references": list(
+                payload.get("source_references", upgraded.get("source_references", []))
+            ),
+            "compatibility_profile_source": str(path),
+        }
+    )
     return upgraded
 
 
@@ -240,7 +252,9 @@ def _legacy_gate_payload(
         "n_gate_feasible_explore": int(region_summary.get("n_region_candidates", 0)),
         "n_gate_nondominated": int(region_summary.get("n_region_candidates", 0)),
         "coverage_rpm_fraction": float(region_summary.get("envelope_coverage_rpm_fraction", 0.0)),
-        "coverage_torque_fraction": float(region_summary.get("envelope_coverage_torque_fraction", 0.0)),
+        "coverage_torque_fraction": float(
+            region_summary.get("envelope_coverage_torque_fraction", 0.0)
+        ),
         "min_frontier_size_required": int(region_summary.get("region_min_size_required", 0)),
         "frontier_gate_required": bool(int(ctx.fidelity) >= 1),
         "allow_nonproduction_paths": bool(allow_nonproduction_paths),
@@ -277,7 +291,9 @@ def synthesize_principles_frontier(
 
     search_result = search_principles_region(
         profile_payload=profile_payload,
-        operating_points=[{"rpm": op.rpm, "torque": op.torque, "source": op.source} for op in operating_points],
+        operating_points=[
+            {"rpm": op.rpm, "torque": op.torque, "source": op.source} for op in operating_points
+        ],
         base_ctx=ctx,
         alignment_mode=str(alignment_mode),
         alignment_fidelity=int(alignment_fidelity),
@@ -292,11 +308,10 @@ def synthesize_principles_frontier(
     diagnosis = search_result["diagnosis"]
 
     thresholds = dict(profile_payload.get("gate_thresholds", {}) or {})
-    coverage_ok = (
-        float(region_summary.get("envelope_coverage_rpm_fraction", 0.0))
-        >= float(thresholds.get("coverage_rpm_fraction_min", 0.6))
-        and float(region_summary.get("envelope_coverage_torque_fraction", 0.0))
-        >= float(thresholds.get("coverage_torque_fraction_min", 0.6))
+    coverage_ok = float(region_summary.get("envelope_coverage_rpm_fraction", 0.0)) >= float(
+        thresholds.get("coverage_rpm_fraction_min", 0.6)
+    ) and float(region_summary.get("envelope_coverage_torque_fraction", 0.0)) >= float(
+        thresholds.get("coverage_torque_fraction_min", 0.6)
     )
     source_region_pass = bool(diagnosis.classification == "region_ready" and coverage_ok)
     source_region_policy = "strict_region_ready"
@@ -305,14 +320,46 @@ def synthesize_principles_frontier(
         source_region_policy = "diagnostic_non_blocking_f0"
 
     n_constraints = len(get_constraint_names(max(int(ctx.fidelity), int(alignment_fidelity), 1)))
-    X_region = np.asarray([records[i]["x_full"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, N_TOTAL), dtype=np.float64)
-    F_region = np.asarray([records[i]["F_blend"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
-    G_region = np.asarray([records[i]["G_combined"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, n_constraints), dtype=np.float64)
-    Z_region = np.asarray([records[i]["z_reduced"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(reduced_variable_names(profile_payload))), dtype=np.float64)
-    proxy_F = np.asarray([records[i]["proxy"].F for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
-    proxy_G = np.asarray([records[i]["proxy"].G for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, n_constraints), dtype=np.float64)
-    align_F = np.asarray([records[i]["alignment"].F for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
-    align_G = np.asarray([records[i]["alignment"].G for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, n_constraints), dtype=np.float64)
+    X_region = (
+        np.asarray([records[i]["x_full"] for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, N_TOTAL), dtype=np.float64)
+    )
+    F_region = (
+        np.asarray([records[i]["F_blend"] for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
+    )
+    G_region = (
+        np.asarray([records[i]["G_combined"] for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, n_constraints), dtype=np.float64)
+    )
+    Z_region = (
+        np.asarray([records[i]["z_reduced"] for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, len(reduced_variable_names(profile_payload))), dtype=np.float64)
+    )
+    proxy_F = (
+        np.asarray([records[i]["proxy"].F for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
+    )
+    proxy_G = (
+        np.asarray([records[i]["proxy"].G for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, n_constraints), dtype=np.float64)
+    )
+    align_F = (
+        np.asarray([records[i]["alignment"].F for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
+    )
+    align_G = (
+        np.asarray([records[i]["alignment"].G for i in region_indices], dtype=np.float64)
+        if region_indices
+        else np.zeros((0, n_constraints), dtype=np.float64)
+    )
 
     diagnosis_payload = {
         "classification": str(diagnosis.classification),
@@ -398,7 +445,11 @@ def synthesize_principles_frontier(
     _write_json(legacy_summary_path, {**region_summary_payload, "legacy_gate": legacy_gate_payload})
     _write_jsonl(candidate_records_path, records)
 
-    archive_dir = Path(export_archive_dir) if export_archive_dir is not None else out_root / "principles_pareto"
+    archive_dir = (
+        Path(export_archive_dir)
+        if export_archive_dir is not None
+        else out_root / "principles_pareto"
+    )
     archive_dir.mkdir(parents=True, exist_ok=True)
     archive_summary = {
         "n_pareto": int(X_region.shape[0]),

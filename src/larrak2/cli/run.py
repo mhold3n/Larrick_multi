@@ -235,7 +235,9 @@ def main() -> int:
     ts.add_argument("--openfoam-authoritative-for-strict-f2", action="store_true")
     ts.add_argument("--openfoam-anchor-manifest", type=str, default="")
     ts.add_argument("--openfoam-truth-source-summary", type=str, default="")
-    ts.add_argument("--openfoam-authority-bundle-root", type=str, default="outputs/openfoam_authority")
+    ts.add_argument(
+        "--openfoam-authority-bundle-root", type=str, default="outputs/openfoam_authority"
+    )
     ts.add_argument("--calculix-data", type=str, default="")
     ts.add_argument(
         "--calculix-template",

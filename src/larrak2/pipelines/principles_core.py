@@ -45,7 +45,9 @@ REDUCED_VARIABLE_NAMES: tuple[str, ...] = (
 )
 
 _FULL_INDEX_BY_NAME = {meta.name: int(meta.index) for meta in variable_manifest()}
-REDUCED_FULL_INDICES: tuple[int, ...] = tuple(_FULL_INDEX_BY_NAME[name] for name in REDUCED_VARIABLE_NAMES)
+REDUCED_FULL_INDICES: tuple[int, ...] = tuple(
+    _FULL_INDEX_BY_NAME[name] for name in REDUCED_VARIABLE_NAMES
+)
 REALWORLD_NAMES: tuple[str, ...] = (
     "surface_finish_level",
     "lube_mode_level",
@@ -65,7 +67,9 @@ class PrinciplesReducedVector:
     values: np.ndarray
 
     @classmethod
-    def from_array(cls, values: np.ndarray | list[float] | tuple[float, ...]) -> "PrinciplesReducedVector":
+    def from_array(
+        cls, values: np.ndarray | list[float] | tuple[float, ...]
+    ) -> PrinciplesReducedVector:
         arr = np.asarray(values, dtype=np.float64).reshape(-1)
         if arr.size != len(REDUCED_VARIABLE_NAMES):
             raise ValueError(
@@ -89,7 +93,7 @@ class PrinciplesExpansionPolicy:
     material_quality_level_min: float
 
     @classmethod
-    def from_profile(cls, profile_payload: dict[str, Any]) -> "PrinciplesExpansionPolicy":
+    def from_profile(cls, profile_payload: dict[str, Any]) -> PrinciplesExpansionPolicy:
         payload = dict(profile_payload.get("expansion_policy", {}) or {})
         defaults = dict(payload.get("realworld_defaults", {}) or {})
         missing = [name for name in REALWORLD_NAMES if name not in defaults]
@@ -189,7 +193,9 @@ def weight_vectors_from_profile(profile_payload: dict[str, Any]) -> list[dict[st
                 f"Principles weight vector '{name}' must have {len(PRINCIPLES_OBJECTIVE_NAMES)} entries"
             )
         if np.any(weights < 0.0) or float(np.sum(weights)) <= 0.0:
-            raise ValueError(f"Principles weight vector '{name}' must be non-negative with positive sum")
+            raise ValueError(
+                f"Principles weight vector '{name}' must be non-negative with positive sum"
+            )
         out.append({"name": name, "weights": weights / np.sum(weights)})
     return out
 
@@ -217,7 +223,9 @@ def expand_reduced_vector(
         x_full[_FULL_INDEX_BY_NAME[name]] = float(policy.realworld_defaults[name])
 
     candidate = decode_candidate(x_full)
-    pitch_line_velocity_m_s = float(2.0 * np.pi * (candidate.gear.base_radius / 1000.0) * float(rpm) / 60.0)
+    pitch_line_velocity_m_s = float(
+        2.0 * np.pi * (candidate.gear.base_radius / 1000.0) * float(rpm) / 60.0
+    )
     overrides: dict[str, float] = {}
     if pitch_line_velocity_m_s >= float(policy.lube_pitch_line_velocity_threshold_m_s):
         idx = _FULL_INDEX_BY_NAME["lube_mode_level"]

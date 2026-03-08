@@ -1117,10 +1117,11 @@ def run_train_surrogates_workflow(args: argparse.Namespace) -> int:
             log_fn=_log,
         )
         effective_openfoam_outdir = openfoam_outdir
-        if (
-            str(openfoam_data_meta.get("source", "")).strip() == "doe_generated"
-            and openfoam_outdir.resolve(strict=False) == DEFAULT_OPENFOAM_NN_ARTIFACT.parent.resolve(strict=False)
-        ):
+        if str(
+            openfoam_data_meta.get("source", "")
+        ).strip() == "doe_generated" and openfoam_outdir.resolve(
+            strict=False
+        ) == DEFAULT_OPENFOAM_NN_ARTIFACT.parent.resolve(strict=False):
             effective_openfoam_outdir = outdir / "openfoam_authority_artifact"
             effective_openfoam_outdir.mkdir(parents=True, exist_ok=True)
             _log(
@@ -1216,7 +1217,9 @@ def run_train_surrogates_workflow(args: argparse.Namespace) -> int:
             "calculix_data_meta": calculix_data_meta,
         }
         manifest["openfoam_strict_f2_promotable"] = bool(
-            manifest["steps"]["train_nn_surrogates"]["openfoam_authority_bundle"].get("promotable", False)  # type: ignore[index]
+            manifest["steps"]["train_nn_surrogates"]["openfoam_authority_bundle"].get(
+                "promotable", False
+            )  # type: ignore[index]
         )
         _write_manifest()
         _log(
@@ -2126,7 +2129,9 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                     "release_readiness": {
                         "release_ready": False,
                         "strict_data": True,
-                        "constraint_phase": str(getattr(args, "hifi_constraint_phase", "downselect")),
+                        "constraint_phase": str(
+                            getattr(args, "hifi_constraint_phase", "downselect")
+                        ),
                         "reasons": ["architecture_probe_runtime_exception"],
                     },
                     "failure": {
@@ -2292,9 +2297,7 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                 contract_version=CONTRACT_VERSION,
                 allow_nonproduction_paths=bool(getattr(args, "allow_nonproduction_paths", False)),
                 alignment_mode=str(getattr(args, "principles_alignment_mode", "blend")),
-                alignment_fidelity=int(
-                    getattr(args, "principles_canonical_alignment_fidelity", 1)
-                ),
+                alignment_fidelity=int(getattr(args, "principles_canonical_alignment_fidelity", 1)),
             )
             candidate_store = principles_result.store
             effective_pareto_source = Path(principles_result.pareto_source)
@@ -2394,12 +2397,20 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                             else str(getattr(args, "principles_profile", ""))
                         ),
                         "alignment": (
-                            dict((principles_result.region_summary or {}).get("canonical_alignment", {}))
+                            dict(
+                                (principles_result.region_summary or {}).get(
+                                    "canonical_alignment", {}
+                                )
+                            )
                             if principles_result is not None
                             else {}
                         ),
                         "normalization_scales": (
-                            dict((principles_result.region_summary or {}).get("normalization_scales", {}))
+                            dict(
+                                (principles_result.region_summary or {}).get(
+                                    "normalization_scales", {}
+                                )
+                            )
                             if principles_result is not None
                             else {}
                         ),
@@ -2833,7 +2844,9 @@ def run_promote_openfoam_artifact_workflow(args: argparse.Namespace) -> int:
 
     staged_dir = str(getattr(args, "staged_dir", "")).strip()
     bundle_root = str(getattr(args, "bundle_root", "")).strip() or "outputs/openfoam_authority"
-    staged_path = Path(staged_dir) if staged_dir else resolve_latest_openfoam_authority_dir(bundle_root)
+    staged_path = (
+        Path(staged_dir) if staged_dir else resolve_latest_openfoam_authority_dir(bundle_root)
+    )
 
     result = promote_openfoam_artifact(
         staged_dir=staged_path,

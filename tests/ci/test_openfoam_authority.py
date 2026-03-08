@@ -172,7 +172,10 @@ def test_validate_staged_bundle_rejects_synthetic_artifact(tmp_path: Path) -> No
     report = validate_staged_openfoam_authority_bundle(staged["staged_dir"])
     assert report["promotable"] is False
     assert any("dataset_not_doe_generated" == reason for reason in report["failure_reasons"])
-    assert any("provenance:synthetic_artifact_not_allowed_in_strict_f2" == reason for reason in report["failure_reasons"])
+    assert any(
+        "provenance:synthetic_artifact_not_allowed_in_strict_f2" == reason
+        for reason in report["failure_reasons"]
+    )
 
 
 def test_promote_openfoam_artifact_accepts_truth_backed_doe_bundle(tmp_path: Path) -> None:
@@ -180,7 +183,9 @@ def test_promote_openfoam_artifact_accepts_truth_backed_doe_bundle(tmp_path: Pat
     template_dir = tmp_path / "openfoam_template"
     template_dir.mkdir(parents=True, exist_ok=True)
     (template_dir / "system").mkdir(parents=True, exist_ok=True)
-    (template_dir / "system" / "controlDict").write_text("application rhoPimpleFoam;\n", encoding="utf-8")
+    (template_dir / "system" / "controlDict").write_text(
+        "application rhoPimpleFoam;\n", encoding="utf-8"
+    )
     data_path = tmp_path / "results_train.jsonl"
     data_path.write_text('{"ok": true}\n', encoding="utf-8")
     artifact = tmp_path / "artifact" / "openfoam_breathing.pt"
@@ -252,7 +257,9 @@ def test_promote_openfoam_artifact_rejects_non_truth_anchor_bundle(tmp_path: Pat
     template_dir = tmp_path / "openfoam_template"
     template_dir.mkdir(parents=True, exist_ok=True)
     (template_dir / "system").mkdir(parents=True, exist_ok=True)
-    (template_dir / "system" / "controlDict").write_text("application rhoPimpleFoam;\n", encoding="utf-8")
+    (template_dir / "system" / "controlDict").write_text(
+        "application rhoPimpleFoam;\n", encoding="utf-8"
+    )
     data_path = tmp_path / "results_train.jsonl"
     data_path.write_text('{"ok": true}\n', encoding="utf-8")
     artifact = tmp_path / "artifact" / "openfoam_breathing.pt"

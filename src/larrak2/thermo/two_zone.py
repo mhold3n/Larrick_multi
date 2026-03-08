@@ -228,7 +228,9 @@ def _predict_openfoam_breathing(
         model_path,
         validation_mode=str(getattr(ctx, "surrogate_validation_mode", "strict")),
     )
-    pred = surrogate.predict_one(_openfoam_feature_payload(params=params, ctx=ctx, breathing=breathing))
+    pred = surrogate.predict_one(
+        _openfoam_feature_payload(params=params, ctx=ctx, breathing=breathing)
+    )
     return {k: float(v) for k, v in pred.items()}
 
 
@@ -684,7 +686,9 @@ def evaluate_two_zone_thermo(
         openfoam_model_path = _resolve_openfoam_surrogate_path(ctx)
         openfoam_artifact = _openfoam_artifact_summary(openfoam_model_path)
         validation_mode = str(getattr(ctx, "surrogate_validation_mode", "strict")).strip().lower()
-        if validation_mode == "strict" and not bool(openfoam_artifact.get("strict_f2_eligible", False)):
+        if validation_mode == "strict" and not bool(
+            openfoam_artifact.get("strict_f2_eligible", False)
+        ):
             payload = _openfoam_provenance_failure_payload(
                 ctx=ctx,
                 params=params,
@@ -900,8 +904,7 @@ def evaluate_two_zone_thermo(
         chemistry_start = float(np.mod(ignition.ca10_deg - 0.1 * ignition.burn_duration_deg, 360.0))
     wiebe_theta_start = float(
         np.mod(
-            chemistry_weight * chemistry_start
-            + legacy_weight * float(params.heat_release_center),
+            chemistry_weight * chemistry_start + legacy_weight * float(params.heat_release_center),
             360.0,
         )
     )
@@ -1027,13 +1030,16 @@ def evaluate_two_zone_thermo(
         benchmark_status=benchmark_status,
         benchmark_ok=benchmark_ok,
         in_validated_envelope_flag=in_env,
-            trend_checks=trend_checks,
-            nn_disagreement=nn_disagreement,
-            messages=benchmark_messages,
-        )
+        trend_checks=trend_checks,
+        nn_disagreement=nn_disagreement,
+        messages=benchmark_messages,
+    )
 
     if not validation_report.passed(mass_tol=1e-4, energy_tol=3e-2, branch_tol=2e-2):
-        if str(openfoam_artifact.get("benchmark_authority", "")).strip() == "synthetic_non_authoritative":
+        if (
+            str(openfoam_artifact.get("benchmark_authority", "")).strip()
+            == "synthetic_non_authoritative"
+        ):
             benchmark_messages = list(benchmark_messages) + [
                 "openfoam surrogate artifact is backed by synthetic rehearsal data"
             ]
@@ -1107,8 +1113,7 @@ def evaluate_two_zone_thermo(
             float(mixture.wall_film_fraction) - float(chemistry_thresholds.wall_film_fraction_max),
             float(chemistry_thresholds.ignitability_margin_min)
             - float(ignition.ignitability_margin),
-            float(chemistry_thresholds.preignition_margin_min)
-            - float(ignition.preignition_margin),
+            float(chemistry_thresholds.preignition_margin_min) - float(ignition.preignition_margin),
             float(ratio_stats.get("max_slope", 0.0)) - float(slope_limit),
             _compute_power_balance_constraint(work, ctx.rpm, ctx.torque),
         ],
@@ -1154,17 +1159,13 @@ def evaluate_two_zone_thermo(
             "openfoam_strict_f2_eligible": bool(
                 openfoam_artifact.get("strict_f2_eligible", int(ctx.fidelity) < 2)
             ),
-            "openfoam_gate_failure_reason": str(
-                openfoam_artifact.get("gate_failure_reason", "")
-            ),
+            "openfoam_gate_failure_reason": str(openfoam_artifact.get("gate_failure_reason", "")),
             "stable_combustion_thresholds": dict(stable_thresholds),
             "chemistry_thresholds": {
                 "delivered_vapor_fraction_min": float(
                     chemistry_thresholds.delivered_vapor_fraction_min
                 ),
-                "mixture_inhomogeneity_max": float(
-                    chemistry_thresholds.mixture_inhomogeneity_max
-                ),
+                "mixture_inhomogeneity_max": float(chemistry_thresholds.mixture_inhomogeneity_max),
                 "wall_film_fraction_max": float(chemistry_thresholds.wall_film_fraction_max),
                 "ignitability_margin_min": float(chemistry_thresholds.ignitability_margin_min),
                 "preignition_margin_min": float(chemistry_thresholds.preignition_margin_min),
@@ -1180,7 +1181,9 @@ def evaluate_two_zone_thermo(
                 "legacy_heat_release_weight": float(legacy_weight),
                 "wiebe_theta_start": float(wiebe_theta_start),
                 "wiebe_duration_deg": float(wiebe_duration),
-                "handoff_burn_fraction": float(chemistry_profile.wiebe_handoff.handoff_burn_fraction),
+                "handoff_burn_fraction": float(
+                    chemistry_profile.wiebe_handoff.handoff_burn_fraction
+                ),
             },
             "openfoam_nn_used": bool(openfoam_nn_used),
             "ratio_profile_stats": ratio_stats,

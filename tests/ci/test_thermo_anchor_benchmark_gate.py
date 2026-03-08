@@ -82,7 +82,9 @@ def test_anchor_benchmark_gate_passes_for_small_disagreement(monkeypatch, tmp_pa
         return pred
 
     monkeypatch.setattr(two_zone, "_predict_openfoam_breathing", _fake_predict)
-    monkeypatch.setattr(two_zone, "_openfoam_artifact_summary", lambda *_: _authoritative_openfoam_artifact())
+    monkeypatch.setattr(
+        two_zone, "_openfoam_artifact_summary", lambda *_: _authoritative_openfoam_artifact()
+    )
     monkeypatch.setattr(
         two_zone,
         "validate_benchmark_agreement",
@@ -121,7 +123,9 @@ def test_anchor_benchmark_gate_fails_for_large_disagreement(monkeypatch, tmp_pat
         }
 
     monkeypatch.setattr(two_zone, "_predict_openfoam_breathing", _fake_predict)
-    monkeypatch.setattr(two_zone, "_openfoam_artifact_summary", lambda *_: _authoritative_openfoam_artifact())
+    monkeypatch.setattr(
+        two_zone, "_openfoam_artifact_summary", lambda *_: _authoritative_openfoam_artifact()
+    )
 
     manifest_path = _write_anchor_manifest(tmp_path / "anchors_fail.json")
     ctx = EvalContext(
@@ -150,7 +154,9 @@ def test_anchor_benchmark_gate_fails_for_large_disagreement(monkeypatch, tmp_pat
     assert payload["anchor_manifest"]["path"] == str(manifest_path)
 
 
-def test_fidelity2_strict_rejects_synthetic_openfoam_provenance(monkeypatch, tmp_path: Path) -> None:
+def test_fidelity2_strict_rejects_synthetic_openfoam_provenance(
+    monkeypatch, tmp_path: Path
+) -> None:
     candidate = decode_candidate(mid_bounds_candidate())
     manifest_path = _write_anchor_manifest(tmp_path / "anchors_strict.json")
     artifact_path = tmp_path / "openfoam_breathing.pt"
@@ -164,14 +170,18 @@ def test_fidelity2_strict_rejects_synthetic_openfoam_provenance(monkeypatch, tmp
             "quality_report_path": str(tmp_path / "quality_report.json"),
             "quality_report_exists": True,
             "artifact_file": artifact_path.name,
-            "dataset_manifest": {"source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"},
+            "dataset_manifest": {
+                "source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"
+            },
             "data_provenance": {
                 "kind": "synthetic_rehearsal",
                 "authoritative_for_strict_f2": False,
                 "anchor_manifest_path": "",
                 "anchor_manifest_version": "",
                 "anchor_count": 0,
-                "truth_source_summary": {"source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"},
+                "truth_source_summary": {
+                    "source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"
+                },
             },
             "strict_f2_eligible": False,
             "benchmark_authority": "synthetic_non_authoritative",
@@ -222,14 +232,18 @@ def test_fidelity2_warn_allows_synthetic_openfoam_provenance(monkeypatch, tmp_pa
             "quality_report_path": "outputs/artifacts/surrogates/openfoam_nn/quality_report.json",
             "quality_report_exists": True,
             "artifact_file": "openfoam_breathing.pt",
-            "dataset_manifest": {"source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"},
+            "dataset_manifest": {
+                "source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"
+            },
             "data_provenance": {
                 "kind": "synthetic_rehearsal",
                 "authoritative_for_strict_f2": False,
                 "anchor_manifest_path": "",
                 "anchor_manifest_version": "",
                 "anchor_count": 0,
-                "truth_source_summary": {"source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"},
+                "truth_source_summary": {
+                    "source_path": "outputs/dress_rehearsal/synthetic_openfoam_training.npz"
+                },
             },
             "strict_f2_eligible": False,
             "benchmark_authority": "synthetic_non_authoritative",

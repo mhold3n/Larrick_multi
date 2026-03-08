@@ -929,10 +929,10 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             "thermo_model_version": str(thermo_diag.get("thermo_model_version", "")),
             "thermo_constants_version": str(thermo_diag.get("thermo_constants_version", "")),
             "thermo_timing_profile_id": str(
-                ((thermo_diag.get("valve_timing", {}) or {}).get("timing_profile_id", ""))
+                (thermo_diag.get("valve_timing", {}) or {}).get("timing_profile_id", "")
             ),
             "thermo_timing_profile_version": str(
-                ((thermo_diag.get("valve_timing", {}) or {}).get("timing_profile_version", ""))
+                (thermo_diag.get("valve_timing", {}) or {}).get("timing_profile_version", "")
             ),
             "thermo_mass_residual": float(thermo_diag.get("thermo_mass_residual", np.nan)),
             "thermo_energy_residual": float(thermo_diag.get("thermo_energy_residual", np.nan)),

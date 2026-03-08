@@ -35,7 +35,9 @@ def main() -> int:
     p.add_argument("--solver", type=str, default="rhoPimpleFoam")
     p.add_argument("--train-epochs", type=int, default=200)
     p.add_argument("--authority-root", type=str, default="outputs/openfoam_authority/manual")
-    p.add_argument("--artifact-outdir", type=str, default="outputs/openfoam_authority/manual/artifact")
+    p.add_argument(
+        "--artifact-outdir", type=str, default="outputs/openfoam_authority/manual/artifact"
+    )
     p.add_argument("--artifact-name", type=str, default="openfoam_breathing.pt")
     p.add_argument("--anchor-manifest", type=str, default="data/thermo/anchor_manifest_v1.json")
     args = p.parse_args()

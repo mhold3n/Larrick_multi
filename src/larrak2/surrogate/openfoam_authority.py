@@ -8,7 +8,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from larrak2.core.artifact_paths import DEFAULT_OPENFOAM_NN_DIR, DEFAULT_OPENFOAM_NN_ARTIFACT, OUTPUTS_ROOT
+from larrak2.core.artifact_paths import (
+    DEFAULT_OPENFOAM_NN_ARTIFACT,
+    DEFAULT_OPENFOAM_NN_DIR,
+    OUTPUTS_ROOT,
+)
 from larrak2.surrogate.quality_contract import (
     load_quality_report,
     openfoam_quality_fail_reasons,
@@ -62,7 +66,9 @@ def inspect_truth_anchor_manifest(path: str | Path) -> dict[str, Any]:
     anchors = payload.get("anchors", [])
     provenance = payload.get("provenance", {})
     input_files = provenance.get("input_files", []) if isinstance(provenance, dict) else []
-    source_type = str(provenance.get("source_type", "")).strip() if isinstance(provenance, dict) else ""
+    source_type = (
+        str(provenance.get("source_type", "")).strip() if isinstance(provenance, dict) else ""
+    )
 
     out["version"] = str(payload.get("version", "")).strip()
     out["anchor_count"] = int(len(anchors) if isinstance(anchors, list) else 0)
@@ -92,7 +98,9 @@ def build_openfoam_dataset_manifest(
     manifest: dict[str, Any] = {
         "dataset_path": str(dataset_path),
         "dataset_exists": dataset_path.exists(),
-        "dataset_sha256": sha256_file(dataset_path) if dataset_path.exists() and dataset_path.is_file() else "",
+        "dataset_sha256": sha256_file(dataset_path)
+        if dataset_path.exists() and dataset_path.is_file()
+        else "",
         "source_meta": dict(source_meta or {}),
         "template_path": "",
         "template_exists": False,
@@ -106,7 +114,9 @@ def build_openfoam_dataset_manifest(
         template_dir = Path(template_path)
         manifest["template_path"] = str(template_dir)
         manifest["template_exists"] = template_dir.exists()
-        manifest["template_hash"] = _sha_dir(template_dir) if template_dir.exists() and template_dir.is_dir() else ""
+        manifest["template_hash"] = (
+            _sha_dir(template_dir) if template_dir.exists() and template_dir.is_dir() else ""
+        )
     return manifest
 
 
@@ -279,7 +289,9 @@ def write_staged_openfoam_authority_bundle(
     }
 
 
-def resolve_latest_openfoam_authority_dir(bundle_root: str | Path = DEFAULT_OPENFOAM_AUTHORITY_ROOT) -> Path:
+def resolve_latest_openfoam_authority_dir(
+    bundle_root: str | Path = DEFAULT_OPENFOAM_AUTHORITY_ROOT,
+) -> Path:
     root = Path(bundle_root)
     candidates = [p for p in root.iterdir() if p.is_dir()] if root.exists() else []
     if not candidates:
@@ -290,7 +302,9 @@ def resolve_latest_openfoam_authority_dir(bundle_root: str | Path = DEFAULT_OPEN
 def validate_staged_openfoam_authority_bundle(staged_dir: str | Path) -> dict[str, Any]:
     staged_path = Path(staged_dir)
     quality_report = load_quality_report(staged_path / "quality_report.json")
-    dataset_manifest = json.loads((staged_path / "dataset_manifest.json").read_text(encoding="utf-8"))
+    dataset_manifest = json.loads(
+        (staged_path / "dataset_manifest.json").read_text(encoding="utf-8")
+    )
     split_manifest = json.loads((staged_path / "split_manifest.json").read_text(encoding="utf-8"))
     report = build_openfoam_authority_validation_report(
         staged_dir=staged_path,

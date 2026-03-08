@@ -12,8 +12,8 @@ from larrak2.thermo.ignition_stage import evaluate_ignition_stage
 from larrak2.thermo.mixture_preparation import evaluate_mixture_preparation
 from larrak2.thermo.motionlaw import eval_thermo
 from larrak2.thermo.two_zone import (
-    _openfoam_feature_payload,
     _build_scavenging_pressure_seed,
+    _openfoam_feature_payload,
     _phase_driven_volume,
 )
 from larrak2.thermo.valve_timing import (
@@ -178,7 +178,9 @@ def test_eval_thermo_emits_valve_timing_diag_and_new_constraints() -> None:
 
     assert result.G.shape == (len(THERMO_CONSTRAINTS_FID0),)
     valve_timing = result.diag["valve_timing"]
-    assert valve_timing["intake_open_offset_from_bdc"] == candidate.thermo.intake_open_offset_from_bdc
+    assert (
+        valve_timing["intake_open_offset_from_bdc"] == candidate.thermo.intake_open_offset_from_bdc
+    )
     assert valve_timing["intake_duration_deg"] == candidate.thermo.intake_duration_deg
     assert "overlap_deg" in valve_timing
     assert "stable_combustion_thresholds" in result.diag

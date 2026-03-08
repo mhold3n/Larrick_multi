@@ -9,9 +9,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from larrak2.core.artifact_paths import DEFAULT_OPENFOAM_NN_DIR
 from larrak2.surrogate.calculix_nn import DEFAULT_FEATURE_KEYS as CCX_FEATURES
 from larrak2.surrogate.calculix_nn import DEFAULT_TARGET_KEYS as CCX_TARGETS
-from larrak2.core.artifact_paths import DEFAULT_OPENFOAM_NN_DIR
 from larrak2.surrogate.openfoam_nn import DEFAULT_FEATURE_KEYS as OF_FEATURES
 from larrak2.surrogate.openfoam_nn import DEFAULT_TARGET_KEYS as OF_TARGETS
 from larrak2.training.workflows import (
@@ -101,7 +101,9 @@ def test_train_openfoam_rejects_doe_output_to_canonical_runtime_dir(tmp_path: Pa
         source_metadata_json='{"source":"doe_generated","n_total_cases":16,"n_success_cases":12}',
         doe_template_path=str(tmp_path),
     )
-    with pytest.raises(ValueError, match="Refusing to write DOE/truth-backed OpenFOAM training output directly"):
+    with pytest.raises(
+        ValueError, match="Refusing to write DOE/truth-backed OpenFOAM training output directly"
+    ):
         train_openfoam_workflow(args)
 
 
@@ -302,8 +304,6 @@ def test_train_thermo_defaults_follow_fidelity(tmp_path: Path, monkeypatch) -> N
         surrogate_validation_mode="strict",
     )
     summary = train_thermo_symbolic_workflow(args)
-    expected = (
-        tmp_path / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
-    )
+    expected = tmp_path / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
     assert Path(summary["artifact_path"]).resolve() == expected.resolve()
     assert expected.exists()

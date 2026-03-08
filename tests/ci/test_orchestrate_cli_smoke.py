@@ -154,15 +154,16 @@ def test_orchestrate_cli_passthroughs_casadi_options(monkeypatch) -> None:
     ):
         code = run_main()
     assert code == 0
-    assert captured["stack_model_path"] == "outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz"
+    assert (
+        captured["stack_model_path"]
+        == "outputs/artifacts/surrogates/stack_f2/stack_f2_surrogate.npz"
+    )
     assert captured["ipopt_max_iter"] == 123
     assert captured["ipopt_tol"] == 1e-7
     assert captured["ipopt_linear_solver"] == "mumps"
 
 
-def test_orchestrate_workflow_wires_solver_stack_and_ipopt(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_orchestrate_workflow_wires_solver_stack_and_ipopt(tmp_path: Path, monkeypatch) -> None:
     captured: dict[str, object] = {}
     stack_model = tmp_path / "stack_f2_surrogate.npz"
     stack_model.write_bytes(b"placeholder")

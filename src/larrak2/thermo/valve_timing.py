@@ -133,7 +133,9 @@ def derive_valve_timing(
         exhaust_open = float(breathing.exhaust_open_deg)
         exhaust_close = float(breathing.exhaust_close_deg)
         overlap = overlap_duration_deg(intake_open, intake_close, exhaust_open, exhaust_close)
-        intake_offset = float((_mod_deg(intake_open - events.intake_anchor_bdc_deg) + 180.0) % 360.0 - 180.0)
+        intake_offset = float(
+            (_mod_deg(intake_open - events.intake_anchor_bdc_deg) + 180.0) % 360.0 - 180.0
+        )
         exhaust_offset = float(
             (_mod_deg(exhaust_open - events.expansion_start_tdc_deg) + 180.0) % 360.0 - 180.0
         )
@@ -185,4 +187,3 @@ def breathing_with_derived_timing(
         exhaust_open_deg=float(derived.exhaust_open_deg),
         exhaust_close_deg=float(derived.exhaust_close_deg),
     )
-

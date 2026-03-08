@@ -34,7 +34,11 @@ from ..thermo.chemistry_profile import (
     legacy_spark_timing_default,
     spark_timing_bounds,
 )
-from ..thermo.timing_profile import THERMO_TIMING_VAR_NAMES, legacy_timing_defaults, thermo_timing_bounds
+from ..thermo.timing_profile import (
+    THERMO_TIMING_VAR_NAMES,
+    legacy_timing_defaults,
+    thermo_timing_bounds,
+)
 
 LEGACY_ENCODING_VERSION = "0.4"
 PRECHEM_ENCODING_VERSION = "0.5"
@@ -386,9 +390,7 @@ def upgrade_legacy_candidate_matrix(X_legacy: np.ndarray) -> np.ndarray:
     if arr.ndim != 2:
         raise ValueError(f"Expected 2D legacy candidate matrix, got shape={arr.shape}")
     if arr.shape[1] != LEGACY_N_TOTAL:
-        raise ValueError(
-            f"Expected legacy candidate width {LEGACY_N_TOTAL}, got {arr.shape[1]}"
-        )
+        raise ValueError(f"Expected legacy candidate width {LEGACY_N_TOTAL}, got {arr.shape[1]}")
     return np.vstack([upgrade_legacy_candidate_vector(row) for row in arr])
 
 

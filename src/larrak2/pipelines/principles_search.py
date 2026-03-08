@@ -19,7 +19,6 @@ from larrak2.pipelines.principles_core import (
 )
 from larrak2.pipelines.principles_evaluator import (
     PrinciplesAlignmentResult,
-    PrinciplesProxyResult,
     evaluate_principles_alignment,
     evaluate_principles_proxy,
 )
@@ -139,7 +138,9 @@ class _CachedPrinciplesScorer:
             "objective_delta_abs": objective_delta_abs,
             "objective_delta_rel": objective_delta_rel,
             "constraint_delta_abs": constraint_delta_abs,
-            "dominant_mismatch_objectives": [PRINCIPLES_OBJECTIVE_NAMES[int(i)] for i in top_obj.tolist()],
+            "dominant_mismatch_objectives": [
+                PRINCIPLES_OBJECTIVE_NAMES[int(i)] for i in top_obj.tolist()
+            ],
             "dominant_mismatch_constraints": [
                 str((proxy.constraint_names + alignment.constraint_names + ("",) * max_len)[int(i)])
                 for i in top_con.tolist()
@@ -149,9 +150,15 @@ class _CachedPrinciplesScorer:
         return bundle
 
 
-def _weighted_score(bundle: dict[str, Any], weights: np.ndarray, z: np.ndarray, z_ref: np.ndarray, span: np.ndarray) -> float:
+def _weighted_score(
+    bundle: dict[str, Any], weights: np.ndarray, z: np.ndarray, z_ref: np.ndarray, span: np.ndarray
+) -> float:
     dist_penalty = float(np.mean(np.square((np.asarray(z, dtype=np.float64) - z_ref) / span)))
-    return float(np.dot(weights, np.asarray(bundle["F_blend"], dtype=np.float64)) + 100.0 * float(bundle["hard_penalty"]) + 1.0e-3 * dist_penalty)
+    return float(
+        np.dot(weights, np.asarray(bundle["F_blend"], dtype=np.float64))
+        + 100.0 * float(bundle["hard_penalty"])
+        + 1.0e-3 * dist_penalty
+    )
 
 
 def _minimize_stage(
@@ -174,7 +181,9 @@ def _minimize_stage(
             "stage": stage_name,
             "success": True,
             "skipped": True,
-            "score_after": float(_weighted_score(bundle, weights, z_current, z_reference, np.maximum(xu - xl, 1e-9))),
+            "score_after": float(
+                _weighted_score(bundle, weights, z_current, z_reference, np.maximum(xu - xl, 1e-9))
+            ),
         }
 
     z0 = np.asarray([z_current[i] for i in active_indices], dtype=np.float64)
@@ -280,7 +289,13 @@ def search_principles_region(
                     )
                     stage_records.append(stage_diag)
                 bundle = scorer.evaluate(z_curr, rpm=rpm, torque=torque)
-                score = _weighted_score(bundle, w, z_curr, np.asarray(seed_state, dtype=np.float64), np.maximum(xu - xl, 1e-9))
+                score = _weighted_score(
+                    bundle,
+                    w,
+                    z_curr,
+                    np.asarray(seed_state, dtype=np.float64),
+                    np.maximum(xu - xl, 1e-9),
+                )
                 records.append(
                     {
                         "operating_point_index": int(op_idx),
@@ -298,11 +313,21 @@ def search_principles_region(
                         "proxy_feasible": bool(bundle["proxy_feasible"]),
                         "alignment_feasible": bool(bundle["alignment_feasible"]),
                         "combined_feasible": bool(bundle["combined_feasible"]),
-                        "objective_delta_abs": np.asarray(bundle["objective_delta_abs"], dtype=np.float64),
-                        "objective_delta_rel": np.asarray(bundle["objective_delta_rel"], dtype=np.float64),
-                        "constraint_delta_abs": np.asarray(bundle["constraint_delta_abs"], dtype=np.float64),
-                        "dominant_mismatch_objectives": list(bundle["dominant_mismatch_objectives"]),
-                        "dominant_mismatch_constraints": list(bundle["dominant_mismatch_constraints"]),
+                        "objective_delta_abs": np.asarray(
+                            bundle["objective_delta_abs"], dtype=np.float64
+                        ),
+                        "objective_delta_rel": np.asarray(
+                            bundle["objective_delta_rel"], dtype=np.float64
+                        ),
+                        "constraint_delta_abs": np.asarray(
+                            bundle["constraint_delta_abs"], dtype=np.float64
+                        ),
+                        "dominant_mismatch_objectives": list(
+                            bundle["dominant_mismatch_objectives"]
+                        ),
+                        "dominant_mismatch_constraints": list(
+                            bundle["dominant_mismatch_constraints"]
+                        ),
                         "stage_records": stage_records,
                         "weighted_score": float(score),
                     }
@@ -315,7 +340,9 @@ def search_principles_region(
         seen: set[tuple[float, ...]] = set()
         out: list[int] = []
         for idx in indices:
-            key = tuple(float(np.round(v, 6)) for v in np.asarray(records[idx]["x_full"], dtype=np.float64))
+            key = tuple(
+                float(np.round(v, 6)) for v in np.asarray(records[idx]["x_full"], dtype=np.float64)
+            )
             if key in seen:
                 continue
             seen.add(key)
@@ -327,23 +354,39 @@ def search_principles_region(
     region_indices = _dedupe_indices(combined_feasible)
     if len(region_indices) < int(region_min_size):
         borderline = [i for i, rec in enumerate(records) if i not in region_indices]
-        borderline.sort(key=lambda i: (float(records[i]["hard_penalty"]), float(records[i]["weighted_score"]), int(i)))
-        region_indices = _dedupe_indices(region_indices + borderline[: max(0, int(region_min_size) - len(region_indices))])
+        borderline.sort(
+            key=lambda i: (
+                float(records[i]["hard_penalty"]),
+                float(records[i]["weighted_score"]),
+                int(i),
+            )
+        )
+        region_indices = _dedupe_indices(
+            region_indices + borderline[: max(0, int(region_min_size) - len(region_indices))]
+        )
     region_indices = region_indices[: max(1, int(region_min_size))] if region_indices else []
 
     point_rpms = {round(float(op["rpm"]), 6) for op in op_records}
     point_torques = {round(float(op["torque"]), 6) for op in op_records}
     region_rpms = {round(float(records[i]["operating_point"]["rpm"]), 6) for i in region_indices}
-    region_torques = {round(float(records[i]["operating_point"]["torque"]), 6) for i in region_indices}
+    region_torques = {
+        round(float(records[i]["operating_point"]["torque"]), 6) for i in region_indices
+    }
     coverage_rpm_fraction = float(len(region_rpms & point_rpms) / max(1, len(point_rpms)))
-    coverage_torque_fraction = float(len(region_torques & point_torques) / max(1, len(point_torques)))
+    coverage_torque_fraction = float(
+        len(region_torques & point_torques) / max(1, len(point_torques))
+    )
 
     proxy_feasible_indices = [i for i, rec in enumerate(records) if bool(rec["proxy_feasible"])]
-    alignment_feasible_indices = [i for i, rec in enumerate(records) if bool(rec["alignment_feasible"])]
+    alignment_feasible_indices = [
+        i for i, rec in enumerate(records) if bool(rec["alignment_feasible"])
+    ]
     expansion_mapping_failures = [
         i for i in proxy_feasible_indices if not bool(records[i]["alignment_feasible"])
     ]
-    mapping_failure_fraction = float(len(expansion_mapping_failures) / max(1, len(proxy_feasible_indices)))
+    mapping_failure_fraction = float(
+        len(expansion_mapping_failures) / max(1, len(proxy_feasible_indices))
+    )
 
     finite_objective_deltas = [
         np.asarray(rec["objective_delta_rel"], dtype=np.float64)
@@ -357,19 +400,33 @@ def search_principles_region(
         objective_delta_median = np.full(len(PRINCIPLES_OBJECTIVE_NAMES), np.inf, dtype=np.float64)
 
     shared_fail_rows = [
-        rec for rec in records if (not bool(rec["proxy_feasible"])) and (not bool(rec["alignment_feasible"]))
+        rec
+        for rec in records
+        if (not bool(rec["proxy_feasible"])) and (not bool(rec["alignment_feasible"]))
     ]
     shared_reason_matches = 0
     for rec in shared_fail_rows:
         proxy_constraints = [
             str(row.get("name", ""))
-            for row in (rec["proxy"].diag.get("constraints", []) if isinstance(rec["proxy"].diag, dict) else [])
-            if isinstance(row, dict) and float(row.get("scaled_raw", row.get("scaled", 0.0))) > 0.0 and str(row.get("kind", "hard")) == "hard"
+            for row in (
+                rec["proxy"].diag.get("constraints", [])
+                if isinstance(rec["proxy"].diag, dict)
+                else []
+            )
+            if isinstance(row, dict)
+            and float(row.get("scaled_raw", row.get("scaled", 0.0))) > 0.0
+            and str(row.get("kind", "hard")) == "hard"
         ]
         align_constraints = [
             str(row.get("name", ""))
-            for row in (rec["alignment"].diag.get("constraints", []) if isinstance(rec["alignment"].diag, dict) else [])
-            if isinstance(row, dict) and float(row.get("scaled_raw", row.get("scaled", 0.0))) > 0.0 and str(row.get("kind", "hard")) == "hard"
+            for row in (
+                rec["alignment"].diag.get("constraints", [])
+                if isinstance(rec["alignment"].diag, dict)
+                else []
+            )
+            if isinstance(row, dict)
+            and float(row.get("scaled_raw", row.get("scaled", 0.0))) > 0.0
+            and str(row.get("kind", "hard")) == "hard"
         ]
         if proxy_constraints and align_constraints and proxy_constraints[0] == align_constraints[0]:
             shared_reason_matches += 1
@@ -380,18 +437,34 @@ def search_principles_region(
         err
         for rec in records
         for err in (str(rec["proxy"].error_signature), str(rec["alignment"].error_signature))
-        if err and any(token in err.lower() for token in ("not found", "dataset", "anchor manifest", "quality_report", "filenotfounderror", "valueerror"))
+        if err
+        and any(
+            token in err.lower()
+            for token in (
+                "not found",
+                "dataset",
+                "anchor manifest",
+                "quality_report",
+                "filenotfounderror",
+                "valueerror",
+            )
+        )
     ]
 
     if misconfig_errors:
         classification = "misconfiguration_or_data_gap"
     elif len(proxy_feasible_indices) < int(thresholds.get("proxy_feasible_min", 3)):
         classification = "proxy_region_gap"
-    elif mapping_failure_fraction >= float(thresholds.get("expansion_mapping_failure_fraction", 0.5)):
-        classification = "expansion_mapping_gap"
-    elif int(np.sum(objective_delta_median > float(thresholds.get("objective_plane_residual_median_max", 0.2)))) >= int(
-        thresholds.get("objective_plane_mismatch_objectives_min", 3)
+    elif mapping_failure_fraction >= float(
+        thresholds.get("expansion_mapping_failure_fraction", 0.5)
     ):
+        classification = "expansion_mapping_gap"
+    elif int(
+        np.sum(
+            objective_delta_median
+            > float(thresholds.get("objective_plane_residual_median_max", 0.2))
+        )
+    ) >= int(thresholds.get("objective_plane_mismatch_objectives_min", 3)):
         classification = "objective_plane_gap"
     elif shared_failure_fraction >= float(thresholds.get("shared_failure_fraction", 0.6)):
         classification = "shared_manifold_gap"
@@ -427,7 +500,9 @@ def search_principles_region(
     proxy_vs_canonical = {
         "objective_delta_median": objective_delta_median.tolist(),
         "objective_delta_max": (
-            np.max(np.vstack(finite_objective_deltas), axis=0).tolist() if finite_objective_deltas else [float("inf")] * len(PRINCIPLES_OBJECTIVE_NAMES)
+            np.max(np.vstack(finite_objective_deltas), axis=0).tolist()
+            if finite_objective_deltas
+            else [float("inf")] * len(PRINCIPLES_OBJECTIVE_NAMES)
         ),
         "dominant_failure_constraints": sorted(
             {
@@ -445,8 +520,12 @@ def search_principles_region(
                 "proxy_feasible": bool(records[idx]["proxy_feasible"]),
                 "alignment_feasible": bool(records[idx]["alignment_feasible"]),
                 "combined_feasible": bool(records[idx]["combined_feasible"]),
-                "objective_delta_abs": np.asarray(records[idx]["objective_delta_abs"], dtype=np.float64).tolist(),
-                "objective_delta_rel": np.asarray(records[idx]["objective_delta_rel"], dtype=np.float64).tolist(),
+                "objective_delta_abs": np.asarray(
+                    records[idx]["objective_delta_abs"], dtype=np.float64
+                ).tolist(),
+                "objective_delta_rel": np.asarray(
+                    records[idx]["objective_delta_rel"], dtype=np.float64
+                ).tolist(),
             }
             for idx in region_indices
         ],

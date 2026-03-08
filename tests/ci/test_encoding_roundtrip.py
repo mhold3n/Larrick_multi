@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 
 from larrak2.core.encoding import (
-    N_GEAR,
     LEGACY_N_TOTAL,
+    N_GEAR,
     N_REALWORLD,
     N_THERMO,
     N_TOTAL,
@@ -65,9 +65,7 @@ def test_roundtrip_consistency():
     assert decoded.thermo.heat_release_center == thermo.heat_release_center
     assert decoded.thermo.heat_release_width == thermo.heat_release_width
     assert decoded.thermo.lambda_af == thermo.lambda_af
-    assert (
-        decoded.thermo.intake_open_offset_from_bdc == thermo.intake_open_offset_from_bdc
-    )
+    assert decoded.thermo.intake_open_offset_from_bdc == thermo.intake_open_offset_from_bdc
     assert decoded.thermo.intake_duration_deg == thermo.intake_duration_deg
     assert (
         decoded.thermo.exhaust_open_offset_from_expansion_tdc

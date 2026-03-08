@@ -40,7 +40,13 @@ class ThermoTimingProfile:
 
 
 def _validate_payload(path: Path, payload: dict[str, Any]) -> ThermoTimingProfile:
-    required_top = ("profile_id", "profile_version", "timing_bounds", "legacy_defaults", "hard_thresholds")
+    required_top = (
+        "profile_id",
+        "profile_version",
+        "timing_bounds",
+        "legacy_defaults",
+        "hard_thresholds",
+    )
     missing_top = [name for name in required_top if name not in payload]
     if missing_top:
         raise ValueError(f"Thermo timing profile missing required keys: {missing_top}")
@@ -73,7 +79,9 @@ def _validate_payload(path: Path, payload: dict[str, Any]) -> ThermoTimingProfil
         lower.append(lo)
         upper.append(hi)
 
-    thresholds = {str(k): float(v) for k, v in dict(payload.get("hard_thresholds", {}) or {}).items()}
+    thresholds = {
+        str(k): float(v) for k, v in dict(payload.get("hard_thresholds", {}) or {}).items()
+    }
     threshold_keys = (
         "burn_cap_min",
         "trapped_mass_min_kg",
@@ -138,4 +146,3 @@ def legacy_timing_defaults(profile_path: str | Path | None = None) -> np.ndarray
 def stable_combustion_thresholds(profile_path: str | Path | None = None) -> dict[str, float]:
     profile = load_thermo_timing_profile(profile_path)
     return dict(profile.hard_thresholds)
-

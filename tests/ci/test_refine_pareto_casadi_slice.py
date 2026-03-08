@@ -151,10 +151,7 @@ def test_refine_pareto_defaults_resolve_artifacts_by_fidelity(monkeypatch):
         def _mock_resolve_thermo(*, fidelity, explicit_path=None, must_exist=True):
             _ = explicit_path
             calls["thermo"] = (int(fidelity), bool(must_exist))
-            return (
-                tmp
-                / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
-            )
+            return tmp / "outputs/artifacts/surrogates/thermo_symbolic_f2/thermo_symbolic_f2.npz"
 
         def _mock_refine_candidate(x0, ctx, **_kwargs):
             eval_res = EvalResult(
@@ -177,12 +174,16 @@ def test_refine_pareto_defaults_resolve_artifacts_by_fidelity(monkeypatch):
                 ipopt_status="Solve_Succeeded",
             )
 
-        monkeypatch.setattr("larrak2.cli.refine_pareto.resolve_stack_artifact_path", _mock_resolve_stack)
+        monkeypatch.setattr(
+            "larrak2.cli.refine_pareto.resolve_stack_artifact_path", _mock_resolve_stack
+        )
         monkeypatch.setattr(
             "larrak2.cli.refine_pareto.resolve_thermo_symbolic_artifact_path",
             _mock_resolve_thermo,
         )
-        monkeypatch.setattr("larrak2.adapters.casadi_refine.refine_candidate", _mock_refine_candidate)
+        monkeypatch.setattr(
+            "larrak2.adapters.casadi_refine.refine_candidate", _mock_refine_candidate
+        )
 
         code = refine_main(
             [

@@ -20,9 +20,9 @@ from .encoding import (
     ENCODING_VERSION,
     LEGACY_ENCODING_VERSION,
     LEGACY_N_TOTAL,
+    N_TOTAL,
     PRECHEM_ENCODING_VERSION,
     PRECHEM_N_TOTAL,
-    N_TOTAL,
     upgrade_legacy_candidate_matrix,
     upgrade_prechem_candidate_matrix,
 )
