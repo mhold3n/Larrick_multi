@@ -31,6 +31,8 @@ class BreathingConfig:
     exhaust_open_deg: float = 0.0
     exhaust_close_deg: float = 0.0
     compression_ratio: float = 10.0
+    fuel_name: Literal["gasoline", "ethanol", "methanol"] = "gasoline"
+    valve_timing_mode: Literal["candidate", "override"] = "candidate"
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,8 @@ class EvalContext:
     thermo_model: str = "two_zone_eq_v1"
     thermo_constants_path: str | None = None
     thermo_anchor_manifest_path: str | None = None
+    thermo_timing_profile_path: str | None = None
+    thermo_chemistry_profile_path: str | None = None
     thermo_symbolic_mode: str = "strict"
     thermo_symbolic_artifact_path: str | None = None
     production_profile: str = "strict_prod"
@@ -82,6 +86,23 @@ class EvalContext:
     def __post_init__(self) -> None:
         if self.fidelity not in (0, 1, 2):
             raise ValueError(f"fidelity must be 0, 1, or 2, got {self.fidelity}")
+        if self.breathing is not None and self.breathing.valve_timing_mode not in {
+            "candidate",
+            "override",
+        }:
+            raise ValueError(
+                "breathing.valve_timing_mode must be 'candidate' or 'override', "
+                f"got {self.breathing.valve_timing_mode!r}"
+            )
+        if self.breathing is not None and self.breathing.fuel_name not in {
+            "gasoline",
+            "ethanol",
+            "methanol",
+        }:
+            raise ValueError(
+                "breathing.fuel_name must be one of {'gasoline', 'ethanol', 'methanol'}, "
+                f"got {self.breathing.fuel_name!r}"
+            )
         if self.constraint_phase not in {"explore", "downselect"}:
             raise ValueError(
                 f"constraint_phase must be 'explore' or 'downselect', got {self.constraint_phase}"

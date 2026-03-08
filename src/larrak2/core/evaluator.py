@@ -141,11 +141,27 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
                     "fidelity": int(ctx.fidelity),
                     "rpm": float(ctx.rpm),
                     "torque": float(ctx.torque),
+                    "fuel_name": str(
+                        getattr(getattr(ctx, "breathing", None), "fuel_name", "gasoline")
+                    ),
                 },
                 "thermo_params": {
                     "compression_duration": float(candidate.thermo.compression_duration),
                     "expansion_duration": float(candidate.thermo.expansion_duration),
+                    "heat_release_center": float(candidate.thermo.heat_release_center),
+                    "heat_release_width": float(candidate.thermo.heat_release_width),
                     "lambda_af": float(candidate.thermo.lambda_af),
+                    "intake_open_offset_from_bdc": float(
+                        candidate.thermo.intake_open_offset_from_bdc
+                    ),
+                    "intake_duration_deg": float(candidate.thermo.intake_duration_deg),
+                    "exhaust_open_offset_from_expansion_tdc": float(
+                        candidate.thermo.exhaust_open_offset_from_expansion_tdc
+                    ),
+                    "exhaust_duration_deg": float(candidate.thermo.exhaust_duration_deg),
+                    "spark_timing_deg_from_compression_tdc": float(
+                        candidate.thermo.spark_timing_deg_from_compression_tdc
+                    ),
                 },
             },
             response_payload={
@@ -156,6 +172,14 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
                     ),
                     "thermo_model_version": str(
                         (thermo_result.diag or {}).get("thermo_model_version", "")
+                    ),
+                    "valve_timing": dict((thermo_result.diag or {}).get("valve_timing", {})),
+                    "mixture_preparation": dict(
+                        (thermo_result.diag or {}).get("mixture_preparation", {})
+                    ),
+                    "ignition_stage": dict((thermo_result.diag or {}).get("ignition_stage", {})),
+                    "chemistry_handoff": dict(
+                        (thermo_result.diag or {}).get("chemistry_handoff", {})
                     ),
                 },
             },
@@ -170,11 +194,27 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
                     "fidelity": int(ctx.fidelity),
                     "rpm": float(ctx.rpm),
                     "torque": float(ctx.torque),
+                    "fuel_name": str(
+                        getattr(getattr(ctx, "breathing", None), "fuel_name", "gasoline")
+                    ),
                 },
                 "thermo_params": {
                     "compression_duration": float(candidate.thermo.compression_duration),
                     "expansion_duration": float(candidate.thermo.expansion_duration),
+                    "heat_release_center": float(candidate.thermo.heat_release_center),
+                    "heat_release_width": float(candidate.thermo.heat_release_width),
                     "lambda_af": float(candidate.thermo.lambda_af),
+                    "intake_open_offset_from_bdc": float(
+                        candidate.thermo.intake_open_offset_from_bdc
+                    ),
+                    "intake_duration_deg": float(candidate.thermo.intake_duration_deg),
+                    "exhaust_open_offset_from_expansion_tdc": float(
+                        candidate.thermo.exhaust_open_offset_from_expansion_tdc
+                    ),
+                    "exhaust_duration_deg": float(candidate.thermo.exhaust_duration_deg),
+                    "spark_timing_deg_from_compression_tdc": float(
+                        candidate.thermo.spark_timing_deg_from_compression_tdc
+                    ),
                 },
             },
             response_payload={},
@@ -888,6 +928,12 @@ def evaluate_candidate(x: np.ndarray, ctx: EvalContext) -> EvalResult:
             "thermo_solver_status": str(thermo_diag.get("thermo_solver_status", "")),
             "thermo_model_version": str(thermo_diag.get("thermo_model_version", "")),
             "thermo_constants_version": str(thermo_diag.get("thermo_constants_version", "")),
+            "thermo_timing_profile_id": str(
+                ((thermo_diag.get("valve_timing", {}) or {}).get("timing_profile_id", ""))
+            ),
+            "thermo_timing_profile_version": str(
+                ((thermo_diag.get("valve_timing", {}) or {}).get("timing_profile_version", ""))
+            ),
             "thermo_mass_residual": float(thermo_diag.get("thermo_mass_residual", np.nan)),
             "thermo_energy_residual": float(thermo_diag.get("thermo_energy_residual", np.nan)),
             "thermo_benchmark_status": str(thermo_diag.get("thermo_benchmark_status", "")),

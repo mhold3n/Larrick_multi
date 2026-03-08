@@ -24,14 +24,20 @@ def sensitivity_scan(x_base: np.ndarray, ctx: EvalContext) -> dict:
 
     xl, xu = bounds()
 
-    # Thermo parameters are indices 0-3
+    # Thermo parameters occupy the leading encoded block.
     thermo_names = [
         "compression_duration",
         "expansion_duration",
         "heat_release_center",
         "heat_release_width",
+        "lambda_af",
+        "intake_open_offset_from_bdc",
+        "intake_duration_deg",
+        "exhaust_open_offset_from_expansion_tdc",
+        "exhaust_duration_deg",
+        "spark_timing_deg_from_compression_tdc",
     ]
-    # Gear parameters are indices 4-11
+    # Gear parameters follow the thermo block.
     gear_names = [
         "base_radius",
         "pitch_coeff_0",
@@ -44,6 +50,7 @@ def sensitivity_scan(x_base: np.ndarray, ctx: EvalContext) -> dict:
     ]
 
     all_names = thermo_names + gear_names
+    thermo_count = len(thermo_names)
 
     sensitivities = []
 
@@ -77,7 +84,7 @@ def sensitivity_scan(x_base: np.ndarray, ctx: EvalContext) -> dict:
         sens = {
             "param": name,
             "idx": i,
-            "type": "thermo" if i < 4 else "gear",
+            "type": "thermo" if i < thermo_count else "gear",
             "base_value": float(x_base[i]),
             "delta": float(delta),
         }

@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from larrak2.core.encoding import ENCODING_VERSION, LEGACY_ENCODING_VERSION
 from larrak2.surrogate.quality_contract import (
     sha256_file,
     validate_artifact_quality,
@@ -53,6 +54,7 @@ class StackSurrogateArtifact:
     y_mean: np.ndarray
     y_std: np.ndarray
     layers: tuple[DenseLayer, ...]
+    encoding_version: str = ENCODING_VERSION
     version_hash: str = ""
 
     def __post_init__(self) -> None:
@@ -139,6 +141,7 @@ def save_stack_artifact(artifact: StackSurrogateArtifact, path: str | Path) -> P
         "activation": artifact.activation,
         "leaky_relu_slope": float(artifact.leaky_relu_slope),
         "fidelity": int(artifact.fidelity),
+        "encoding_version": str(artifact.encoding_version),
         "version_hash": artifact.version_hash,
         "n_layers": len(artifact.layers),
     }
@@ -228,6 +231,7 @@ def load_stack_artifact(
             activation=str(meta.get("activation", "relu")),
             leaky_relu_slope=float(meta.get("leaky_relu_slope", 0.01)),
             fidelity=int(meta.get("fidelity", 1)),
+            encoding_version=str(meta.get("encoding_version", LEGACY_ENCODING_VERSION)),
             x_mean=np.asarray(data["x_mean"], dtype=np.float64),
             x_std=np.asarray(data["x_std"], dtype=np.float64),
             y_mean=np.asarray(data["y_mean"], dtype=np.float64),

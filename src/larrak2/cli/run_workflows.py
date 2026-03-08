@@ -425,6 +425,8 @@ def _build_eval_context_from_args(
         exhaust_open_deg=float(args.exhaust_open_deg),
         exhaust_close_deg=float(args.exhaust_close_deg),
         compression_ratio=float(getattr(args, "compression_ratio", 10.0)),
+        fuel_name=str(getattr(args, "fuel_name", "gasoline")),
+        valve_timing_mode="candidate",
     )
     return EvalContext(
         rpm=float(args.rpm if rpm is None else rpm),
@@ -444,6 +446,13 @@ def _build_eval_context_from_args(
         strict_tribology_data=getattr(args, "strict_tribology_data", None),
         tribology_scuff_method=str(getattr(args, "tribology_scuff_method", "auto")),
         surrogate_validation_mode=str(getattr(args, "surrogate_validation_mode", "strict")),
+        thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
+        thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
+        or None,
+        thermo_chemistry_profile_path=str(
+            getattr(args, "thermo_chemistry_profile_path", "")
+        ).strip()
+        or None,
         thermo_symbolic_mode=str(getattr(args, "thermo_symbolic_mode", "strict")),
         thermo_symbolic_artifact_path=str(
             getattr(args, "thermo_symbolic_artifact_path", "")
@@ -1976,6 +1985,19 @@ def _resolve_default_hifi_quality_contract_artifacts() -> list[str]:
     ]
 
 
+def _extract_exception_payload(exc: BaseException | None) -> dict[str, Any]:
+    if exc is None:
+        return {}
+    payload = getattr(exc, "payload", None)
+    if isinstance(payload, dict) and payload:
+        return payload
+    for nested in (getattr(exc, "__cause__", None), getattr(exc, "__context__", None)):
+        nested_payload = _extract_exception_payload(nested)
+        if nested_payload:
+            return nested_payload
+    return {}
+
+
 def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
     """Two-stage pipeline: explore Pareto set then exploit selected slices via CasADi."""
     from larrak2.pipelines.explore_exploit import run_two_stage_pipeline
@@ -2115,6 +2137,8 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         exhaust_open_deg=float(getattr(args, "exhaust_open_deg", 0.0)),
         exhaust_close_deg=float(getattr(args, "exhaust_close_deg", 0.0)),
         compression_ratio=float(getattr(args, "compression_ratio", 10.0)),
+        fuel_name=str(getattr(args, "fuel_name", "gasoline")),
+        valve_timing_mode="candidate",
     )
 
     lowfi_ctx = EvalContext(
@@ -2132,6 +2156,10 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         thermo_model=str(getattr(args, "thermo_model", "two_zone_eq_v1")),
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
+        or None,
+        thermo_chemistry_profile_path=str(
+            getattr(args, "thermo_chemistry_profile_path", "")
+        ).strip()
         or None,
         thermo_symbolic_mode=thermo_symbolic_mode,
         thermo_symbolic_artifact_path=explicit_thermo_symbolic_path,
@@ -2159,6 +2187,10 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         thermo_model=str(getattr(args, "thermo_model", "two_zone_eq_v1")),
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
+        or None,
+        thermo_chemistry_profile_path=str(
+            getattr(args, "thermo_chemistry_profile_path", "")
+        ).strip()
         or None,
         thermo_symbolic_mode=thermo_symbolic_mode,
         thermo_symbolic_artifact_path=resolved_hifi_thermo_symbolic_path,
@@ -2282,8 +2314,10 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
         except Exception:
             manifest_path = outdir / "explore_exploit_manifest.json"
             if not manifest_path.exists():
+                exc_type, exc_value, _ = sys.exc_info()
                 tracer = get_active_contract_tracer()
                 contract_summary = tracer.summary_payload() if tracer is not None else {}
+                failure_details = _extract_exception_payload(exc_value)
                 failure_manifest = {
                     "workflow": "explore_exploit",
                     "selected_indices": [],
@@ -2359,8 +2393,9 @@ def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
                         "reasons": ["runtime_exception_before_manifest"],
                     },
                     "failure": {
-                        "error_type": str(sys.exc_info()[0].__name__) if sys.exc_info()[0] else "",
-                        "error_message": str(sys.exc_info()[1]) if sys.exc_info()[1] else "",
+                        "error_type": str(exc_type.__name__) if exc_type else "",
+                        "error_message": str(exc_value) if exc_value else "",
+                        "details": failure_details,
                     },
                 }
                 manifest_path.write_text(
@@ -2492,6 +2527,14 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         rpm=float(args.rpm),
         torque=float(args.torque),
         fidelity=int(getattr(args, "fidelity", 2)),
+        bore_mm=float(getattr(args, "bore_mm", 80.0)),
+        stroke_mm=float(getattr(args, "stroke_mm", 90.0)),
+        intake_port_area_m2=float(getattr(args, "intake_port_area_m2", 4.0e-4)),
+        exhaust_port_area_m2=float(getattr(args, "exhaust_port_area_m2", 4.0e-4)),
+        p_manifold_pa=float(getattr(args, "p_manifold_pa", 101325.0)),
+        p_back_pa=float(getattr(args, "p_back_pa", 101325.0)),
+        compression_ratio=float(getattr(args, "compression_ratio", 10.0)),
+        fuel_name=str(getattr(args, "fuel_name", "gasoline")),
         constraint_phase=str(getattr(args, "constraint_phase", "downselect")),
         enforce_contract_routing=bool(getattr(args, "enforce_contract_routing", False)),
         truth_dispatch_mode=str(args.truth_dispatch_mode),
@@ -2511,6 +2554,10 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         thermo_symbolic_artifact_path=resolved_thermo_symbolic_path,
         thermo_constants_path=str(getattr(args, "thermo_constants_path", "")).strip() or None,
         thermo_anchor_manifest_path=str(getattr(args, "thermo_anchor_manifest", "")).strip()
+        or None,
+        thermo_chemistry_profile_path=str(
+            getattr(args, "thermo_chemistry_profile_path", "")
+        ).strip()
         or None,
         machining_mode=str(getattr(args, "machining_mode", "nn")),
         machining_model_path=str(getattr(args, "machining_model_path", "")).strip() or None,

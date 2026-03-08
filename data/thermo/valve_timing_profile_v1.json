@@ -1,0 +1,40 @@
+{
+  "profile_id": "thermo_valve_timing_profile_v1",
+  "profile_version": "1.0",
+  "description": "Canonical valve-timing bounds, legacy defaults, and stable-combustion thresholds for motion-law co-optimization.",
+  "timing_bounds": {
+    "intake_open_offset_from_bdc": {
+      "lower": -10.0,
+      "upper": 10.0
+    },
+    "intake_duration_deg": {
+      "lower": 40.0,
+      "upper": 140.0
+    },
+    "exhaust_open_offset_from_expansion_tdc": {
+      "lower": -10.0,
+      "upper": 10.0
+    },
+    "exhaust_duration_deg": {
+      "lower": 40.0,
+      "upper": 140.0
+    }
+  },
+  "legacy_defaults": {
+    "intake_open_offset_from_bdc": -4.0,
+    "intake_duration_deg": 80.0,
+    "exhaust_open_offset_from_expansion_tdc": -4.0,
+    "exhaust_duration_deg": 90.0
+  },
+  "hard_thresholds": {
+    "burn_cap_min": 0.85,
+    "trapped_mass_min_kg": 0.0001,
+    "scavenging_efficiency_min": 0.55,
+    "residual_fraction_max": 0.45
+  },
+  "source_references": [
+    "Docs/thermo-anchor-manifest.md",
+    "data/thermo/anchor_manifest_v1.json",
+    "Docs/sources/litvin-gear-supplementary-note-30cb36ac98/marker/source.md"
+  ]
+}

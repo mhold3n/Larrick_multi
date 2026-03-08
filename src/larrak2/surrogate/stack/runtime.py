@@ -7,6 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
+from larrak2.core.encoding import resolve_index_for_encoding
+
 from .artifact import StackSurrogateArtifact, load_stack_artifact
 
 _X_NAME_RE = re.compile(r"^x[_-]?(\d+)$")
@@ -31,6 +33,7 @@ def feature_vector_from_inputs(
     *,
     rpm: float,
     torque: float,
+    encoding_version: str | None = None,
 ) -> np.ndarray:
     """Build feature vector in schema order from full design + operating point."""
     x = np.asarray(x_full, dtype=np.float64).reshape(-1)
@@ -47,6 +50,7 @@ def feature_vector_from_inputs(
             raise ValueError(
                 f"Unsupported feature '{name}'. Only x_###, rpm, torque are supported."
             )
+        idx = resolve_index_for_encoding(idx, encoding_version)
         if idx < 0 or idx >= x.size:
             raise ValueError(f"Feature '{name}' index {idx} out of range for vector size {x.size}")
         out[i] = float(x[idx])
@@ -93,6 +97,7 @@ class StackSurrogateRuntime:
             x_full,
             rpm=float(rpm),
             torque=float(torque),
+            encoding_version=getattr(self.artifact, "encoding_version", None),
         )
         return self.predict_features(feats)
 

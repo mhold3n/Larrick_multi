@@ -34,7 +34,7 @@ def _window_mask(theta_deg: np.ndarray, open_deg: float, close_deg: float) -> np
     o = float(open_deg) % 360.0
     c = float(close_deg) % 360.0
     if np.isclose(o, c):
-        return np.ones_like(t, dtype=bool)
+        return np.zeros_like(t, dtype=bool)
     if o < c:
         return (t >= o) & (t <= c)
     return (t >= o) | (t <= c)

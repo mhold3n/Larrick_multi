@@ -60,6 +60,13 @@ def main() -> int:
     pg.add_argument("--exhaust-port-area-m2", type=float, default=4.0e-4)
     pg.add_argument("--p-manifold-pa", type=float, default=101325.0)
     pg.add_argument("--p-back-pa", type=float, default=101325.0)
+    pg.add_argument("--compression-ratio", type=float, default=10.0)
+    pg.add_argument(
+        "--fuel-name",
+        type=str,
+        default="gasoline",
+        choices=["gasoline", "ethanol", "methanol"],
+    )
     pg.add_argument("--overlap-deg", type=float, default=0.0)
     pg.add_argument("--intake-open-deg", type=float, default=0.0)
     pg.add_argument("--intake-close-deg", type=float, default=0.0)
@@ -90,6 +97,7 @@ def main() -> int:
     )
     pg.add_argument("--thermo-constants-path", type=str, default="")
     pg.add_argument("--thermo-anchor-manifest", type=str, default="")
+    pg.add_argument("--thermo-chemistry-profile-path", type=str, default="")
     pg.add_argument(
         "--tribology-scuff-method",
         type=str,
@@ -464,6 +472,13 @@ def main() -> int:
     dr.add_argument("--exhaust-port-area-m2", type=float, default=4.0e-4)
     dr.add_argument("--p-manifold-pa", type=float, default=101325.0)
     dr.add_argument("--p-back-pa", type=float, default=101325.0)
+    dr.add_argument("--compression-ratio", type=float, default=10.0)
+    dr.add_argument(
+        "--fuel-name",
+        type=str,
+        default="gasoline",
+        choices=["gasoline", "ethanol", "methanol"],
+    )
     dr.add_argument("--overlap-deg", type=float, default=0.0)
     dr.add_argument("--intake-open-deg", type=float, default=0.0)
     dr.add_argument("--intake-close-deg", type=float, default=0.0)
@@ -626,6 +641,7 @@ def main() -> int:
     )
     ee.add_argument("--thermo-constants-path", type=str, default="")
     ee.add_argument("--thermo-anchor-manifest", type=str, default="")
+    ee.add_argument("--thermo-chemistry-profile-path", type=str, default="")
     ee.add_argument(
         "--thermo-symbolic-mode",
         type=str,
@@ -653,6 +669,13 @@ def main() -> int:
     ee.add_argument("--exhaust-port-area-m2", type=float, default=4.0e-4)
     ee.add_argument("--p-manifold-pa", type=float, default=101325.0)
     ee.add_argument("--p-back-pa", type=float, default=101325.0)
+    ee.add_argument("--compression-ratio", type=float, default=10.0)
+    ee.add_argument(
+        "--fuel-name",
+        type=str,
+        default="gasoline",
+        choices=["gasoline", "ethanol", "methanol"],
+    )
     ee.add_argument("--overlap-deg", type=float, default=0.0)
     ee.add_argument("--intake-open-deg", type=float, default=0.0)
     ee.add_argument("--intake-close-deg", type=float, default=0.0)
@@ -743,6 +766,19 @@ def main() -> int:
     orch.add_argument("--rpm", type=float, default=3000.0)
     orch.add_argument("--torque", type=float, default=200.0)
     orch.add_argument("--fidelity", type=int, default=2, choices=[0, 1, 2])
+    orch.add_argument("--bore-mm", type=float, default=80.0)
+    orch.add_argument("--stroke-mm", type=float, default=90.0)
+    orch.add_argument("--intake-port-area-m2", type=float, default=4.0e-4)
+    orch.add_argument("--exhaust-port-area-m2", type=float, default=4.0e-4)
+    orch.add_argument("--p-manifold-pa", type=float, default=101325.0)
+    orch.add_argument("--p-back-pa", type=float, default=101325.0)
+    orch.add_argument("--compression-ratio", type=float, default=10.0)
+    orch.add_argument(
+        "--fuel-name",
+        type=str,
+        default="gasoline",
+        choices=["gasoline", "ethanol", "methanol"],
+    )
     orch.add_argument(
         "--constraint-phase",
         type=str,
@@ -829,6 +865,12 @@ def main() -> int:
         type=str,
         default="",
         help="Override thermo anchor manifest path for orchestration evaluations",
+    )
+    orch.add_argument(
+        "--thermo-chemistry-profile-path",
+        type=str,
+        default="",
+        help="Override hybrid chemistry profile path for orchestration evaluations",
     )
     orch.add_argument(
         "--strict-data",

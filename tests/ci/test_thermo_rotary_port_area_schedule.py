@@ -26,3 +26,17 @@ def test_rotary_port_area_schedule_basic_behavior() -> None:
 
     inside = (theta >= 30.0) & (theta <= 110.0)
     assert np.mean(area[inside]) > 0.6 * 4.0e-4
+
+
+def test_rotary_port_area_schedule_equal_open_close_means_closed() -> None:
+    theta = np.linspace(0.0, 359.0, 360)
+    area = rotary_port_area_schedule(
+        theta,
+        open_deg=0.0,
+        close_deg=0.0,
+        max_area_m2=4.0e-4,
+        ramp_deg=5.0,
+    )
+
+    assert area.shape == theta.shape
+    assert np.all(area <= 1e-12)

@@ -30,6 +30,11 @@ REDUCED_VARIABLE_NAMES: tuple[str, ...] = (
     "heat_release_center",
     "heat_release_width",
     "lambda_af",
+    "intake_open_offset_from_bdc",
+    "intake_duration_deg",
+    "exhaust_open_offset_from_expansion_tdc",
+    "exhaust_duration_deg",
+    "spark_timing_deg_from_compression_tdc",
     "base_radius",
     "pitch_coeff_0",
     "pitch_coeff_1",
@@ -74,7 +79,7 @@ class PrinciplesReducedVector:
 
 @dataclass(frozen=True)
 class PrinciplesExpansionPolicy:
-    """Deterministic policy that expands a reduced vector into the full 22D encoding."""
+    """Deterministic policy that expands a reduced vector into the full canonical encoding."""
 
     pitch_coeff_5: float
     pitch_coeff_6: float

@@ -20,7 +20,7 @@ from larrak2.architecture.contracts import (
     log_contract_edge,
 )
 from larrak2.core.encoding import N_TOTAL
-from larrak2.core.types import EvalContext
+from larrak2.core.types import BreathingConfig, EvalContext
 from larrak2.optimization.production_gate import (
     STRICT_PRODUCTION_PROFILE,
     evaluate_production_gate,
@@ -128,6 +128,14 @@ class OrchestrationConfig:
     rpm: float = 3000.0
     torque: float = 200.0
     fidelity: int = 2
+    bore_mm: float = 80.0
+    stroke_mm: float = 90.0
+    intake_port_area_m2: float = 4.0e-4
+    exhaust_port_area_m2: float = 4.0e-4
+    p_manifold_pa: float = 101325.0
+    p_back_pa: float = 101325.0
+    compression_ratio: float = 10.0
+    fuel_name: str = "gasoline"
     constraint_phase: str = "downselect"
     tolerance_constraint_mode: str = "capability_floor"
     tolerance_threshold_mm: float = 0.24
@@ -147,6 +155,7 @@ class OrchestrationConfig:
     stack_model_path: str | None = None
     thermo_constants_path: str | None = None
     thermo_anchor_manifest_path: str | None = None
+    thermo_chemistry_profile_path: str | None = None
     machining_mode: str = "nn"
     machining_model_path: str | None = None
 
@@ -192,6 +201,8 @@ class OrchestrationConfig:
             raise ValueError("strict_tribology_data must be bool or None")
         if self.tribology_scuff_method not in {"auto", "flash", "integral"}:
             raise ValueError("tribology_scuff_method must be one of {'auto', 'flash', 'integral'}")
+        if str(self.fuel_name) not in {"gasoline", "ethanol", "methanol"}:
+            raise ValueError("fuel_name must be one of {'gasoline', 'ethanol', 'methanol'}")
         if self.thermo_symbolic_mode not in {"strict", "warn", "off"}:
             raise ValueError("thermo_symbolic_mode must be one of {'strict', 'warn', 'off'}")
         if self.machining_mode not in {"nn", "analytical"}:
@@ -489,6 +500,17 @@ class Orchestrator:
             torque=float(self.config.torque),
             fidelity=int(self.config.fidelity),
             seed=int(self.config.seed),
+            breathing=BreathingConfig(
+                bore_mm=float(self.config.bore_mm),
+                stroke_mm=float(self.config.stroke_mm),
+                intake_port_area_m2=float(self.config.intake_port_area_m2),
+                exhaust_port_area_m2=float(self.config.exhaust_port_area_m2),
+                p_manifold_Pa=float(self.config.p_manifold_pa),
+                p_back_Pa=float(self.config.p_back_pa),
+                compression_ratio=float(self.config.compression_ratio),
+                fuel_name=str(self.config.fuel_name),
+                valve_timing_mode="candidate",
+            ),
             constraint_phase=str(self.config.constraint_phase),
             tolerance_constraint_mode=str(self.config.tolerance_constraint_mode),
             tolerance_threshold_mm=float(self.config.tolerance_threshold_mm),
@@ -512,6 +534,11 @@ class Orchestrator:
             thermo_anchor_manifest_path=(
                 str(self.config.thermo_anchor_manifest_path).strip()
                 if self.config.thermo_anchor_manifest_path
+                else None
+            ),
+            thermo_chemistry_profile_path=(
+                str(self.config.thermo_chemistry_profile_path).strip()
+                if self.config.thermo_chemistry_profile_path
                 else None
             ),
             machining_mode=str(self.config.machining_mode),

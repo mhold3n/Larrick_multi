@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from ..core.encoding import ENCODING_VERSION, LEGACY_ENCODING_VERSION
 from ..surrogate.quality_contract import (
     load_quality_report,
     regression_metrics,
@@ -39,6 +40,7 @@ class ThermoSymbolicArtifact:
     y_std: np.ndarray
     weight: np.ndarray  # shape: (n_out, n_in)
     bias: np.ndarray  # shape: (n_out,)
+    encoding_version: str = ENCODING_VERSION
     version_hash: str = ""
 
     def __post_init__(self) -> None:
@@ -318,6 +320,7 @@ def save_thermo_symbolic_artifact(
         "objective_names": list(artifact.objective_names),
         "constraint_names": list(artifact.constraint_names),
         "fidelity": int(artifact.fidelity),
+        "encoding_version": str(artifact.encoding_version),
         "version_hash": str(artifact.version_hash),
         "model_family": "affine_v1",
     }
@@ -397,10 +400,7 @@ def save_thermo_symbolic_artifact(
     report["quality_profile"] = dict(
         thermo_symbolic_balanced_profile() | dict(report.get("quality_profile", {}) or {})
     )
-    required = [str(v) for v in (report.get("required_artifacts") or []) if str(v).strip()]
-    if target.name not in required:
-        required.append(target.name)
-    report["required_artifacts"] = required
+    report["required_artifacts"] = [target.name]
     report["artifact_sha256"] = sha256_file(target)
     reasons = thermo_symbolic_quality_fail_reasons(report)
     report["pass"] = bool(len(reasons) == 0)
@@ -441,6 +441,7 @@ def load_thermo_symbolic_artifact(
             objective_names=tuple(meta["objective_names"]),
             constraint_names=tuple(meta["constraint_names"]),
             fidelity=int(meta.get("fidelity", 1)),
+            encoding_version=str(meta.get("encoding_version", LEGACY_ENCODING_VERSION)),
             x_mean=np.asarray(data["x_mean"], dtype=np.float64),
             x_std=np.asarray(data["x_std"], dtype=np.float64),
             y_mean=np.asarray(data["y_mean"], dtype=np.float64),
@@ -463,6 +464,7 @@ def load_thermo_symbolic_artifact(
             objective_names=artifact.objective_names,
             constraint_names=artifact.constraint_names,
             fidelity=artifact.fidelity,
+            encoding_version=artifact.encoding_version,
             x_mean=artifact.x_mean,
             x_std=artifact.x_std,
             y_mean=artifact.y_mean,

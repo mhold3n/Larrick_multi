@@ -59,6 +59,49 @@ def double_wiebe_burn_fraction(
     return x
 
 
+def wrapped_double_wiebe_burn_fraction(
+    theta: np.ndarray,
+    *,
+    theta_start: float,
+    duration: float,
+    split: float,
+    a1: float,
+    m1: float,
+    a2: float,
+    m2: float,
+    second_stage_shift_frac: float = 0.35,
+) -> np.ndarray:
+    """Cycle-periodic double Wiebe profile that supports combustion crossing 360 deg."""
+    theta_arr = np.asarray(theta, dtype=np.float64)
+    start = float(np.mod(theta_start, 360.0))
+    dur = max(float(duration), 1e-9)
+    if start + dur <= 360.0:
+        return double_wiebe_burn_fraction(
+            theta_arr,
+            theta_start=start,
+            duration=dur,
+            split=split,
+            a1=a1,
+            m1=m1,
+            a2=a2,
+            m2=m2,
+            second_stage_shift_frac=second_stage_shift_frac,
+        )
+    theta_unwrapped = np.asarray(theta_arr, dtype=np.float64).copy()
+    theta_unwrapped[theta_unwrapped < start] += 360.0
+    return double_wiebe_burn_fraction(
+        theta_unwrapped,
+        theta_start=start,
+        duration=dur,
+        split=split,
+        a1=a1,
+        m1=m1,
+        a2=a2,
+        m2=m2,
+        second_stage_shift_frac=second_stage_shift_frac,
+    )
+
+
 def burn_increment(
     burn_profile: np.ndarray,
     *,

@@ -6,6 +6,8 @@ import sys
 
 import numpy as np
 
+from larrak2.core.encoding import resolve_index_for_encoding
+
 from .artifact import StackSurrogateArtifact
 from .runtime import parse_feature_index
 
@@ -43,6 +45,7 @@ def assemble_symbolic_feature_vector(
         idx = parse_feature_index(name)
         if idx is None:
             raise ValueError(f"Unsupported stack feature '{name}'")
+        idx = resolve_index_for_encoding(idx, getattr(artifact, "encoding_version", None))
         feats.append(x_full_sym[int(idx)])
     return ca.vertcat(*feats)
 

@@ -1,0 +1,106 @@
+{
+  "profile_id": "hybrid_chemistry_profile_v1",
+  "profile_version": "1.0",
+  "description": "Hybrid staged chemistry profile for mixture preparation, pre-ignition screening, and chemistry-to-Wiebe handoff.",
+  "spark_timing_bounds": {
+    "lower": -20.0,
+    "upper": 10.0,
+    "legacy_default": -8.0
+  },
+  "hardware": {
+    "injector_type": "shower_port",
+    "plenum_volume_factor": 0.35,
+    "wall_film_base_fraction": 0.18,
+    "mixture_homogeneity_base": 0.72,
+    "mixing_length_factor": 0.55,
+    "evaporation_tau_ref_s": 0.018,
+    "evaporation_temp_exponent": -1.0,
+    "evaporation_pressure_exponent": 0.15,
+    "charge_cooling_gain_k": 42.0,
+    "mixture_inhomogeneity_lambda_gain": 0.18,
+    "mixture_inhomogeneity_rpm_gain": 0.12
+  },
+  "thresholds": {
+    "delivered_vapor_fraction_min": 0.62,
+    "mixture_inhomogeneity_max": 0.38,
+    "wall_film_fraction_max": 0.24,
+    "ignitability_margin_min": 0.05,
+    "preignition_margin_min": 0.10
+  },
+  "wiebe_handoff": {
+    "anchor_mode": "soc",
+    "handoff_burn_fraction": 0.1,
+    "burn_duration_min_deg": 12.0,
+    "burn_duration_max_deg": 70.0,
+    "chemistry_weight": 0.85,
+    "legacy_heat_release_weight": 0.15
+  },
+  "fuel_profiles": {
+    "gasoline": {
+      "afr_stoich": 14.7,
+      "fuel_lhv": 43000000.0,
+      "o2_required_per_fuel": 3.5,
+      "evaporation_tau_scale": 1.0,
+      "wall_wetting_factor": 1.0,
+      "charge_cooling_factor": 1.0,
+      "mixture_homogeneity_factor": 1.0,
+      "ignition_delay_ref_s": 0.0032,
+      "ignition_temp_ref_k": 760.0,
+      "ignition_pressure_ref_pa": 1200000.0,
+      "ignition_temp_activation_k": 6800.0,
+      "ignition_pressure_exponent": -0.72,
+      "ignition_lambda_sensitivity": 1.25,
+      "spark_assist_factor": 0.58,
+      "ignitability_target_delay_s": 0.0014,
+      "burn_duration_base_deg": 28.0,
+      "burn_duration_lambda_sensitivity": 0.32,
+      "burn_duration_inhomogeneity_sensitivity": 0.45
+    },
+    "ethanol": {
+      "afr_stoich": 9.0,
+      "fuel_lhv": 26800000.0,
+      "o2_required_per_fuel": 2.09,
+      "evaporation_tau_scale": 0.9,
+      "wall_wetting_factor": 0.82,
+      "charge_cooling_factor": 1.45,
+      "mixture_homogeneity_factor": 1.06,
+      "ignition_delay_ref_s": 0.0038,
+      "ignition_temp_ref_k": 790.0,
+      "ignition_pressure_ref_pa": 1200000.0,
+      "ignition_temp_activation_k": 7200.0,
+      "ignition_pressure_exponent": -0.75,
+      "ignition_lambda_sensitivity": 1.12,
+      "spark_assist_factor": 0.62,
+      "ignitability_target_delay_s": 0.0016,
+      "burn_duration_base_deg": 30.0,
+      "burn_duration_lambda_sensitivity": 0.28,
+      "burn_duration_inhomogeneity_sensitivity": 0.42
+    },
+    "methanol": {
+      "afr_stoich": 6.47,
+      "fuel_lhv": 19900000.0,
+      "o2_required_per_fuel": 1.50,
+      "evaporation_tau_scale": 0.8,
+      "wall_wetting_factor": 0.74,
+      "charge_cooling_factor": 1.6,
+      "mixture_homogeneity_factor": 1.1,
+      "ignition_delay_ref_s": 0.0041,
+      "ignition_temp_ref_k": 800.0,
+      "ignition_pressure_ref_pa": 1200000.0,
+      "ignition_temp_activation_k": 7450.0,
+      "ignition_pressure_exponent": -0.77,
+      "ignition_lambda_sensitivity": 1.08,
+      "spark_assist_factor": 0.64,
+      "ignitability_target_delay_s": 0.0017,
+      "burn_duration_base_deg": 31.0,
+      "burn_duration_lambda_sensitivity": 0.26,
+      "burn_duration_inhomogeneity_sensitivity": 0.40
+    }
+  },
+  "source_references": [
+    "Docs/thermo-anchor-manifest.md",
+    "data/thermo/anchor_manifest_v1.json",
+    "data/thermo/literature_constants_v1.json",
+    "Docs/freepiston/A-review-of-free-piston-engine-control-literature-_2022_Alexandria-Engineeri/A-review-of-free-piston-engine-control-literature-_2022_Alexandria-Engineeri.md"
+  ]
+}

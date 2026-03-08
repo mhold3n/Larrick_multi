@@ -3,12 +3,24 @@
 This module defines the parameter structure and provides pack/unpack
 functions for the flat decision vector x.
 
-Layout (ENCODING_VERSION = "0.4"):
-    x[0:5]   - ThermoParams (5 floats)
-    x[5:14]  - GearParams (9 floats: base_radius + 7 pitch_coeffs + face_width)
-    x[14:22] - RealWorldParams (8 floats: surface_finish, lube, material, coating,
-               hunting, oil_flow, oil_supply_temp, evacuation)
+Layout (ENCODING_VERSION = "0.6"):
+    x[0:10]  - ThermoParams (10 floats)
+    x[10:19] - GearParams (9 floats: base_radius + 7 pitch_coeffs + face_width)
+    x[19:27] - RealWorldParams (8 floats: surface_finish, lube, material, coating,
+    hunting, oil_flow, oil_supply_temp, evacuation)
+    Total: 27 decision variables
+
+Legacy layout (ENCODING_VERSION = "0.4"):
+    x[0:5]   - ThermoParams (5 floats, no valve timing)
+    x[5:14]  - GearParams
+    x[14:22] - RealWorldParams
     Total: 22 decision variables
+
+Previous layout (ENCODING_VERSION = "0.5"):
+    x[0:9]   - ThermoParams (9 floats, no spark timing)
+    x[9:18]  - GearParams
+    x[18:26] - RealWorldParams
+    Total: 26 decision variables
 """
 
 from __future__ import annotations
@@ -17,15 +29,28 @@ from dataclasses import dataclass
 
 import numpy as np
 
-ENCODING_VERSION = "0.4"
+from ..thermo.chemistry_profile import (
+    SPARK_TIMING_VAR_NAME,
+    legacy_spark_timing_default,
+    spark_timing_bounds,
+)
+from ..thermo.timing_profile import THERMO_TIMING_VAR_NAMES, legacy_timing_defaults, thermo_timing_bounds
+
+LEGACY_ENCODING_VERSION = "0.4"
+PRECHEM_ENCODING_VERSION = "0.5"
+ENCODING_VERSION = "0.6"
 
 # Decision variable count
-N_THERMO = 5
+LEGACY_N_THERMO = 5
+PRECHEM_N_THERMO = 9
+N_THERMO = 10
 N_GEAR = 9  # base_radius(1) + pitch_coeffs(7) + face_width(1)
 N_REALWORLD = (
     8  # surface_finish, lube_mode, material, coating, hunting, oil_flow, oil_temp, evacuation
 )
-N_TOTAL = N_THERMO + N_GEAR + N_REALWORLD  # 22
+LEGACY_N_TOTAL = LEGACY_N_THERMO + N_GEAR + N_REALWORLD  # 22
+PRECHEM_N_TOTAL = PRECHEM_N_THERMO + N_GEAR + N_REALWORLD  # 26
+N_TOTAL = N_THERMO + N_GEAR + N_REALWORLD  # 27
 
 THERMO_VAR_NAMES = (
     "compression_duration",
@@ -33,6 +58,8 @@ THERMO_VAR_NAMES = (
     "heat_release_center",
     "heat_release_width",
     "lambda_af",
+    *THERMO_TIMING_VAR_NAMES,
+    SPARK_TIMING_VAR_NAME,
 )
 
 GEAR_VAR_NAMES = (
@@ -87,6 +114,14 @@ class ThermoParams:
     heat_release_center: float
     heat_release_width: float
     lambda_af: float
+    intake_open_offset_from_bdc: float
+    intake_duration_deg: float
+    exhaust_open_offset_from_expansion_tdc: float
+    exhaust_duration_deg: float
+    spark_timing_deg_from_compression_tdc: float = -8.0
+    timing_profile_id: str = "thermo_valve_timing_profile_v1"
+    timing_source: str = "encoded_candidate"
+    timing_legacy_injected: bool = False
 
     def to_array(self) -> np.ndarray:
         """Convert to flat array."""
@@ -97,6 +132,11 @@ class ThermoParams:
                 self.heat_release_center,
                 self.heat_release_width,
                 self.lambda_af,
+                self.intake_open_offset_from_bdc,
+                self.intake_duration_deg,
+                self.exhaust_open_offset_from_expansion_tdc,
+                self.exhaust_duration_deg,
+                self.spark_timing_deg_from_compression_tdc,
             ],
             dtype=np.float64,
         )
@@ -104,12 +144,57 @@ class ThermoParams:
     @classmethod
     def from_array(cls, arr: np.ndarray) -> ThermoParams:
         """Create from flat array."""
+        flat = np.asarray(arr, dtype=np.float64).reshape(-1)
+        if flat.size == LEGACY_N_THERMO:
+            defaults = legacy_timing_defaults()
+            spark_default = np.array([legacy_spark_timing_default()], dtype=np.float64)
+            flat = np.concatenate([flat, defaults, spark_default], dtype=np.float64)
+            return cls(
+                compression_duration=float(flat[0]),
+                expansion_duration=float(flat[1]),
+                heat_release_center=float(flat[2]),
+                heat_release_width=float(flat[3]),
+                lambda_af=float(flat[4]),
+                intake_open_offset_from_bdc=float(flat[5]),
+                intake_duration_deg=float(flat[6]),
+                exhaust_open_offset_from_expansion_tdc=float(flat[7]),
+                exhaust_duration_deg=float(flat[8]),
+                spark_timing_deg_from_compression_tdc=float(flat[9]),
+                timing_source="legacy_default_profile",
+                timing_legacy_injected=True,
+            )
+        if flat.size == PRECHEM_N_THERMO:
+            spark_default = float(legacy_spark_timing_default())
+            return cls(
+                compression_duration=float(flat[0]),
+                expansion_duration=float(flat[1]),
+                heat_release_center=float(flat[2]),
+                heat_release_width=float(flat[3]),
+                lambda_af=float(flat[4]),
+                intake_open_offset_from_bdc=float(flat[5]),
+                intake_duration_deg=float(flat[6]),
+                exhaust_open_offset_from_expansion_tdc=float(flat[7]),
+                exhaust_duration_deg=float(flat[8]),
+                spark_timing_deg_from_compression_tdc=spark_default,
+                timing_source="chemistry_default_profile",
+                timing_legacy_injected=True,
+            )
+        if flat.size != N_THERMO:
+            raise ValueError(
+                "ThermoParams expects "
+                f"{LEGACY_N_THERMO}, {PRECHEM_N_THERMO}, or {N_THERMO} values, got {flat.size}"
+            )
         return cls(
-            compression_duration=float(arr[0]),
-            expansion_duration=float(arr[1]),
-            heat_release_center=float(arr[2]),
-            heat_release_width=float(arr[3]),
-            lambda_af=float(arr[4]),
+            compression_duration=float(flat[0]),
+            expansion_duration=float(flat[1]),
+            heat_release_center=float(flat[2]),
+            heat_release_width=float(flat[3]),
+            lambda_af=float(flat[4]),
+            intake_open_offset_from_bdc=float(flat[5]),
+            intake_duration_deg=float(flat[6]),
+            exhaust_open_offset_from_expansion_tdc=float(flat[7]),
+            exhaust_duration_deg=float(flat[8]),
+            spark_timing_deg_from_compression_tdc=float(flat[9]),
         )
 
 
@@ -250,21 +335,117 @@ class Candidate:
     realworld: RealWorldParams
 
 
+def legacy_index_to_current(idx: int) -> int:
+    """Translate a legacy 22D index into the current 27D layout."""
+    i = int(idx)
+    if i < 0 or i >= LEGACY_N_TOTAL:
+        raise IndexError(f"Legacy index out of range: {idx}")
+    if i < LEGACY_N_THERMO:
+        return i
+    return i + (N_THERMO - LEGACY_N_THERMO)
+
+
+def prechem_index_to_current(idx: int) -> int:
+    """Translate a 26D pre-chemistry index into the current 27D layout."""
+    i = int(idx)
+    if i < 0 or i >= PRECHEM_N_TOTAL:
+        raise IndexError(f"Pre-chemistry index out of range: {idx}")
+    if i < PRECHEM_N_THERMO:
+        return i
+    return i + (N_THERMO - PRECHEM_N_THERMO)
+
+
+def resolve_index_for_encoding(idx: int, encoding_version: str | None) -> int:
+    """Resolve an artifact/archive index into the current canonical layout."""
+    version = str(encoding_version or "").strip() or LEGACY_ENCODING_VERSION
+    if version == ENCODING_VERSION:
+        return int(idx)
+    if version == PRECHEM_ENCODING_VERSION:
+        return prechem_index_to_current(idx)
+    if version == LEGACY_ENCODING_VERSION or version == "0.0":
+        return legacy_index_to_current(idx)
+    raise ValueError(
+        f"Unsupported encoding_version '{encoding_version}' for feature index resolution"
+    )
+
+
+def upgrade_legacy_candidate_vector(x_legacy: np.ndarray) -> np.ndarray:
+    """Inject default thermo chemistry controls into a legacy 22D decision vector."""
+    arr = np.asarray(x_legacy, dtype=np.float64).reshape(-1)
+    if arr.size != LEGACY_N_TOTAL:
+        raise ValueError(f"Expected legacy vector length {LEGACY_N_TOTAL}, got {arr.size}")
+    thermo = ThermoParams.from_array(arr[:LEGACY_N_THERMO])
+    gear = GearParams.from_array(arr[LEGACY_N_THERMO : LEGACY_N_THERMO + N_GEAR])
+    realworld = RealWorldParams.from_array(arr[LEGACY_N_THERMO + N_GEAR : LEGACY_N_TOTAL])
+    return encode_candidate(Candidate(thermo=thermo, gear=gear, realworld=realworld))
+
+
+def upgrade_legacy_candidate_matrix(X_legacy: np.ndarray) -> np.ndarray:
+    """Inject default thermo chemistry controls into each row of a legacy 22D candidate matrix."""
+    arr = np.asarray(X_legacy, dtype=np.float64)
+    if arr.ndim != 2:
+        raise ValueError(f"Expected 2D legacy candidate matrix, got shape={arr.shape}")
+    if arr.shape[1] != LEGACY_N_TOTAL:
+        raise ValueError(
+            f"Expected legacy candidate width {LEGACY_N_TOTAL}, got {arr.shape[1]}"
+        )
+    return np.vstack([upgrade_legacy_candidate_vector(row) for row in arr])
+
+
+def upgrade_prechem_candidate_vector(x_prechem: np.ndarray) -> np.ndarray:
+    """Inject default spark timing into a 26D pre-chemistry decision vector."""
+    arr = np.asarray(x_prechem, dtype=np.float64).reshape(-1)
+    if arr.size != PRECHEM_N_TOTAL:
+        raise ValueError(f"Expected pre-chemistry vector length {PRECHEM_N_TOTAL}, got {arr.size}")
+    thermo = ThermoParams.from_array(arr[:PRECHEM_N_THERMO])
+    gear = GearParams.from_array(arr[PRECHEM_N_THERMO : PRECHEM_N_THERMO + N_GEAR])
+    realworld = RealWorldParams.from_array(arr[PRECHEM_N_THERMO + N_GEAR : PRECHEM_N_TOTAL])
+    return encode_candidate(Candidate(thermo=thermo, gear=gear, realworld=realworld))
+
+
+def upgrade_prechem_candidate_matrix(X_prechem: np.ndarray) -> np.ndarray:
+    """Inject default spark timing into each row of a 26D pre-chemistry candidate matrix."""
+    arr = np.asarray(X_prechem, dtype=np.float64)
+    if arr.ndim != 2:
+        raise ValueError(f"Expected 2D pre-chemistry candidate matrix, got shape={arr.shape}")
+    if arr.shape[1] != PRECHEM_N_TOTAL:
+        raise ValueError(
+            f"Expected pre-chemistry candidate width {PRECHEM_N_TOTAL}, got {arr.shape[1]}"
+        )
+    return np.vstack([upgrade_prechem_candidate_vector(row) for row in arr])
+
+
 def decode_candidate(x: np.ndarray) -> Candidate:
     """Decode flat array to structured Candidate.
 
     Args:
-        x: Flat decision vector of length N_TOTAL (22).
+        x: Flat decision vector of length 22 (legacy), 26 (pre-chemistry), or 27 (current).
 
     Returns:
         Candidate with ThermoParams, GearParams, and RealWorldParams.
     """
-    if len(x) != N_TOTAL:
-        raise ValueError(f"Expected {N_TOTAL} (22) variables, got {len(x)}")
+    arr = np.asarray(x, dtype=np.float64).reshape(-1)
+    if arr.size == LEGACY_N_TOTAL:
+        thermo = ThermoParams.from_array(arr[:LEGACY_N_THERMO])
+        gear_start = LEGACY_N_THERMO
+        gear = GearParams.from_array(arr[gear_start : gear_start + N_GEAR])
+        realworld = RealWorldParams.from_array(arr[gear_start + N_GEAR : LEGACY_N_TOTAL])
+        return Candidate(thermo=thermo, gear=gear, realworld=realworld)
+    if arr.size == PRECHEM_N_TOTAL:
+        thermo = ThermoParams.from_array(arr[:PRECHEM_N_THERMO])
+        gear_start = PRECHEM_N_THERMO
+        gear = GearParams.from_array(arr[gear_start : gear_start + N_GEAR])
+        realworld = RealWorldParams.from_array(arr[gear_start + N_GEAR : PRECHEM_N_TOTAL])
+        return Candidate(thermo=thermo, gear=gear, realworld=realworld)
+    if arr.size != N_TOTAL:
+        raise ValueError(
+            f"Expected {LEGACY_N_TOTAL} (legacy), {PRECHEM_N_TOTAL} (pre-chemistry), "
+            f"or {N_TOTAL} (current) variables, got {arr.size}"
+        )
 
-    thermo = ThermoParams.from_array(x[:N_THERMO])
-    gear = GearParams.from_array(x[N_THERMO : N_THERMO + N_GEAR])
-    realworld = RealWorldParams.from_array(x[N_THERMO + N_GEAR : N_THERMO + N_GEAR + N_REALWORLD])
+    thermo = ThermoParams.from_array(arr[:N_THERMO])
+    gear = GearParams.from_array(arr[N_THERMO : N_THERMO + N_GEAR])
+    realworld = RealWorldParams.from_array(arr[N_THERMO + N_GEAR : N_THERMO + N_GEAR + N_REALWORLD])
 
     return Candidate(thermo=thermo, gear=gear, realworld=realworld)
 
@@ -276,7 +457,7 @@ def encode_candidate(candidate: Candidate) -> np.ndarray:
         candidate: Structured candidate solution.
 
     Returns:
-        Flat decision vector of length N_TOTAL (22).
+        Flat decision vector of length N_TOTAL (27).
     """
     return np.concatenate(
         [
@@ -292,12 +473,20 @@ def bounds() -> tuple[np.ndarray, np.ndarray]:
     """Return lower and upper bounds for decision variables.
 
     Returns:
-        (xl, xu) tuple of bound arrays, each of length N_TOTAL (22).
+        (xl, xu) tuple of bound arrays, each of length N_TOTAL (27).
     """
     # ThermoParams bounds
-    # compression, expansion, hr_center, hr_width, lambda_af
-    thermo_lb = np.array([30.0, 60.0, 0.0, 10.0, 0.6])
-    thermo_ub = np.array([90.0, 120.0, 30.0, 60.0, 1.6])
+    # compression, expansion, hr_center, hr_width, lambda_af, valve timing, spark timing
+    timing_lb, timing_ub = thermo_timing_bounds()
+    spark_lb, spark_ub = spark_timing_bounds()
+    thermo_lb = np.concatenate(
+        [np.array([30.0, 60.0, 0.0, 10.0, 0.6]), timing_lb, np.array([spark_lb])],
+        dtype=np.float64,
+    )
+    thermo_ub = np.concatenate(
+        [np.array([90.0, 120.0, 30.0, 60.0, 1.6]), timing_ub, np.array([spark_ub])],
+        dtype=np.float64,
+    )
 
     # GearParams bounds: base_radius + 7 pitch coefficients + face_width
     gear_lb = np.array([20.0, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, 4.0])
@@ -351,7 +540,7 @@ def random_candidate(rng: np.random.Generator | None = None) -> np.ndarray:
         rng: Random number generator (uses default if None).
 
     Returns:
-        Random decision vector within bounds (length 22).
+        Random decision vector within bounds (length 27).
     """
     if rng is None:
         rng = np.random.default_rng()

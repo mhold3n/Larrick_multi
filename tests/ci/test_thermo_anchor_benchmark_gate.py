@@ -11,6 +11,7 @@ from larrak2.core.encoding import decode_candidate, mid_bounds_candidate
 from larrak2.core.types import BreathingConfig, EvalContext
 from larrak2.thermo import two_zone
 from larrak2.thermo.constants import DEFAULT_THERMO_ANCHOR_MANIFEST_PATH, load_anchor_manifest
+from larrak2.thermo.validation import ThermoValidationError
 
 
 def _write_anchor_manifest(path: Path) -> Path:
@@ -35,7 +36,19 @@ def _write_anchor_manifest(path: Path) -> Path:
 
 def test_anchor_benchmark_gate_passes_for_small_disagreement(monkeypatch, tmp_path: Path) -> None:
     candidate = decode_candidate(mid_bounds_candidate())
-    base_ctx = EvalContext(rpm=2800.0, torque=140.0, fidelity=1, seed=3)
+    base_ctx = EvalContext(
+        rpm=2800.0,
+        torque=140.0,
+        fidelity=1,
+        seed=3,
+        breathing=BreathingConfig(
+            intake_open_deg=-20.0,
+            intake_close_deg=70.0,
+            exhaust_open_deg=-80.0,
+            exhaust_close_deg=20.0,
+            valve_timing_mode="override",
+        ),
+    )
     base = two_zone.evaluate_two_zone_thermo(candidate.thermo, base_ctx)
 
     pred = {
@@ -55,6 +68,7 @@ def test_anchor_benchmark_gate_passes_for_small_disagreement(monkeypatch, tmp_pa
         torque=140.0,
         fidelity=2,
         seed=3,
+        breathing=base_ctx.breathing,
         thermo_anchor_manifest_path=str(manifest_path),
     )
     res = two_zone.evaluate_two_zone_thermo(candidate.thermo, f2_ctx)
@@ -85,10 +99,25 @@ def test_anchor_benchmark_gate_fails_for_large_disagreement(monkeypatch, tmp_pat
         torque=140.0,
         fidelity=2,
         seed=3,
+        breathing=BreathingConfig(
+            intake_open_deg=-20.0,
+            intake_close_deg=70.0,
+            exhaust_open_deg=-80.0,
+            exhaust_close_deg=20.0,
+            valve_timing_mode="override",
+        ),
         thermo_anchor_manifest_path=str(manifest_path),
     )
-    with pytest.raises(RuntimeError, match="benchmark_status=failed"):
+    with pytest.raises(ThermoValidationError, match="benchmark_status=failed") as excinfo:
         two_zone.evaluate_two_zone_thermo(candidate.thermo, ctx)
+
+    payload = excinfo.value.payload
+    assert payload["failure_stage"] == "thermo_validation"
+    assert payload["validation"]["benchmark_status"] == "failed"
+    assert payload["validation"]["nn_disagreement"]["delta_m_air"] > 0.1
+    assert payload["eq_breathing"]["m_air_trapped"] > 0.0
+    assert payload["nn_breathing"]["m_air_trapped"] == pytest.approx(20.0)
+    assert payload["anchor_manifest"]["path"] == str(manifest_path)
 
 
 def test_fidelity2_requires_nonempty_anchors_in_strict_mode(monkeypatch) -> None:

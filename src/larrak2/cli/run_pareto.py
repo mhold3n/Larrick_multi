@@ -124,6 +124,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--exhaust-close-deg", type=float, default=0.0)
     parser.add_argument("--compression-ratio", type=float, default=10.0)
     parser.add_argument(
+        "--fuel-name",
+        type=str,
+        default="gasoline",
+        choices=["gasoline", "ethanol", "methanol"],
+    )
+    parser.add_argument(
         "--openfoam-model-path",
         type=str,
         default="",
@@ -173,6 +179,12 @@ def main(argv: list[str] | None = None) -> int:
         type=str,
         default="",
         help="Override path to thermo benchmark anchor manifest",
+    )
+    parser.add_argument(
+        "--thermo-chemistry-profile-path",
+        type=str,
+        default="",
+        help="Override path to hybrid chemistry profile",
     )
     parser.add_argument(
         "--surrogate-validation-mode",
@@ -240,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
         exhaust_open_deg=args.exhaust_open_deg,
         exhaust_close_deg=args.exhaust_close_deg,
         compression_ratio=float(args.compression_ratio),
+        fuel_name=str(args.fuel_name),
+        valve_timing_mode="candidate",
     )
 
     ctx = EvalContext(
@@ -259,6 +273,7 @@ def main(argv: list[str] | None = None) -> int:
         thermo_model=str(args.thermo_model),
         thermo_constants_path=str(args.thermo_constants_path).strip() or None,
         thermo_anchor_manifest_path=str(args.thermo_anchor_manifest).strip() or None,
+        thermo_chemistry_profile_path=str(args.thermo_chemistry_profile_path).strip() or None,
         strict_data=bool(args.strict_data),
         strict_tribology_data=args.strict_tribology_data,
         tribology_scuff_method=str(args.tribology_scuff_method),

@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from larrak2.core.encoding import decode_candidate
+from larrak2.core.encoding import N_TOTAL, decode_candidate
 from larrak2.core.types import EvalContext
 from larrak2.pipelines.principles_core import (
     REALWORLD_NAMES,
@@ -85,7 +85,7 @@ def test_expand_reduced_vector_is_deterministic_and_applies_defaults() -> None:
     x_full, expansion = expand_reduced_vector(reduced, profile_payload=payload, rpm=7000.0)
     candidate = decode_candidate(x_full)
 
-    assert x_full.shape == (22,)
+    assert x_full.shape == (N_TOTAL,)
     assert candidate.gear.pitch_coeffs[5] == pytest.approx(0.0)
     assert candidate.gear.pitch_coeffs[6] == pytest.approx(0.0)
     defaults = expansion["realworld_defaults"]

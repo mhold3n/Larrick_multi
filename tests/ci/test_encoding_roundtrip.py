@@ -5,6 +5,7 @@ import pytest
 
 from larrak2.core.encoding import (
     N_GEAR,
+    LEGACY_N_TOTAL,
     N_REALWORLD,
     N_THERMO,
     N_TOTAL,
@@ -15,8 +16,10 @@ from larrak2.core.encoding import (
     bounds,
     decode_candidate,
     encode_candidate,
+    legacy_index_to_current,
     mid_bounds_candidate,
     random_candidate,
+    upgrade_legacy_candidate_vector,
 )
 
 
@@ -28,6 +31,10 @@ def test_roundtrip_consistency():
         heat_release_center=15.0,
         heat_release_width=30.0,
         lambda_af=1.0,
+        intake_open_offset_from_bdc=-4.0,
+        intake_duration_deg=80.0,
+        exhaust_open_offset_from_expansion_tdc=-4.0,
+        exhaust_duration_deg=90.0,
     )
     gear = GearParams(
         base_radius=40.0,
@@ -58,6 +65,15 @@ def test_roundtrip_consistency():
     assert decoded.thermo.heat_release_center == thermo.heat_release_center
     assert decoded.thermo.heat_release_width == thermo.heat_release_width
     assert decoded.thermo.lambda_af == thermo.lambda_af
+    assert (
+        decoded.thermo.intake_open_offset_from_bdc == thermo.intake_open_offset_from_bdc
+    )
+    assert decoded.thermo.intake_duration_deg == thermo.intake_duration_deg
+    assert (
+        decoded.thermo.exhaust_open_offset_from_expansion_tdc
+        == thermo.exhaust_open_offset_from_expansion_tdc
+    )
+    assert decoded.thermo.exhaust_duration_deg == thermo.exhaust_duration_deg
 
     # Check gear params
     assert decoded.gear.base_radius == gear.base_radius
@@ -131,14 +147,20 @@ def test_thermo_params_to_from_array():
         heat_release_center=10.0,
         heat_release_width=25.0,
         lambda_af=1.0,
+        intake_open_offset_from_bdc=-6.0,
+        intake_duration_deg=72.0,
+        exhaust_open_offset_from_expansion_tdc=-5.0,
+        exhaust_duration_deg=88.0,
     )
 
     arr = original.to_array()
-    assert len(arr) == 5
+    assert len(arr) == N_THERMO
 
     recovered = ThermoParams.from_array(arr)
     assert recovered.compression_duration == original.compression_duration
     assert recovered.expansion_duration == original.expansion_duration
+    assert recovered.intake_open_offset_from_bdc == original.intake_open_offset_from_bdc
+    assert recovered.exhaust_duration_deg == original.exhaust_duration_deg
 
 
 def test_gear_params_to_from_array():
@@ -207,3 +229,19 @@ def test_decision_vector_layout():
     rw_slice = slice(N_THERMO + N_GEAR, N_TOTAL)
     assert np.all(xl[rw_slice] == 0.0), "Realworld lower bounds should be 0.0"
     assert np.all(xu[rw_slice] == 1.0), "Realworld upper bounds should be 1.0"
+
+
+def test_decode_legacy_vector_injects_default_timing() -> None:
+    legacy = np.zeros(LEGACY_N_TOTAL, dtype=np.float64)
+    legacy[:5] = np.array([60.0, 90.0, 15.0, 30.0, 1.0], dtype=np.float64)
+    legacy[5:14] = np.array([40.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0], dtype=np.float64)
+    legacy[-8:] = np.linspace(0.1, 0.8, 8, dtype=np.float64)
+
+    candidate = decode_candidate(legacy)
+
+    assert candidate.thermo.timing_legacy_injected is True
+    assert candidate.thermo.timing_source == "legacy_default_profile"
+    upgraded = upgrade_legacy_candidate_vector(legacy)
+    assert upgraded.shape == (N_TOTAL,)
+    np.testing.assert_allclose(upgraded[:5], legacy[:5])
+    assert legacy_index_to_current(5) == 10

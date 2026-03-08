@@ -13,13 +13,18 @@ from ..core.artifact_paths import DEFAULT_OPENFOAM_NN_ARTIFACT, assert_not_legac
 from ..core.constants import RATIO_SLOPE_LIMIT_FID0, RATIO_SLOPE_LIMIT_FID1
 from ..core.encoding import ThermoParams
 from ..core.types import BreathingConfig, EvalContext
-from .combustion import burn_increment, double_wiebe_burn_fraction
+from .chemistry_profile import fuel_profile_for_name, load_thermo_chemistry_profile
+from .combustion import burn_increment, wrapped_double_wiebe_burn_fraction
 from .constants import (
     DEFAULT_THERMO_ANCHOR_MANIFEST_PATH,
     load_thermo_constants,
 )
+from .ignition_stage import IgnitionStageResult, evaluate_ignition_stage
+from .mixture_preparation import MixturePreparationResult, evaluate_mixture_preparation
 from .scavenging import evaluate_rotary_scavenging
+from .timing_profile import stable_combustion_thresholds
 from .validation import (
+    ThermoValidationError,
     build_validation_report,
     compute_nn_disagreement,
     evaluate_trend_checks,
@@ -27,6 +32,7 @@ from .validation import (
     load_validation_manifest,
     validate_benchmark_agreement,
 )
+from .valve_timing import DerivedValveTiming, breathing_with_derived_timing, derive_valve_timing
 from .vaporization import step_vapor_fraction
 
 
@@ -213,6 +219,146 @@ def _hybrid_correct(
     return float(x_eq * (1.0 + corr))
 
 
+def _breathing_payload(breathing: BreathingConfig) -> dict[str, float]:
+    return {
+        "bore_mm": float(breathing.bore_mm),
+        "stroke_mm": float(breathing.stroke_mm),
+        "intake_port_area_m2": float(breathing.intake_port_area_m2),
+        "exhaust_port_area_m2": float(breathing.exhaust_port_area_m2),
+        "p_manifold_Pa": float(breathing.p_manifold_Pa),
+        "p_back_Pa": float(breathing.p_back_Pa),
+        "overlap_deg": float(breathing.overlap_deg),
+        "intake_open_deg": float(breathing.intake_open_deg),
+        "intake_close_deg": float(breathing.intake_close_deg),
+        "exhaust_open_deg": float(breathing.exhaust_open_deg),
+        "exhaust_close_deg": float(breathing.exhaust_close_deg),
+        "compression_ratio": float(getattr(breathing, "compression_ratio", 10.0)),
+        "fuel_name": str(getattr(breathing, "fuel_name", "gasoline")),
+    }
+
+
+def _validation_failure_payload(
+    *,
+    ctx: EvalContext,
+    params: ThermoParams,
+    breathing: BreathingConfig,
+    derived_timing: DerivedValveTiming,
+    manifest: dict[str, Any],
+    validation_report: Any,
+    benchmark_messages: list[str],
+    nn_disagreement: dict[str, float],
+    m0_guess: float,
+    p_guess: np.ndarray,
+    V: np.ndarray,
+    scav_eq: Any,
+    pred: dict[str, float] | None,
+    m_air_eq: float,
+    residual_eq: float,
+    scav_eff_eq: float,
+    m_air_used: float,
+    residual_used: float,
+    scav_eff_used: float,
+    hybrid_correction_active: bool,
+    mixture: MixturePreparationResult | None = None,
+    ignition: IgnitionStageResult | None = None,
+) -> dict[str, Any]:
+    thresholds = dict(manifest.get("thresholds", {}) or {})
+    anchor_payload = {
+        "path": (
+            str(Path(str(ctx.thermo_anchor_manifest_path)).expanduser())
+            if str(ctx.thermo_anchor_manifest_path or "").strip()
+            else str(DEFAULT_THERMO_ANCHOR_MANIFEST_PATH)
+        ),
+        "version": str(manifest.get("version", "")),
+        "anchor_count": int(len(manifest.get("anchors", []) or [])),
+        "validated_envelope": dict(manifest.get("validated_envelope", {}) or {}),
+        "thresholds": thresholds,
+    }
+    eq_payload = {
+        "m_air_trapped": float(m_air_eq),
+        "residual_fraction": float(residual_eq),
+        "scavenging_efficiency": float(scav_eff_eq),
+        "m_in_total": float(scav_eq.m_in_total),
+        "m_out_total": float(scav_eq.m_out_total),
+        "m_net_total": float(scav_eq.flow_trace.m_net_total),
+        "delivery_ratio": float(scav_eq.delivery_ratio),
+        "trapping_efficiency": float(scav_eq.trapping_efficiency),
+        "branch_continuity_error": float(scav_eq.branch_continuity_error),
+        "choked_fraction_intake": float(scav_eq.flow_trace.choked_fraction_intake),
+        "choked_fraction_exhaust": float(scav_eq.flow_trace.choked_fraction_exhaust),
+    }
+    nn_payload = (
+        {
+            "m_air_trapped": float(pred.get("m_air_trapped", m_air_eq)),
+            "residual_fraction": float(pred.get("residual_fraction", residual_eq)),
+            "scavenging_efficiency": float(pred.get("scavenging_efficiency", scav_eff_eq)),
+            "trapped_o2_mass": float(pred.get("trapped_o2_mass", 0.0)),
+        }
+        if pred is not None
+        else {}
+    )
+    return {
+        "failure_stage": "thermo_validation",
+        "operating_point": {
+            "rpm": float(ctx.rpm),
+            "torque": float(ctx.torque),
+            "fidelity": int(ctx.fidelity),
+            "constraint_phase": str(ctx.constraint_phase),
+        },
+        "thermo_params": {
+            "compression_duration": float(params.compression_duration),
+            "expansion_duration": float(params.expansion_duration),
+            "heat_release_center": float(params.heat_release_center),
+            "heat_release_width": float(params.heat_release_width),
+            "lambda_af": float(params.lambda_af),
+            "intake_open_offset_from_bdc": float(params.intake_open_offset_from_bdc),
+            "intake_duration_deg": float(params.intake_duration_deg),
+            "exhaust_open_offset_from_expansion_tdc": float(
+                params.exhaust_open_offset_from_expansion_tdc
+            ),
+            "exhaust_duration_deg": float(params.exhaust_duration_deg),
+            "spark_timing_deg_from_compression_tdc": float(
+                params.spark_timing_deg_from_compression_tdc
+            ),
+        },
+        "breathing": _breathing_payload(breathing),
+        "valve_timing": derived_timing.as_dict(),
+        "anchor_manifest": anchor_payload,
+        "validation": {
+            "mass_residual": float(validation_report.mass_residual),
+            "energy_residual": float(validation_report.energy_residual),
+            "non_negative_states_ok": bool(validation_report.non_negative_states_ok),
+            "monotonic_burn_ok": bool(validation_report.monotonic_burn_ok),
+            "choked_branch_continuity_error": float(
+                validation_report.choked_branch_continuity_error
+            ),
+            "benchmark_status": str(validation_report.benchmark_status),
+            "benchmark_ok": bool(validation_report.benchmark_ok),
+            "in_validated_envelope": bool(validation_report.in_validated_envelope),
+            "trend_checks": dict(validation_report.trend_checks),
+            "nn_disagreement": dict(nn_disagreement),
+            "messages": list(benchmark_messages),
+        },
+        "cycle_initialization": {
+            "m0_guess": float(m0_guess),
+            "p_guess_min": float(np.min(p_guess)),
+            "p_guess_max": float(np.max(p_guess)),
+            "v_min": float(np.min(V)),
+            "v_max": float(np.max(V)),
+        },
+        "eq_breathing": eq_payload,
+        "nn_breathing": nn_payload,
+        "hybrid_breathing": {
+            "m_air_trapped": float(m_air_used),
+            "residual_fraction": float(residual_used),
+            "scavenging_efficiency": float(scav_eff_used),
+            "hybrid_correction_active": bool(hybrid_correction_active),
+        },
+        "mixture_preparation": mixture.as_dict() if mixture is not None else {},
+        "ignition_stage": ignition.as_dict() if ignition is not None else {},
+    }
+
+
 def _compute_power_balance_constraint(work_j: float, rpm: float, torque_nm: float) -> float:
     omega = float(rpm) * 2.0 * np.pi / 60.0
     p_out_req = float(torque_nm) * omega
@@ -252,14 +398,31 @@ def evaluate_two_zone_thermo(
         v_clearance=v_clear,
         v_displaced=v_disp,
     )
+    derived_timing = derive_valve_timing(
+        params=params,
+        theta_deg=theta,
+        volume=V,
+        breathing=breathing,
+        timing_profile_path=ctx.thermo_timing_profile_path,
+    )
+    effective_breathing = breathing_with_derived_timing(breathing, derived_timing)
+    stable_thresholds = stable_combustion_thresholds(ctx.thermo_timing_profile_path)
+    chemistry_profile = load_thermo_chemistry_profile(ctx.thermo_chemistry_profile_path)
+    chemistry_thresholds = chemistry_profile.thresholds
+    fuel_profile = fuel_profile_for_name(
+        effective_breathing.fuel_name,
+        profile_path=chemistry_profile.path,
+    )
 
     p_guess = np.maximum(
-        float(breathing.p_manifold_Pa) * (V.max() / np.maximum(V, 1e-12)) ** constants.gamma_u, 1.0
+        float(effective_breathing.p_manifold_Pa)
+        * (V.max() / np.maximum(V, 1e-12)) ** constants.gamma_u,
+        1.0,
     )
     t_guess = np.full_like(theta, float(constants.t_intake_k), dtype=np.float64)
 
     m0_guess = (
-        float(breathing.p_manifold_Pa)
+        float(effective_breathing.p_manifold_Pa)
         * float(np.max(V))
         / (max(constants.r_u * constants.t_intake_k, 1e-12))
     )
@@ -269,14 +432,14 @@ def evaluate_two_zone_thermo(
         p_cyl=p_guess,
         t_cyl=t_guess,
         rpm=float(ctx.rpm),
-        p_manifold_pa=float(breathing.p_manifold_Pa),
-        p_back_pa=float(breathing.p_back_Pa),
-        intake_open_deg=float(breathing.intake_open_deg),
-        intake_close_deg=float(breathing.intake_close_deg),
-        exhaust_open_deg=float(breathing.exhaust_open_deg),
-        exhaust_close_deg=float(breathing.exhaust_close_deg),
-        intake_port_area_m2=float(breathing.intake_port_area_m2),
-        exhaust_port_area_m2=float(breathing.exhaust_port_area_m2),
+        p_manifold_pa=float(effective_breathing.p_manifold_Pa),
+        p_back_pa=float(effective_breathing.p_back_Pa),
+        intake_open_deg=float(effective_breathing.intake_open_deg),
+        intake_close_deg=float(effective_breathing.intake_close_deg),
+        exhaust_open_deg=float(effective_breathing.exhaust_open_deg),
+        exhaust_close_deg=float(effective_breathing.exhaust_close_deg),
+        intake_port_area_m2=float(effective_breathing.intake_port_area_m2),
+        exhaust_port_area_m2=float(effective_breathing.exhaust_port_area_m2),
         cd_intake=float(constants.cd_intake),
         cd_exhaust=float(constants.cd_exhaust),
         gamma=float(constants.gamma_u),
@@ -315,10 +478,11 @@ def evaluate_two_zone_thermo(
     benchmark_status = "not_applicable"
     benchmark_messages: list[str] = []
     openfoam_nn_used = False
+    pred: dict[str, float] | None = None
 
     hybrid_correction_active = False
     if int(ctx.fidelity) >= 2:
-        pred = _predict_openfoam_breathing(params=params, ctx=ctx, breathing=breathing)
+        pred = _predict_openfoam_breathing(params=params, ctx=ctx, breathing=effective_breathing)
         openfoam_nn_used = True
         nn_disagreement = compute_nn_disagreement(
             m_air_eq=m_air_eq,
@@ -371,14 +535,14 @@ def evaluate_two_zone_thermo(
         p_cyl=p_guess,
         t_cyl=t_guess,
         rpm=float(ctx.rpm),
-        p_manifold_pa=float(breathing.p_manifold_Pa),
-        p_back_pa=float(breathing.p_back_Pa),
-        intake_open_deg=float(breathing.intake_open_deg),
-        intake_close_deg=float(breathing.intake_close_deg),
-        exhaust_open_deg=float(breathing.exhaust_open_deg),
-        exhaust_close_deg=float(breathing.exhaust_close_deg),
-        intake_port_area_m2=float(breathing.intake_port_area_m2) * 1.05,
-        exhaust_port_area_m2=float(breathing.exhaust_port_area_m2),
+        p_manifold_pa=float(effective_breathing.p_manifold_Pa),
+        p_back_pa=float(effective_breathing.p_back_Pa),
+        intake_open_deg=float(effective_breathing.intake_open_deg),
+        intake_close_deg=float(effective_breathing.intake_close_deg),
+        exhaust_open_deg=float(effective_breathing.exhaust_open_deg),
+        exhaust_close_deg=float(effective_breathing.exhaust_close_deg),
+        intake_port_area_m2=float(effective_breathing.intake_port_area_m2) * 1.05,
+        exhaust_port_area_m2=float(effective_breathing.exhaust_port_area_m2),
         cd_intake=float(constants.cd_intake),
         cd_exhaust=float(constants.cd_exhaust),
         gamma=float(constants.gamma_u),
@@ -390,14 +554,14 @@ def evaluate_two_zone_thermo(
         p_cyl=p_guess,
         t_cyl=t_guess,
         rpm=float(ctx.rpm),
-        p_manifold_pa=float(breathing.p_manifold_Pa),
-        p_back_pa=float(breathing.p_back_Pa) * 1.05,
-        intake_open_deg=float(breathing.intake_open_deg),
-        intake_close_deg=float(breathing.intake_close_deg),
-        exhaust_open_deg=float(breathing.exhaust_open_deg),
-        exhaust_close_deg=float(breathing.exhaust_close_deg),
-        intake_port_area_m2=float(breathing.intake_port_area_m2),
-        exhaust_port_area_m2=float(breathing.exhaust_port_area_m2),
+        p_manifold_pa=float(effective_breathing.p_manifold_Pa),
+        p_back_pa=float(effective_breathing.p_back_Pa) * 1.05,
+        intake_open_deg=float(effective_breathing.intake_open_deg),
+        intake_close_deg=float(effective_breathing.intake_close_deg),
+        exhaust_open_deg=float(effective_breathing.exhaust_open_deg),
+        exhaust_close_deg=float(effective_breathing.exhaust_close_deg),
+        intake_port_area_m2=float(effective_breathing.intake_port_area_m2),
+        exhaust_port_area_m2=float(effective_breathing.exhaust_port_area_m2),
         cd_intake=float(constants.cd_intake),
         cd_exhaust=float(constants.cd_exhaust),
         gamma=float(constants.gamma_u),
@@ -406,8 +570,10 @@ def evaluate_two_zone_thermo(
     )
 
     lam = max(float(params.lambda_af), 1e-6)
-    m_fuel = float(m_air_used / (lam * constants.afr_stoich))
-    q_chem = m_fuel * float(constants.fuel_lhv)
+    afr_stoich = float(fuel_profile.afr_stoich)
+    fuel_lhv = float(fuel_profile.fuel_lhv)
+    o2_required_per_fuel = float(fuel_profile.o2_required_per_fuel)
+    m_fuel = float(m_air_used / (lam * afr_stoich))
     trapped_o2 = (
         float(m_air_used)
         * float(constants.o2_mass_fraction_air)
@@ -415,21 +581,43 @@ def evaluate_two_zone_thermo(
     )
     burn_cap = float(
         np.clip(
-            trapped_o2 / max(m_fuel * float(constants.o2_required_per_fuel), 1e-12),
+            trapped_o2 / max(m_fuel * o2_required_per_fuel, 1e-12),
             0.0,
             1.0,
         )
     )
 
     lam_richer = max(0.7, lam * 0.95)
-    m_fuel_richer = float(m_air_used / (lam_richer * constants.afr_stoich))
+    m_fuel_richer = float(m_air_used / (lam_richer * afr_stoich))
     burn_cap_richer = float(
         np.clip(
-            trapped_o2 / max(m_fuel_richer * float(constants.o2_required_per_fuel), 1e-12),
+            trapped_o2 / max(m_fuel_richer * o2_required_per_fuel, 1e-12),
             0.0,
             1.0,
         )
     )
+
+    mixture = evaluate_mixture_preparation(
+        params=params,
+        ctx=ctx,
+        breathing=effective_breathing,
+        m_air_trapped_kg=m_air_used,
+        intake_close_deg=float(effective_breathing.intake_close_deg),
+        constants=constants,
+    )
+    ignition = evaluate_ignition_stage(
+        params=params,
+        ctx=ctx,
+        theta_deg=theta,
+        volume=V,
+        motion_events=derived_timing.motion_events,
+        mixture=mixture,
+        ivc_deg=float(effective_breathing.intake_close_deg),
+        p_manifold_pa=float(effective_breathing.p_manifold_Pa),
+        gamma_u=float(constants.gamma_u),
+    )
+
+    q_chem = m_fuel * fuel_lhv
 
     trend_checks = evaluate_trend_checks(
         trapped_mass_base=m_air_eq,
@@ -456,26 +644,55 @@ def evaluate_two_zone_thermo(
     m_u[0] = max(float(m_air_used + m_fuel), 1e-9)
     m_b[0] = 1e-9
     t_u[0] = (
-        float(constants.t_intake_k) * (1.0 - residual_used)
+        float(mixture.charge_temp_k) * (1.0 - residual_used)
         + float(constants.t_residual_k) * residual_used
     )
     t_b[0] = t_u[0] + 100.0
     p[0], newton_iters[0], converged = _newton_pressure(
         m_u[0] * constants.r_u * t_u[0] + m_b[0] * constants.r_b * t_b[0],
         V[0],
-        p0=float(breathing.p_manifold_Pa),
+        p0=float(effective_breathing.p_manifold_Pa),
         residual_tol=1e-7,
         max_iter=20,
     )
     if not converged:
         raise RuntimeError("Thermo pressure closure failed at initial state")
 
-    vapor[0] = 0.2
+    vapor[0] = float(
+        np.clip(
+            max(mixture.delivered_vapor_fraction, 1.0 - mixture.wall_film_fraction),
+            0.0,
+            1.0,
+        )
+    )
 
-    burn_profile = double_wiebe_burn_fraction(
+    chemistry_weight = float(chemistry_profile.wiebe_handoff.chemistry_weight)
+    legacy_weight = float(chemistry_profile.wiebe_handoff.legacy_heat_release_weight)
+    weight_sum = max(chemistry_weight + legacy_weight, 1e-12)
+    chemistry_weight /= weight_sum
+    legacy_weight /= weight_sum
+    chemistry_start = float(ignition.soc_deg)
+    if str(chemistry_profile.wiebe_handoff.anchor_mode).lower() == "ca10":
+        chemistry_start = float(np.mod(ignition.ca10_deg - 0.1 * ignition.burn_duration_deg, 360.0))
+    wiebe_theta_start = float(
+        np.mod(
+            chemistry_weight * chemistry_start
+            + legacy_weight * float(params.heat_release_center),
+            360.0,
+        )
+    )
+    wiebe_duration = float(
+        np.clip(
+            chemistry_weight * float(ignition.chemistry_heat_release_width_deg)
+            + legacy_weight * float(params.heat_release_width),
+            float(chemistry_profile.wiebe_handoff.burn_duration_min_deg),
+            float(chemistry_profile.wiebe_handoff.burn_duration_max_deg),
+        )
+    )
+    burn_profile = wrapped_double_wiebe_burn_fraction(
         theta,
-        theta_start=float(params.heat_release_center),
-        duration=max(1e-6, float(params.heat_release_width)),
+        theta_start=wiebe_theta_start,
+        duration=max(1e-6, wiebe_duration),
         split=float(constants.wiebe_split),
         a1=float(constants.wiebe_a1),
         m1=float(constants.wiebe_m1),
@@ -511,7 +728,7 @@ def evaluate_two_zone_thermo(
         u_u_prev = m_u[i - 1] * constants.cv_u * t_u[i - 1]
         u_b_prev = m_b[i - 1] * constants.cv_b * t_b[i - 1]
 
-        q_comb = float(dm_burn * constants.fuel_lhv)
+        q_comb = float(dm_burn * fuel_lhv)
         q_rel_step[i] = q_comb
 
         # Simple wall transfer based on bore area proxy.
@@ -592,12 +809,37 @@ def evaluate_two_zone_thermo(
     )
 
     if not validation_report.passed(mass_tol=1e-4, energy_tol=3e-2, branch_tol=2e-2):
-        raise RuntimeError(
+        payload = _validation_failure_payload(
+            ctx=ctx,
+            params=params,
+            breathing=effective_breathing,
+            derived_timing=derived_timing,
+            manifest=manifest,
+            validation_report=validation_report,
+            benchmark_messages=benchmark_messages,
+            nn_disagreement=nn_disagreement,
+            m0_guess=float(m0_guess),
+            p_guess=p_guess,
+            V=V,
+            scav_eq=scav_eq,
+            pred=pred,
+            m_air_eq=float(m_air_eq),
+            residual_eq=float(residual_eq),
+            scav_eff_eq=float(scav_eff_eq),
+            m_air_used=float(m_air_used),
+            residual_used=float(residual_used),
+            scav_eff_used=float(scav_eff_used),
+            hybrid_correction_active=bool(hybrid_correction_active),
+            mixture=mixture,
+            ignition=ignition,
+        )
+        raise ThermoValidationError(
             "Thermo validation failed: "
             f"mass_residual={validation_report.mass_residual:.3e}, "
             f"energy_residual={validation_report.energy_residual:.3e}, "
             f"benchmark_status={validation_report.benchmark_status}, "
-            f"trends={validation_report.trend_checks}"
+            f"trends={validation_report.trend_checks}",
+            payload=payload,
         )
 
     requested_ratio_profile = _resample_periodic_profile(
@@ -618,12 +860,26 @@ def evaluate_two_zone_thermo(
 
     p_max = float(np.max(p))
     p_limit_pa = float(constants.p_limit_bar) * 1e5
+    burn_fraction_effective = np.minimum(np.cumsum(dx_base * vapor), float(burn_cap))
 
     G = np.array(
         [
             0.0 - efficiency,
             efficiency - float(constants.efficiency_upper_bound),
             (p_max - p_limit_pa) / max(p_limit_pa, 1e-12),
+            float(stable_thresholds["burn_cap_min"]) - float(burn_cap),
+            float(stable_thresholds["trapped_mass_min_kg"]) - float(m_air_used),
+            float(stable_thresholds["scavenging_efficiency_min"]) - float(scav_eff_used),
+            float(residual_used) - float(stable_thresholds["residual_fraction_max"]),
+            float(chemistry_thresholds.delivered_vapor_fraction_min)
+            - float(mixture.delivered_vapor_fraction),
+            float(mixture.mixture_inhomogeneity)
+            - float(chemistry_thresholds.mixture_inhomogeneity_max),
+            float(mixture.wall_film_fraction) - float(chemistry_thresholds.wall_film_fraction_max),
+            float(chemistry_thresholds.ignitability_margin_min)
+            - float(ignition.ignitability_margin),
+            float(chemistry_thresholds.preignition_margin_min)
+            - float(ignition.preignition_margin),
             float(ratio_stats.get("max_slope", 0.0)) - float(slope_limit),
             _compute_power_balance_constraint(work, ctx.rpm, ctx.torque),
         ],
@@ -643,7 +899,8 @@ def evaluate_two_zone_thermo(
             "m_u": m_u,
             "m_b": m_b,
             "vapor_fraction": vapor,
-            "burn_fraction": burn_profile,
+            "burn_fraction": burn_fraction_effective,
+            "burn_fraction_commanded": burn_profile,
             "q_rel_step": q_rel_step,
             "q_wall_u": q_wall_u,
             "q_wall_b": q_wall_b,
@@ -655,6 +912,32 @@ def evaluate_two_zone_thermo(
             "scavenging_efficiency": float(scav_eff_used),
             "trapped_o2_mass": float(trapped_o2),
             "burn_frac_o2": float(burn_cap),
+            "valve_timing": derived_timing.as_dict(),
+            "stable_combustion_thresholds": dict(stable_thresholds),
+            "chemistry_thresholds": {
+                "delivered_vapor_fraction_min": float(
+                    chemistry_thresholds.delivered_vapor_fraction_min
+                ),
+                "mixture_inhomogeneity_max": float(
+                    chemistry_thresholds.mixture_inhomogeneity_max
+                ),
+                "wall_film_fraction_max": float(chemistry_thresholds.wall_film_fraction_max),
+                "ignitability_margin_min": float(chemistry_thresholds.ignitability_margin_min),
+                "preignition_margin_min": float(chemistry_thresholds.preignition_margin_min),
+            },
+            "mixture_preparation": mixture.as_dict(),
+            "ignition_stage": ignition.as_dict(),
+            "chemistry_handoff": {
+                "profile_id": str(chemistry_profile.profile_id),
+                "profile_version": str(chemistry_profile.profile_version),
+                "fuel_name": str(fuel_profile.fuel_name),
+                "wiebe_anchor_mode": str(chemistry_profile.wiebe_handoff.anchor_mode),
+                "chemistry_weight": float(chemistry_weight),
+                "legacy_heat_release_weight": float(legacy_weight),
+                "wiebe_theta_start": float(wiebe_theta_start),
+                "wiebe_duration_deg": float(wiebe_duration),
+                "handoff_burn_fraction": float(chemistry_profile.wiebe_handoff.handoff_burn_fraction),
+            },
             "openfoam_nn_used": bool(openfoam_nn_used),
             "ratio_profile_stats": ratio_stats,
             "ratio_slope_limit_used": float(slope_limit),
@@ -664,7 +947,7 @@ def evaluate_two_zone_thermo(
             "T_mean_wall": float(constants.wall_temp_k),
             "T_wall_C": float(constants.wall_temp_k - 273.15),
             "thermo_solver_status": "ok",
-            "thermo_model_version": "two_zone_eq_v1",
+            "thermo_model_version": "two_zone_eq_hybrid_chem_v1",
             "thermo_constants_version": constants.version,
             "thermo_mass_residual": float(validation_report.mass_residual),
             "thermo_energy_residual": float(validation_report.energy_residual),

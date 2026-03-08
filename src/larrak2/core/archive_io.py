@@ -16,7 +16,16 @@ from .constraints import (
     get_constraint_scales,
     get_material_constraint_names,
 )
-from .encoding import ENCODING_VERSION, N_TOTAL
+from .encoding import (
+    ENCODING_VERSION,
+    LEGACY_ENCODING_VERSION,
+    LEGACY_N_TOTAL,
+    PRECHEM_ENCODING_VERSION,
+    PRECHEM_N_TOTAL,
+    N_TOTAL,
+    upgrade_legacy_candidate_matrix,
+    upgrade_prechem_candidate_matrix,
+)
 
 META_FILENAME = "summary.json"
 
@@ -70,8 +79,12 @@ def load_archive(outdir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict
     F = np.load(outdir / "pareto_F.npy", allow_pickle=False)
     G = np.load(outdir / "pareto_G.npy", allow_pickle=False)
 
-    # Basic shape validation
-    if X.shape[1] != summary.get("n_var", N_TOTAL):
+    expected_n_var = int(summary.get("n_var", N_TOTAL))
+    if X.shape[1] == LEGACY_N_TOTAL and expected_n_var == N_TOTAL:
+        X = upgrade_legacy_candidate_matrix(X)
+    elif X.shape[1] == PRECHEM_N_TOTAL and expected_n_var == N_TOTAL:
+        X = upgrade_prechem_candidate_matrix(X)
+    elif X.shape[1] != expected_n_var:
         raise ValueError(f"n_var mismatch: {X.shape[1]} vs {summary.get('n_var')}")
 
     return X, F, G, summary
@@ -85,7 +98,27 @@ def migrate_archive(summary: dict) -> dict:
 
     # Example migration map; extend as schemas evolve
     MIGRATION_MAP = {
-        "0.0": lambda s: {**s, "encoding_version": ENCODING_VERSION},
+        "0.0": lambda s: {**s, "encoding_version": ENCODING_VERSION, "n_var": N_TOTAL},
+        LEGACY_ENCODING_VERSION: lambda s: {
+            **s,
+            "encoding_version": ENCODING_VERSION,
+            "n_var": N_TOTAL,
+            "legacy_upgrade": {
+                "timing_defaults_injected": True,
+                "legacy_n_var": LEGACY_N_TOTAL,
+                "current_n_var": N_TOTAL,
+            },
+        },
+        PRECHEM_ENCODING_VERSION: lambda s: {
+            **s,
+            "encoding_version": ENCODING_VERSION,
+            "n_var": N_TOTAL,
+            "legacy_upgrade": {
+                "spark_default_injected": True,
+                "legacy_n_var": PRECHEM_N_TOTAL,
+                "current_n_var": N_TOTAL,
+            },
+        },
     }
 
     if enc in MIGRATION_MAP:

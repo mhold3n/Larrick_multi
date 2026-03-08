@@ -10,6 +10,8 @@ from typing import Any
 import numpy as np
 
 from larrak2.core.archive_io import save_archive
+from larrak2.core.constraints import get_constraint_names
+from larrak2.core.encoding import N_TOTAL
 from larrak2.core.types import EvalContext
 from larrak2.optimization.candidate_store import CandidateStore
 from larrak2.pipelines.principles_core import (
@@ -302,14 +304,15 @@ def synthesize_principles_frontier(
         source_region_pass = True
         source_region_policy = "diagnostic_non_blocking_f0"
 
-    X_region = np.asarray([records[i]["x_full"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, 22), dtype=np.float64)
+    n_constraints = len(get_constraint_names(max(int(ctx.fidelity), int(alignment_fidelity), 1)))
+    X_region = np.asarray([records[i]["x_full"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, N_TOTAL), dtype=np.float64)
     F_region = np.asarray([records[i]["F_blend"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
-    G_region = np.asarray([records[i]["G_combined"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, 17), dtype=np.float64)
+    G_region = np.asarray([records[i]["G_combined"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, n_constraints), dtype=np.float64)
     Z_region = np.asarray([records[i]["z_reduced"] for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(reduced_variable_names(profile_payload))), dtype=np.float64)
     proxy_F = np.asarray([records[i]["proxy"].F for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
-    proxy_G = np.asarray([records[i]["proxy"].G for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, 17), dtype=np.float64)
+    proxy_G = np.asarray([records[i]["proxy"].G for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, n_constraints), dtype=np.float64)
     align_F = np.asarray([records[i]["alignment"].F for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, len(PRINCIPLES_OBJECTIVE_NAMES)), dtype=np.float64)
-    align_G = np.asarray([records[i]["alignment"].G for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, 17), dtype=np.float64)
+    align_G = np.asarray([records[i]["alignment"].G for i in region_indices], dtype=np.float64) if region_indices else np.zeros((0, n_constraints), dtype=np.float64)
 
     diagnosis_payload = {
         "classification": str(diagnosis.classification),

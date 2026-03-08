@@ -39,6 +39,14 @@ class ThermoValidationReport:
         )
 
 
+class ThermoValidationError(RuntimeError):
+    """Structured thermo validation failure with machine-readable payload."""
+
+    def __init__(self, message: str, *, payload: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.payload = dict(payload or {})
+
+
 def in_validated_envelope(
     *,
     rpm: float,

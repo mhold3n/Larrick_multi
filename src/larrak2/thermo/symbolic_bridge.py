@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 from ..core.artifact_paths import DEFAULT_THERMO_SYMBOLIC_ARTIFACT
-from ..core.encoding import N_TOTAL
+from ..core.encoding import N_TOTAL, resolve_index_for_encoding
 from ..core.types import EvalContext
 from ..surrogate.quality_contract import load_quality_report, thermo_symbolic_quality_fail_reasons
 from ..surrogate.stack.runtime import parse_feature_index
@@ -52,6 +52,7 @@ def assemble_thermo_symbolic_feature_vector(
         idx = parse_feature_index(name)
         if idx is None:
             raise ValueError(f"Unsupported thermo symbolic feature '{name}'")
+        idx = resolve_index_for_encoding(idx, getattr(artifact, "encoding_version", None))
         feats.append(x_full_sym[int(idx)])
     return ca.vertcat(*feats)
 
@@ -89,7 +90,10 @@ def numeric_thermo_forward(
             feats[i] = float(torque)
             continue
         idx = parse_feature_index(name)
-        if idx is None or idx < 0 or idx >= x.size:
+        if idx is None:
+            raise ValueError(f"Invalid thermo symbolic feature '{name}' for vector size {x.size}")
+        idx = resolve_index_for_encoding(idx, getattr(artifact, "encoding_version", None))
+        if idx < 0 or idx >= x.size:
             raise ValueError(f"Invalid thermo symbolic feature '{name}' for vector size {x.size}")
         feats[i] = float(x[idx])
 
@@ -183,7 +187,11 @@ def _preflight_overlay_contract_violations(
         if name in {"rpm", "torque"}:
             continue
         idx = parse_feature_index(name)
-        if idx is None or idx < 0 or idx >= int(N_TOTAL):
+        if idx is None:
+            bad_features.append(str(name))
+            continue
+        idx = resolve_index_for_encoding(idx, getattr(artifact, "encoding_version", None))
+        if idx < 0 or idx >= int(N_TOTAL):
             bad_features.append(str(name))
     if bad_features:
         errs.append(
