@@ -84,6 +84,29 @@ class _StubSimulation:
         return {"objective": float(candidate.get("truth_objective", 0.0))}
 
 
+class _StubOpenFoamTruthSimulation:
+    run_openfoam = True
+    run_calculix = False
+    openfoam_runner = None
+
+    def evaluate(self, candidate: dict[str, Any], *, context) -> dict[str, Any]:  # noqa: ARG002
+        return {
+            "objective": float(candidate.get("truth_objective", 0.0)),
+            "diag": {
+                "realworld": {
+                    "life_damage": {
+                        "life_damage_input_mode": "table",
+                        "life_damage_status": "ok",
+                    }
+                }
+            },
+            "openfoam": {
+                "scavenging_efficiency": 0.82,
+                "trapped_mass": 0.0013,
+            },
+        }
+
+
 def test_orchestrate_auto_truth_is_deterministic_and_budget_respecting(tmp_path: Path) -> None:
     outdir = tmp_path / "orch_auto"
     cfg = OrchestrationConfig(
@@ -141,3 +164,35 @@ def test_orchestrate_context_includes_thermo_path_overrides(tmp_path: Path) -> N
     ctx = orch._build_context()
     assert ctx.thermo_constants_path == "data/thermo/literature_constants_v1.json"
     assert ctx.thermo_anchor_manifest_path == "data/thermo/anchor_manifest_v1.json"
+
+
+def test_orchestrate_emits_truth_records_jsonl_for_successful_openfoam_truth(tmp_path: Path) -> None:
+    outdir = tmp_path / "orch_truth_records"
+    cfg = OrchestrationConfig(
+        outdir=outdir,
+        max_iterations=1,
+        batch_size=4,
+        total_sim_budget=2,
+        truth_dispatch_mode="auto",
+        truth_auto_top_k=2,
+        truth_auto_min_uncertainty=0.15,
+        truth_auto_min_feasibility=0.8,
+        truth_auto_min_pred_quantile=0.5,
+        use_provenance=False,
+    )
+    orch = Orchestrator(
+        cem=_StubCEM(),
+        surrogate=_StubSurrogate(),
+        solver=_StubSolver(),
+        simulation=_StubOpenFoamTruthSimulation(),
+        config=cfg,
+    )
+    orch.optimize(initial_params={})
+
+    truth_path = outdir / "truth_records.jsonl"
+    assert truth_path.exists()
+    lines = [json.loads(line) for line in truth_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert all(row["truth_backend"] == "openfoam_dispatch" for row in lines)
+    assert all(row["truth_ok"] is True for row in lines)
+    assert all("rpm" in row and "torque" in row for row in lines)

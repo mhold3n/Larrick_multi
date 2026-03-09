@@ -171,10 +171,15 @@ def test_train_stack_emits_quality_report(tmp_path: Path) -> None:
     train_stack_surrogate_workflow(args)
 
     report = json.loads((outdir / "quality_report.json").read_text(encoding="utf-8"))
+    summary = json.loads(
+        (outdir / "stack_surrogate_training_summary.json").read_text(encoding="utf-8")
+    )
     assert report["surrogate_kind"] == "stack"
     assert report["metrics"]["train"]
     assert report["metrics"]["val"]
     assert report["metrics"]["test"]
+    assert report["metrics"]["test"]["mse_norm"] == summary["metrics"]["test_mse_norm"]
+    assert summary["metrics"]["n_test"] > 0
 
 
 def test_train_thermo_symbolic_emits_quality_report(tmp_path: Path) -> None:

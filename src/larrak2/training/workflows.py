@@ -159,7 +159,8 @@ def _stack_quality_report(
 ) -> None:
     val_mse = float(metrics.get("val_mse_norm", float("nan")))
     train_mse = float(metrics.get("train_mse_norm", float("nan")))
-    passed = bool(np.isfinite(val_mse) and np.isfinite(train_mse))
+    test_mse = float(metrics.get("test_mse_norm", float("nan")))
+    passed = bool(np.isfinite(val_mse) and np.isfinite(train_mse) and np.isfinite(test_mse))
     report = {
         "schema_version": "surrogate_quality_report_v1",
         "surrogate_kind": "stack",
@@ -174,7 +175,7 @@ def _stack_quality_report(
         "metrics": {
             "train": {"mse_norm": train_mse},
             "val": {"mse_norm": val_mse},
-            "test": {"mse_norm": val_mse},
+            "test": {"mse_norm": float(metrics.get("test_mse_norm", float("nan")))},
             "slice_metrics": [],
         },
         "ood_thresholds": {
@@ -183,7 +184,7 @@ def _stack_quality_report(
         "uncertainty_calibration": {"method": "deterministic_mlp", "status": "not_applicable"},
         "required_artifacts": [artifact_path.name],
         "pass": passed,
-        "fail_reasons": [] if passed else ["non-finite training/validation metrics"],
+        "fail_reasons": [] if passed else ["non-finite training/validation/test metrics"],
     }
     write_quality_report(artifact_path.parent / "quality_report.json", report)
 
@@ -466,6 +467,7 @@ def train_stack_surrogate_workflow(args: argparse.Namespace) -> dict[str, Any]:
         lr=float(args.lr),
         weight_decay=float(args.weight_decay),
         val_frac=float(args.val_frac),
+        test_frac=float(getattr(args, "test_frac", 0.15)),
     )
     save_stack_artifact(artifact, out_path)
 

@@ -146,6 +146,7 @@ class OrchestrationConfig:
     truth_auto_min_uncertainty: float = 0.0
     truth_auto_min_feasibility: float = 0.0
     truth_auto_min_pred_quantile: float = 0.0
+    truth_records_path: str | Path | None = None
     strict_data: bool = True
     strict_tribology_data: bool | None = None
     tribology_scuff_method: str = "auto"
@@ -276,6 +277,11 @@ class Orchestrator:
         self.manifest_path = self.outdir / "orchestrate_manifest.json"
         self.contract_trace_path = self.outdir / "contract_trace.jsonl"
         self.contract_summary_path = self.outdir / "contract_summary.json"
+        self.truth_records_path = (
+            Path(self.config.truth_records_path)
+            if self.config.truth_records_path
+            else self.outdir / "truth_records.jsonl"
+        )
         self._contract_summary: dict[str, Any] = {}
 
         self.budget = budget or BudgetManager(total_sim_calls=int(self.config.total_sim_budget))
@@ -320,6 +326,32 @@ class Orchestrator:
         self._heuristic_fallback_enabled = bool(
             getattr(self.surrogate, "allow_heuristic_fallback", False)
         )
+
+    def _truth_cache_request(
+        self,
+        candidate: dict[str, Any],
+        *,
+        context: EvalContext,
+    ) -> dict[str, Any]:
+        return {
+            "candidate": candidate,
+            "truth_runtime": {
+                "fidelity": int(context.fidelity),
+                "rpm": float(context.rpm),
+                "torque": float(context.torque),
+                "run_openfoam": bool(getattr(self.simulation, "run_openfoam", False)),
+                "run_calculix": bool(getattr(self.simulation, "run_calculix", False)),
+                "openfoam_backend": str(getattr(getattr(self.simulation, "openfoam_runner", None), "backend", "")),
+                "openfoam_template": str(
+                    getattr(getattr(self.simulation, "openfoam_runner", None), "template_dir", "")
+                ),
+            },
+        }
+
+    def _append_truth_record(self, record: dict[str, Any]) -> None:
+        self.truth_records_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.truth_records_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(_json_safe(record), ensure_ascii=True) + "\n")
 
     @property
     def run_id(self) -> str:
@@ -676,6 +708,9 @@ class Orchestrator:
         try:
             self._emit_event("run_start", config=asdict(self.config))
             stop_requested = False
+            if self.config.truth_dispatch_mode != "off":
+                self.truth_records_path.parent.mkdir(parents=True, exist_ok=True)
+                self.truth_records_path.write_text("", encoding="utf-8")
 
             for iteration in range(1, int(self.config.max_iterations) + 1):
                 if self.budget.exhausted():
@@ -791,9 +826,10 @@ class Orchestrator:
                 if truth_indices:
                     for idx in truth_indices:
                         cand = refined[idx]
+                        truth_request = self._truth_cache_request(cand, context=context)
                         payload, was_cached = self.cache.get_or_compute(
-                            cand,
-                            lambda item: self.simulation.evaluate(item, context=context),
+                            truth_request,
+                            lambda item: self.simulation.evaluate(item["candidate"], context=context),
                         )
                         objective = self._extract_objective(
                             payload if isinstance(payload, dict) else {}
@@ -841,6 +877,48 @@ class Orchestrator:
                                 "payload": _json_safe(payload_dict),
                             }
                         )
+                        openfoam_payload = payload_dict.get("openfoam", {})
+                        openfoam_ok = bool(
+                            isinstance(openfoam_payload, dict)
+                            and openfoam_payload
+                            and not str(openfoam_payload.get("error", "")).strip()
+                        )
+                        truth_backend = (
+                            "openfoam_dispatch"
+                            if bool(getattr(self.simulation, "run_openfoam", False))
+                            else "evaluator_only"
+                        )
+                        truth_record = {
+                            "run_id": str(self._run_id),
+                            "iteration": int(iteration),
+                            "idx": int(idx),
+                            "candidate_id": str(cand.get("id", idx)),
+                            "cached": bool(was_cached),
+                            "truth_backend": truth_backend,
+                            "truth_ok": bool(openfoam_ok and truth_backend == "openfoam_dispatch"),
+                            "rpm": float(context.rpm),
+                            "torque": float(context.torque),
+                            "operating_point": {
+                                "rpm": float(context.rpm),
+                                "torque": float(context.torque),
+                                "fidelity": int(context.fidelity),
+                            },
+                            "candidate": {
+                                "id": str(cand.get("id", idx)),
+                                "iteration": int(cand.get("iteration", iteration)),
+                                "local_index": int(cand.get("local_index", idx)),
+                                "global_index": int(cand.get("global_index", -1)),
+                            },
+                            "objective": float(objective),
+                            "life_damage_input_mode": life_input_mode,
+                            "life_damage_status": life_status,
+                            "openfoam": _json_safe(openfoam_payload),
+                            "calculix": _json_safe(payload_dict.get("calculix", {})),
+                            "diag": _json_safe(payload_dict.get("diag", {})),
+                        }
+                        truth_records[-1]["truth_record_emitted"] = bool(truth_record["truth_ok"])
+                        if truth_record["truth_ok"]:
+                            self._append_truth_record(truth_record)
                         truth_data.append((cand, float(objective)))
 
                         self._history.append(
@@ -1055,6 +1133,7 @@ class Orchestrator:
                 "provenance_events": provenance_path,
                 "contract_trace": str(self.contract_trace_path),
                 "contract_summary": str(self.contract_summary_path),
+                "truth_records": str(self.truth_records_path),
             },
         }
         self.manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

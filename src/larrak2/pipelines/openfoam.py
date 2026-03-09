@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from larrak2.adapters.docker_openfoam import DockerOpenFoam
+from larrak2.adapters.docker_openfoam import DockerOpenFoam, DockerOpenFoamConfig
 from larrak2.adapters.openfoam import OpenFoamRunner
 
 
@@ -23,15 +23,21 @@ class OpenFoamPipeline:
         template_dir: str | Path,
         solver_cmd: str = "pisoFoam",
         docker_timeout_s: int = 1800,
+        docker_image: str | None = None,
     ):
         self.template_dir = Path(template_dir)
         self.solver_cmd = solver_cmd
         self.docker_timeout_s = docker_timeout_s
-        self.docker = DockerOpenFoam()
+        self.docker = (
+            DockerOpenFoam(DockerOpenFoamConfig(image=docker_image))
+            if docker_image is not None
+            else DockerOpenFoam()
+        )
         self.runner = OpenFoamRunner(
             template_dir=template_dir,
             solver_cmd=solver_cmd,
             backend="docker",
+            docker_image=docker_image,
         )
 
     def setup_case(self, run_dir: Path, params: dict[str, Any]) -> None:
@@ -277,6 +283,42 @@ class OpenFoamPipeline:
         """Parse results using the runner adapter."""
         return self.runner.parse_results(run_dir, log_name=f"{self.solver_cmd}.log")
 
+    def _ensure_case_metrics(self, run_dir: Path, params: dict[str, Any]) -> dict[str, Any]:
+        metrics = self.parse_results(run_dir)
+        required = {
+            "trapped_mass",
+            "scavenging_efficiency",
+            "residual_fraction",
+            "trapped_o2_mass",
+        }
+        if required.issubset(metrics):
+            return metrics
+
+        latest_dir = self.runner.latest_time_dir(run_dir)
+        if latest_dir is None:
+            return metrics
+
+        if not (latest_dir / "Vc").exists():
+            code, _, _ = self.docker.run_utility(
+                utility="postProcess",
+                args=["-func", "writeCellVolumes", "-time", latest_dir.name],
+                case_dir=run_dir,
+                log_file=run_dir / "postProcess.log",
+                timeout_s=600,
+            )
+            if code != 0:
+                return metrics
+
+        field_metrics = self.runner.compute_field_metrics(
+            run_dir,
+            p_manifold_Pa=float(params.get("p_manifold_Pa", 101325.0)),
+        )
+        if not required.issubset(field_metrics):
+            return metrics
+
+        self.runner.emit_metrics(run_dir, field_metrics, log_name=f"{self.solver_cmd}.log")
+        return self.parse_results(run_dir)
+
     def execute(
         self,
         run_dir: Path,
@@ -309,5 +351,13 @@ class OpenFoamPipeline:
             return {"error": 1.0, "stage": stage, "ok": False}
 
         # 5. Parse
-        metrics = self.parse_results(run_dir)
+        metrics = self._ensure_case_metrics(run_dir, params)
+        required = {
+            "trapped_mass",
+            "scavenging_efficiency",
+            "residual_fraction",
+            "trapped_o2_mass",
+        }
+        if not required.issubset(metrics):
+            return {"error": 1.0, "stage": "metrics", "ok": False}
         return {**metrics, "ok": True}

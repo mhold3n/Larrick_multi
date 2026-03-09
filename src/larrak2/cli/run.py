@@ -20,6 +20,7 @@ from larrak2.cli.run_workflows import (
     run_dress_rehearsal_workflow,
     run_explore_exploit_workflow,
     run_openfoam_doe_workflow,
+    run_overnight_f2_nn_campaign_workflow,
     run_orchestrate_workflow,
     run_pareto_grid_workflow,
     run_pareto_staged_workflow,
@@ -326,9 +327,51 @@ def main() -> int:
     tss.add_argument("--epochs", type=int, default=200)
     tss.add_argument("--lr", type=float, default=1e-3)
     tss.add_argument("--weight-decay", type=float, default=1e-6)
-    tss.add_argument("--val-frac", type=float, default=0.2)
+    tss.add_argument("--val-frac", type=float, default=0.15)
+    tss.add_argument("--test-frac", type=float, default=0.15)
     tss.add_argument("--seed", type=int, default=42)
     tss.add_argument("--verbose", action="store_true")
+
+    # --- Overnight F2 NN Campaign ---
+    oc = subparsers.add_parser(
+        "overnight-f2-nn-campaign",
+        help="Run staged overnight DOE/training/promotion workflow for F2 NN artifacts",
+    )
+    oc.add_argument("--profile", type=str, default="data/training/f2_nn_overnight_core_edge_v1.json")
+    oc.add_argument("--outdir-root", type=str, default="outputs/overnight_f2")
+    oc.add_argument("--run-id", type=str, default="")
+    oc.add_argument(
+        "--openfoam-template",
+        type=str,
+        default="openfoam_templates/opposed_piston_rotary_valve_sliding_case",
+    )
+    oc.add_argument("--openfoam-solver", type=str, default="rhoPimpleFoam")
+    oc.add_argument("--openfoam-docker-timeout-s", type=int, default=1800)
+    oc.add_argument("--openfoam-docker-image", type=str, default="")
+    oc.add_argument("--openfoam-name", type=str, default="openfoam_breathing.pt")
+    oc.add_argument("--openfoam-hidden", type=str, default="64,64")
+    oc.add_argument("--openfoam-epochs", type=int, default=120)
+    oc.add_argument("--openfoam-lr", type=float, default=1e-3)
+    oc.add_argument("--openfoam-weight-decay", type=float, default=0.0)
+    oc.add_argument("--openfoam-authority-bundle-root", type=str, default="")
+    oc.add_argument("--calculix-template", type=str, default="")
+    oc.add_argument("--calculix-solver", type=str, default="ccx")
+    oc.add_argument("--calculix-name", type=str, default="calculix_stress.pt")
+    oc.add_argument("--calculix-hidden", type=str, default="64,64")
+    oc.add_argument("--calculix-epochs", type=int, default=120)
+    oc.add_argument("--calculix-lr", type=float, default=1e-3)
+    oc.add_argument("--calculix-weight-decay", type=float, default=0.0)
+    oc.add_argument("--stack-name", type=str, default="stack_f2_surrogate.npz")
+    oc.add_argument("--stack-hidden", type=str, default="128,128")
+    oc.add_argument("--stack-activation", type=str, default="relu", choices=["relu", "leaky_relu"])
+    oc.add_argument("--stack-leaky-relu-slope", type=float, default=0.01)
+    oc.add_argument("--stack-epochs", type=int, default=200)
+    oc.add_argument("--stack-lr", type=float, default=1e-3)
+    oc.add_argument("--stack-weight-decay", type=float, default=1e-6)
+    oc.add_argument("--seed", type=int, default=42)
+    oc.add_argument("--install-canonical", dest="install_canonical", action="store_true")
+    oc.add_argument("--no-install-canonical", dest="install_canonical", action="store_false")
+    oc.set_defaults(install_canonical=True)
 
     # --- Train Thermo Symbolic ---
     tts = subparsers.add_parser(
@@ -839,6 +882,42 @@ def main() -> int:
     orch.add_argument("--truth-auto-min-feasibility", type=float, default=0.0)
     orch.add_argument("--truth-auto-min-pred-quantile", type=float, default=0.0)
     orch.add_argument(
+        "--truth-run-openfoam",
+        action="store_true",
+        help="Dispatch real OpenFOAM truth runs for selected truth candidates",
+    )
+    orch.add_argument(
+        "--truth-records-path",
+        type=str,
+        default="",
+        help="Optional JSONL path for successful OpenFOAM truth records (defaults to <outdir>/truth_records.jsonl)",
+    )
+    orch.add_argument(
+        "--openfoam-template",
+        type=str,
+        default="openfoam_templates/opposed_piston_rotary_valve_sliding_case",
+        help="OpenFOAM case template used for orchestration truth dispatch",
+    )
+    orch.add_argument(
+        "--openfoam-solver",
+        type=str,
+        default="rhoPimpleFoam",
+        help="OpenFOAM solver command for orchestration truth dispatch",
+    )
+    orch.add_argument(
+        "--openfoam-backend",
+        type=str,
+        default="docker",
+        choices=["docker", "local"],
+        help="Backend used for orchestration OpenFOAM truth dispatch",
+    )
+    orch.add_argument(
+        "--openfoam-docker-image",
+        type=str,
+        default="",
+        help="Optional Docker image override for orchestration OpenFOAM truth dispatch",
+    )
+    orch.add_argument(
         "--hifi-model-dir",
         type=str,
         default=str(DEFAULT_HIFI_SURROGATE_DIR),
@@ -976,6 +1055,7 @@ def main() -> int:
         "train-stack-surrogate": run_train_stack_surrogate_workflow,
         "train-thermo-symbolic": run_train_thermo_symbolic_workflow,
         "openfoam-doe": run_openfoam_doe_workflow,
+        "overnight-f2-nn-campaign": run_overnight_f2_nn_campaign_workflow,
         "promote-openfoam-artifact": run_promote_openfoam_artifact_workflow,
         "dress-rehearsal": run_dress_rehearsal_workflow,
         "explore-exploit": run_explore_exploit_workflow,

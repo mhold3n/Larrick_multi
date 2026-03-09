@@ -268,3 +268,127 @@ def test_orchestrate_workflow_wires_solver_stack_and_ipopt(tmp_path: Path, monke
     assert any(str(v).endswith("pipeline_readiness_summary.md") for v in required)
     assert any(str(v).endswith("f2_blockers.json") for v in required)
     assert any(str(v).endswith("artifact_contract_audit.json") for v in required)
+
+
+def test_orchestrate_workflow_enables_openfoam_truth_dispatch(tmp_path: Path, monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    stack_model = tmp_path / "stack_f2_surrogate.npz"
+    stack_model.write_bytes(b"placeholder")
+    template_dir = tmp_path / "openfoam_template"
+    template_dir.mkdir()
+
+    class _DummyCEMAdapter:
+        pass
+
+    class _DummySurrogateAdapter:
+        def __init__(self, *args, **kwargs):  # noqa: ARG002
+            return None
+
+    class _DummySolverAdapter:
+        def __init__(self, **kwargs):  # noqa: ARG002
+            return None
+
+    class _DummyDocker:
+        def check_availability(self) -> bool:
+            return True
+
+    class _DummyOpenFoamPipeline:
+        def __init__(self, **kwargs):
+            captured["openfoam_runner_kwargs"] = dict(kwargs)
+            self.docker = _DummyDocker()
+            self.template_dir = kwargs.get("template_dir")
+
+    class _DummySimulationAdapter:
+        def __init__(self, *args, **kwargs):
+            _ = args
+            captured["simulation_kwargs"] = dict(kwargs)
+
+    class _DummyOrchestrator:
+        def __init__(self, **kwargs):
+            _ = kwargs
+
+        def optimize(self, initial_params=None):  # noqa: ARG002
+            return SimpleNamespace(
+                best_objective=0.0,
+                best_source="truth",
+                manifest_path=str(tmp_path / "orchestrate_manifest.json"),
+            )
+
+    monkeypatch.setattr("larrak2.orchestration.adapters.CEMAdapter", _DummyCEMAdapter)
+    monkeypatch.setattr(
+        "larrak2.orchestration.adapters.HifiSurrogateAdapter", _DummySurrogateAdapter
+    )
+    monkeypatch.setattr(
+        "larrak2.cli.run_workflows._ensure_casadi_available", lambda **_kwargs: None
+    )
+    monkeypatch.setattr("larrak2.orchestration.adapters.CasadiSolverAdapter", _DummySolverAdapter)
+    monkeypatch.setattr(
+        "larrak2.orchestration.adapters.PhysicsSimulationAdapter", _DummySimulationAdapter
+    )
+    monkeypatch.setattr("larrak2.orchestration.Orchestrator", _DummyOrchestrator)
+    monkeypatch.setattr("larrak2.pipelines.openfoam.OpenFoamPipeline", _DummyOpenFoamPipeline)
+
+    args = Namespace(
+        outdir=str(tmp_path / "orchestrate"),
+        rpm=2200.0,
+        torque=120.0,
+        fidelity=2,
+        constraint_phase="downselect",
+        enforce_contract_routing=False,
+        seed=123,
+        sim_budget=4,
+        batch_size=4,
+        max_iterations=2,
+        truth_dispatch_mode="auto",
+        truth_plan="",
+        truth_auto_top_k=2,
+        truth_auto_min_uncertainty=0.0,
+        truth_auto_min_feasibility=0.0,
+        truth_auto_min_pred_quantile=0.0,
+        truth_run_openfoam=True,
+        truth_records_path="",
+        openfoam_template=str(template_dir),
+        openfoam_solver="rhoPimpleFoam",
+        openfoam_backend="docker",
+        openfoam_docker_image="",
+        hifi_model_dir=str(tmp_path / "hifi"),
+        allow_heuristic_surrogate_fallback=True,
+        allow_nonproduction_paths=False,
+        surrogate_validation_mode="off",
+        thermo_symbolic_mode="off",
+        thermo_symbolic_artifact_path="",
+        stack_model_path=str(stack_model),
+        ipopt_max_iter=None,
+        ipopt_tol=None,
+        ipopt_linear_solver=None,
+        thermo_constants_path="",
+        thermo_anchor_manifest="",
+        thermo_chemistry_profile_path="",
+        strict_data=True,
+        strict_tribology_data=None,
+        tribology_scuff_method="auto",
+        machining_mode="nn",
+        machining_model_path="",
+        control_backend="file",
+        provenance_backend="off",
+        cache_path="",
+        multi_start=False,
+        bore_mm=80.0,
+        stroke_mm=90.0,
+        intake_port_area_m2=4.0e-4,
+        exhaust_port_area_m2=4.0e-4,
+        p_manifold_pa=101325.0,
+        p_back_pa=101325.0,
+        compression_ratio=10.0,
+        fuel_name="gasoline",
+    )
+    code = run_orchestrate_workflow(args)
+    assert code == 0
+    assert captured["openfoam_runner_kwargs"] == {
+        "template_dir": template_dir,
+        "solver_cmd": "rhoPimpleFoam",
+        "docker_image": None,
+    }
+    simulation_kwargs = captured["simulation_kwargs"]
+    assert simulation_kwargs["run_openfoam"] is True
+    assert simulation_kwargs["openfoam_runner"].template_dir == template_dir

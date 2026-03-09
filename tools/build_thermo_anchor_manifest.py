@@ -65,6 +65,8 @@ def build_manifest(args: argparse.Namespace) -> dict[str, Any]:
     seen: set[tuple[float, float]] = set()
     anchors: list[dict[str, Any]] = []
     for rec in records:
+        if "truth_ok" in rec and not bool(rec.get("truth_ok", False)):
+            continue
         pair = _extract_rpm_torque(rec)
         if pair is None:
             continue

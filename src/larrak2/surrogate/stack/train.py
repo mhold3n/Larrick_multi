@@ -136,7 +136,8 @@ def train_stack_surrogate(
     epochs: int = 200,
     lr: float = 1e-3,
     weight_decay: float = 1e-6,
-    val_frac: float = 0.2,
+    val_frac: float = 0.15,
+    test_frac: float = 0.15,
 ) -> tuple[StackSurrogateArtifact, dict[str, Any]]:
     """Train stack MLP and export artifact with summary metrics."""
     _require_torch()
@@ -146,24 +147,41 @@ def train_stack_surrogate(
         raise ValueError("X and Y must be 2D arrays")
     if X.shape[0] != Y.shape[0]:
         raise ValueError(f"X/Y row mismatch: {X.shape[0]} vs {Y.shape[0]}")
-    if X.shape[0] < 2:
-        raise ValueError("Need at least 2 samples for stack surrogate training")
+    if X.shape[0] < 3:
+        raise ValueError("Need at least 3 samples for stack surrogate training")
 
     rng = np.random.default_rng(int(seed))
     idx = rng.permutation(X.shape[0])
     n_val = max(1, int(round(float(val_frac) * X.shape[0])))
+    n_test = max(1, int(round(float(test_frac) * X.shape[0])))
+    max_holdout = max(1, X.shape[0] - 1)
+    if n_val + n_test > max_holdout:
+        total_holdout = max(1, min(max_holdout, n_val + n_test))
+        n_val = max(1, int(round(total_holdout * float(val_frac) / max(float(val_frac + test_frac), 1e-12))))
+        n_test = max(1, total_holdout - n_val)
     n_val = min(n_val, X.shape[0] - 1)
+    n_test = min(n_test, max(0, X.shape[0] - n_val - 1))
+    if n_test <= 0:
+        n_test = 1
+        n_val = max(1, n_val - 1)
 
     X = X[idx]
     Y = Y[idx]
-    X_train, X_val = X[:-n_val], X[-n_val:]
-    Y_train, Y_val = Y[:-n_val], Y[-n_val:]
+    train_end = X.shape[0] - n_val - n_test
+    X_train = X[:train_end]
+    Y_train = Y[:train_end]
+    X_val = X[train_end : train_end + n_val]
+    Y_val = Y[train_end : train_end + n_val]
+    X_test = X[train_end + n_val :]
+    Y_test = Y[train_end + n_val :]
 
     norm = Normalization.fit(X_train, Y_train)
     Xn_train = norm.normalize_x(X_train)
     Yn_train = norm.normalize_y(Y_train)
     Xn_val = norm.normalize_x(X_val)
     Yn_val = norm.normalize_y(Y_val)
+    Xn_test = norm.normalize_x(X_test)
+    Yn_test = norm.normalize_y(Y_test)
 
     torch.manual_seed(int(seed))
     model = StackMLP(
@@ -180,6 +198,8 @@ def train_stack_surrogate(
     yt = torch.tensor(Yn_train, dtype=torch.float32)
     xv = torch.tensor(Xn_val, dtype=torch.float32)
     yv = torch.tensor(Yn_val, dtype=torch.float32)
+    xte = torch.tensor(Xn_test, dtype=torch.float32)
+    yte = torch.tensor(Yn_test, dtype=torch.float32)
 
     best_state = None
     best_val = float("inf")
@@ -222,13 +242,16 @@ def train_stack_surrogate(
     with torch.no_grad():
         train_loss = float(loss_fn(model(xt), yt).item())
         val_loss = float(loss_fn(model(xv), yv).item())
+        test_loss = float(loss_fn(model(xte), yte).item())
 
     metrics = {
         "n_samples": int(X.shape[0]),
         "n_train": int(X_train.shape[0]),
         "n_val": int(X_val.shape[0]),
+        "n_test": int(X_test.shape[0]),
         "train_mse_norm": train_loss,
         "val_mse_norm": val_loss,
+        "test_mse_norm": test_loss,
         "hidden_layers": list(hidden_layers),
         "activation": activation,
     }

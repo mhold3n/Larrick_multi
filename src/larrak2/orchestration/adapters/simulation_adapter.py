@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,122 @@ def _json_ready(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_ready(v) for v in value]
     return value
+
+
+def _safe_path_token(value: Any) -> str:
+    text = str(value)
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_") or "cand"
+
+
+def candidate_openfoam_params(
+    candidate: dict[str, Any],
+    context: EvalContext,
+    *,
+    eval_diag: dict[str, Any] | None = None,
+) -> dict[str, float]:
+    x = np.asarray(candidate.get("x", []), dtype=np.float64).reshape(-1)
+    decoded = decode_candidate(x)
+    lam = float(decoded.thermo.lambda_af)
+    breathing = getattr(context, "breathing", None)
+    thermo_diag = ((eval_diag or {}).get("thermo", {}) or {}) if isinstance(eval_diag, dict) else {}
+    valve_timing = (
+        dict(thermo_diag.get("valve_timing", {}))
+        if isinstance(thermo_diag.get("valve_timing", {}), dict)
+        else {}
+    )
+    p_back = float(getattr(breathing, "p_back_Pa", candidate.get("p_back_Pa", 101_325.0)))
+    p_manifold = float(
+        getattr(
+            breathing,
+            "p_manifold_Pa",
+            max(p_back, p_back * (0.95 + 0.2 * np.clip(lam, 0.6, 1.6))),
+        )
+    )
+    intake_open = float(
+        valve_timing.get("intake_open_deg", decoded.thermo.intake_open_offset_from_bdc)
+    )
+    intake_close = float(
+        valve_timing.get(
+            "intake_close_deg",
+            decoded.thermo.intake_open_offset_from_bdc + decoded.thermo.intake_duration_deg,
+        )
+    )
+    exhaust_open = float(
+        valve_timing.get(
+            "exhaust_open_deg", decoded.thermo.exhaust_open_offset_from_expansion_tdc
+        )
+    )
+    exhaust_close = float(
+        valve_timing.get(
+            "exhaust_close_deg",
+            decoded.thermo.exhaust_open_offset_from_expansion_tdc
+            + decoded.thermo.exhaust_duration_deg,
+        )
+    )
+    return {
+        "rpm": float(context.rpm),
+        "torque": float(context.torque),
+        "lambda_af": float(lam),
+        "bore_mm": float(getattr(breathing, "bore_mm", candidate.get("bore_mm", 80.0))),
+        "stroke_mm": float(getattr(breathing, "stroke_mm", candidate.get("stroke_mm", 90.0))),
+        "intake_port_area_m2": float(
+            getattr(breathing, "intake_port_area_m2", candidate.get("intake_port_area_m2", 4.0e-4))
+        ),
+        "exhaust_port_area_m2": float(
+            getattr(
+                breathing,
+                "exhaust_port_area_m2",
+                candidate.get("exhaust_port_area_m2", 4.0e-4),
+            )
+        ),
+        "p_manifold_Pa": float(p_manifold),
+        "p_back_Pa": float(p_back),
+        "overlap_deg": float(valve_timing.get("overlap_deg", candidate.get("overlap_deg", 0.0))),
+        "intake_open_deg": intake_open,
+        "intake_close_deg": intake_close,
+        "exhaust_open_deg": exhaust_open,
+        "exhaust_close_deg": exhaust_close,
+        "endTime": float(candidate.get("openfoam_endTime", 3.0e-4)),
+        "deltaT": float(candidate.get("openfoam_deltaT", 1.0e-4)),
+        "writeInterval": int(candidate.get("openfoam_writeInterval", 1)),
+        "metricWriteInterval": int(candidate.get("openfoam_metricWriteInterval", 1)),
+    }
+
+
+def candidate_openfoam_geometry_args(
+    candidate: dict[str, Any],
+    context: EvalContext,
+) -> dict[str, float]:
+    breathing = getattr(context, "breathing", None)
+    return {
+        "bore_mm": float(getattr(breathing, "bore_mm", candidate.get("bore_mm", 80.0))),
+        "stroke_mm": float(getattr(breathing, "stroke_mm", candidate.get("stroke_mm", 90.0))),
+        "intake_port_area_m2": float(
+            getattr(breathing, "intake_port_area_m2", candidate.get("intake_port_area_m2", 4.0e-4))
+        ),
+        "exhaust_port_area_m2": float(
+            getattr(
+                breathing,
+                "exhaust_port_area_m2",
+                candidate.get("exhaust_port_area_m2", 4.0e-4),
+            )
+        ),
+    }
+
+
+def candidate_calculix_params(candidate: dict[str, Any], context: EvalContext) -> dict[str, float]:
+    x = np.asarray(candidate.get("x", []), dtype=np.float64).reshape(-1)
+    decoded = decode_candidate(x)
+    return {
+        "rpm": float(context.rpm),
+        "torque": float(context.torque),
+        "base_radius_mm": float(decoded.gear.base_radius),
+        "face_width_mm": float(decoded.gear.face_width_mm),
+        "module_mm": float(2.0 + abs(decoded.gear.pitch_coeffs[0])),
+        "pressure_angle_deg": float(20.0 + 5.0 * decoded.gear.pitch_coeffs[1]),
+        "helix_angle_deg": float(20.0 * decoded.gear.pitch_coeffs[2]),
+        "profile_shift": float(decoded.gear.pitch_coeffs[3]),
+    }
 
 
 class PhysicsSimulationAdapter:
@@ -55,47 +172,24 @@ class PhysicsSimulationAdapter:
         violation = float(np.maximum(g, 0.0).sum())
         return float(-np.sum(f) - 10.0 * violation)
 
-    def _openfoam_params(self, candidate: dict[str, Any], context: EvalContext) -> dict[str, float]:
-        x = np.asarray(candidate.get("x", []), dtype=np.float64).reshape(-1)
-        decoded = decode_candidate(x)
-        lam = float(decoded.thermo.lambda_af)
-        p_back = 101_325.0
-        p_manifold = max(p_back, p_back * (0.95 + 0.2 * np.clip(lam, 0.6, 1.6)))
-        return {
-            "rpm": float(context.rpm),
-            "torque": float(context.torque),
-            "lambda_af": float(lam),
-            "bore_mm": float(candidate.get("bore_mm", 80.0)),
-            "stroke_mm": float(candidate.get("stroke_mm", 90.0)),
-            "intake_port_area_m2": float(candidate.get("intake_port_area_m2", 4.0e-4)),
-            "exhaust_port_area_m2": float(candidate.get("exhaust_port_area_m2", 4.0e-4)),
-            "p_manifold_Pa": float(p_manifold),
-            "p_back_Pa": float(p_back),
-            "overlap_deg": float(candidate.get("overlap_deg", 0.0)),
-            "intake_open_deg": float(decoded.thermo.intake_open_offset_from_bdc),
-            "intake_close_deg": float(
-                decoded.thermo.intake_open_offset_from_bdc + decoded.thermo.intake_duration_deg
-            ),
-            "exhaust_open_deg": float(decoded.thermo.exhaust_open_offset_from_expansion_tdc),
-            "exhaust_close_deg": float(
-                decoded.thermo.exhaust_open_offset_from_expansion_tdc
-                + decoded.thermo.exhaust_duration_deg
-            ),
-        }
+    def _openfoam_params(
+        self,
+        candidate: dict[str, Any],
+        context: EvalContext,
+        *,
+        eval_diag: dict[str, Any] | None = None,
+    ) -> dict[str, float]:
+        return candidate_openfoam_params(candidate, context, eval_diag=eval_diag)
+
+    def _openfoam_geometry_args(
+        self,
+        candidate: dict[str, Any],
+        context: EvalContext,
+    ) -> dict[str, float]:
+        return candidate_openfoam_geometry_args(candidate, context)
 
     def _calculix_params(self, candidate: dict[str, Any], context: EvalContext) -> dict[str, float]:
-        x = np.asarray(candidate.get("x", []), dtype=np.float64).reshape(-1)
-        decoded = decode_candidate(x)
-        return {
-            "rpm": float(context.rpm),
-            "torque": float(context.torque),
-            "base_radius_mm": float(decoded.gear.base_radius),
-            "face_width_mm": float(decoded.gear.face_width_mm),
-            "module_mm": float(2.0 + abs(decoded.gear.pitch_coeffs[0])),
-            "pressure_angle_deg": float(20.0 + 5.0 * decoded.gear.pitch_coeffs[1]),
-            "helix_angle_deg": float(20.0 * decoded.gear.pitch_coeffs[2]),
-            "profile_shift": float(decoded.gear.pitch_coeffs[3]),
-        }
+        return candidate_calculix_params(candidate, context)
 
     def evaluate(
         self,
@@ -116,17 +210,35 @@ class PhysicsSimulationAdapter:
             "F": np.asarray(eval_result.F, dtype=np.float64),
             "G": np.asarray(eval_result.G, dtype=np.float64),
             "diag": eval_result.diag,
+            "operating_point": {
+                "rpm": float(context.rpm),
+                "torque": float(context.torque),
+                "fidelity": int(context.fidelity),
+            },
+            "dispatch": {
+                "run_openfoam": bool(self.run_openfoam),
+                "run_calculix": bool(self.run_calculix),
+            },
         }
 
         candidate_id = str(candidate.get("id", candidate.get("global_index", "cand")))
+        run_token = _safe_path_token(candidate_id)
 
         if self.run_openfoam and self.openfoam_runner is not None:
-            run_dir = self.work_dir / f"openfoam_{candidate_id}"
+            run_dir = self.work_dir / f"openfoam_{run_token}"
             try:
-                of_metrics = self.openfoam_runner.execute(
-                    run_dir=run_dir,
-                    params=self._openfoam_params(candidate, context),
-                )
+                openfoam_params = self._openfoam_params(candidate, context, eval_diag=eval_result.diag)
+                try:
+                    of_metrics = self.openfoam_runner.execute(
+                        run_dir=run_dir,
+                        params=openfoam_params,
+                        geometry_args=self._openfoam_geometry_args(candidate, context),
+                    )
+                except TypeError:
+                    of_metrics = self.openfoam_runner.execute(
+                        run_dir=run_dir,
+                        params=openfoam_params,
+                    )
                 payload["openfoam"] = _json_ready(of_metrics)
                 if "scavenging_efficiency" in of_metrics:
                     payload["objective"] = float(payload["objective"]) + float(
@@ -137,7 +249,7 @@ class PhysicsSimulationAdapter:
                 payload["openfoam"] = {"error": str(exc)}
 
         if self.run_calculix and self.calculix_runner is not None:
-            run_dir = self.work_dir / f"calculix_{candidate_id}"
+            run_dir = self.work_dir / f"calculix_{run_token}"
             try:
                 ccx_metrics = self.calculix_runner.execute(
                     run_dir=run_dir,

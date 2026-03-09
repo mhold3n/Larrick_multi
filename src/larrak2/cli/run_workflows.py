@@ -2485,6 +2485,7 @@ def _load_truth_plan_tokens(path: str | Path) -> list[str]:
 
 def run_orchestrate_workflow(args: argparse.Namespace) -> int:
     """Run backend-only orchestration merge path (Wave 2)."""
+    from larrak2.adapters.openfoam import OpenFoamRunner
     from larrak2.orchestration import OrchestrationConfig, Orchestrator
     from larrak2.orchestration.adapters import (
         CasadiSolverAdapter,
@@ -2499,6 +2500,7 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         WeaviateProvenanceBackend,
     )
     from larrak2.orchestration.multi_start import optimize_with_multistart
+    from larrak2.pipelines.openfoam import OpenFoamPipeline
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -2597,6 +2599,7 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         truth_auto_min_uncertainty=float(getattr(args, "truth_auto_min_uncertainty", 0.0)),
         truth_auto_min_feasibility=float(getattr(args, "truth_auto_min_feasibility", 0.0)),
         truth_auto_min_pred_quantile=float(getattr(args, "truth_auto_min_pred_quantile", 0.0)),
+        truth_records_path=str(getattr(args, "truth_records_path", "")).strip() or None,
         outdir=outdir,
         cache_path=str(args.cache_path).strip() or None,
         use_provenance=use_provenance,
@@ -2644,7 +2647,45 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         ipopt_options=config.ipopt_options,
         trust_radius=None,
     )
-    simulation = PhysicsSimulationAdapter(work_dir=outdir / "truth_runs")
+    truth_run_openfoam = bool(getattr(args, "truth_run_openfoam", False))
+    openfoam_runner = None
+    if truth_run_openfoam and str(args.truth_dispatch_mode) != "off":
+        template_dir = Path(
+            str(getattr(args, "openfoam_template", "")).strip()
+            or "openfoam_templates/opposed_piston_rotary_valve_sliding_case"
+        )
+        if not template_dir.exists():
+            print(f"OpenFOAM template directory not found: {template_dir}")
+            return 1
+        openfoam_backend = str(getattr(args, "openfoam_backend", "docker"))
+        openfoam_docker_image = str(getattr(args, "openfoam_docker_image", "")).strip() or None
+        if openfoam_backend == "docker":
+            openfoam_runner = OpenFoamPipeline(
+                template_dir=template_dir,
+                solver_cmd=str(getattr(args, "openfoam_solver", "rhoPimpleFoam")),
+                docker_image=openfoam_docker_image,
+            )
+            docker_ready = bool(getattr(openfoam_runner, "docker", None).check_availability())
+        else:
+            openfoam_runner = OpenFoamRunner(
+                template_dir=template_dir,
+                solver_cmd=str(getattr(args, "openfoam_solver", "rhoPimpleFoam")),
+                backend=openfoam_backend,
+                docker_image=openfoam_docker_image,
+            )
+            docker_ready = True
+        if openfoam_backend == "docker" and not docker_ready:
+            print(
+                "OpenFOAM truth dispatch requested but Docker/OpenFOAM is unavailable. "
+                "Verify Docker is running and the configured image is pullable."
+            )
+            return 1
+
+    simulation = PhysicsSimulationAdapter(
+        work_dir=outdir / "truth_runs",
+        openfoam_runner=openfoam_runner,
+        run_openfoam=truth_run_openfoam,
+    )
 
     orchestrator = Orchestrator(
         cem=cem,
@@ -2857,4 +2898,62 @@ def run_promote_openfoam_artifact_workflow(args: argparse.Namespace) -> int:
     )
     print("Promoted OpenFOAM artifact")
     print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def run_overnight_f2_nn_campaign_workflow(args: argparse.Namespace) -> int:
+    """Run staged overnight DOE/training/promotion campaign for F2 NN artifacts."""
+    from larrak2.training.overnight_campaign import CampaignError, run_overnight_f2_nn_campaign
+
+    run_id = str(getattr(args, "run_id", "")).strip() or time.strftime("%Y%m%d_%H%M%S")
+    outdir_root = Path(str(getattr(args, "outdir_root", "outputs/overnight_f2")))
+    outdir = outdir_root / run_id
+    outdir.mkdir(parents=True, exist_ok=True)
+    manifest_path = outdir / "overnight_f2_campaign_manifest.json"
+    log_path = outdir / "overnight_f2_campaign.log"
+    log_path.write_text("", encoding="utf-8")
+
+    manifest: dict[str, Any] = {
+        "workflow": "overnight_f2_nn_campaign",
+        "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "config": vars(args),
+        "log_path": str(log_path),
+        "ok": False,
+    }
+
+    def _log(message: str, *, level: str = "INFO", **fields: object) -> None:
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        line = f"{ts} [{level}] {message}"
+        if fields:
+            rendered = ", ".join(f"{k}={fields[k]}" for k in sorted(fields))
+            line = f"{line} | {rendered}"
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+        print(line)
+
+    try:
+        summary = run_overnight_f2_nn_campaign(args, log_fn=_log)
+        manifest["ok"] = True
+        manifest["summary"] = summary
+        _log("Overnight F2 NN campaign completed", outdir=outdir)
+    except CampaignError as exc:
+        manifest["error"] = str(exc)
+        manifest["traceback"] = traceback.format_exc()
+        _log("Overnight F2 NN campaign failed", level="ERROR", error=str(exc))
+        manifest["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        print(f"Manifest: {manifest_path}")
+        return 2
+    except Exception as exc:
+        manifest["error"] = str(exc)
+        manifest["traceback"] = traceback.format_exc()
+        _log("Overnight F2 NN campaign failed", level="ERROR", error=str(exc))
+        manifest["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        print(f"Manifest: {manifest_path}")
+        return 1
+
+    manifest["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    print(f"Manifest: {manifest_path}")
     return 0

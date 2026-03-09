@@ -117,6 +117,6 @@ class DockerOpenFoam:
         ]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            return result.returncode == 0 and "ready" in (result.stdout or "")
+            return result.returncode == 0
         except Exception:
             return False
