@@ -187,7 +187,9 @@ class OpenFoamRunner:
         count = int(list_match.group(1))
         values = [float(token) for token in list_match.group(2).split()]
         if len(values) != count:
-            raise ValueError(f"Field length mismatch in {path}: expected {count}, got {len(values)}")
+            raise ValueError(
+                f"Field length mismatch in {path}: expected {count}, got {len(values)}"
+            )
         return values
 
     @classmethod
@@ -227,12 +229,16 @@ class OpenFoamRunner:
             initial_temperature_path = run_dir / "0" / "T"
             if initial_temperature_path.exists():
                 initial_temperature_values = cls._read_scalar_field(initial_temperature_path)
-                intake_temp_K = float(sum(initial_temperature_values) / len(initial_temperature_values))
+                intake_temp_K = float(
+                    sum(initial_temperature_values) / len(initial_temperature_values)
+                )
             else:
                 intake_temp_K = 300.0
 
         fresh_mass_reference = float(
-            max(p_manifold_Pa, 1.0) * domain_volume / (R_SPECIFIC_AIR * max(float(intake_temp_K), 1.0))
+            max(p_manifold_Pa, 1.0)
+            * domain_volume
+            / (R_SPECIFIC_AIR * max(float(intake_temp_K), 1.0))
         )
         fresh_charge_fraction = float(
             max(0.0, min(1.0, trapped_mass / max(fresh_mass_reference, 1.0e-12)))
@@ -256,8 +262,12 @@ class OpenFoamRunner:
         }
 
     @staticmethod
-    def emit_metrics(run_dir: Path, metrics: dict[str, Any], *, log_name: str = "solver.log") -> None:
-        (run_dir / "openfoam_metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True))
+    def emit_metrics(
+        run_dir: Path, metrics: dict[str, Any], *, log_name: str = "solver.log"
+    ) -> None:
+        (run_dir / "openfoam_metrics.json").write_text(
+            json.dumps(metrics, indent=2, sort_keys=True)
+        )
         log_path = run_dir / log_name
         with log_path.open("a", encoding="utf-8") as handle:
             handle.write("\nOpenFOAM Postprocessed Metrics\n")

@@ -81,7 +81,9 @@ def test_build_stack_dataset_emits_schema(tmp_path: Path, monkeypatch) -> None:
     assert meta["n_success"] >= 1
 
 
-def test_run_overnight_campaign_stages_all_artifacts_without_install(tmp_path: Path, monkeypatch) -> None:
+def test_run_overnight_campaign_stages_all_artifacts_without_install(
+    tmp_path: Path, monkeypatch
+) -> None:
     profile = {
         "profile_id": "test_campaign",
         "profile_version": "1.0",
@@ -96,7 +98,9 @@ def test_run_overnight_campaign_stages_all_artifacts_without_install(tmp_path: P
 
     openfoam_template = tmp_path / "openfoam_template"
     (openfoam_template / "system").mkdir(parents=True)
-    (openfoam_template / "system" / "controlDict").write_text("application rhoPimpleFoam;\n", encoding="utf-8")
+    (openfoam_template / "system" / "controlDict").write_text(
+        "application rhoPimpleFoam;\n", encoding="utf-8"
+    )
     calculix_template = tmp_path / "gear.inp"
     calculix_template.write_text("*HEADING\n", encoding="utf-8")
 
@@ -128,8 +132,12 @@ def test_run_overnight_campaign_stages_all_artifacts_without_install(tmp_path: P
         stack_dataset,
         X=np.ones((4, N_TOTAL + 2)),
         Y=np.ones((4, 3 + len(get_constraint_names(2)))),
-        feature_names=np.array([f"x_{i:03d}" for i in range(N_TOTAL)] + ["rpm", "torque"], dtype=object),
-        objective_names=np.array(["eta_comb_gap", "eta_exp_gap", "motion_law_penalty"], dtype=object),
+        feature_names=np.array(
+            [f"x_{i:03d}" for i in range(N_TOTAL)] + ["rpm", "torque"], dtype=object
+        ),
+        objective_names=np.array(
+            ["eta_comb_gap", "eta_exp_gap", "motion_law_penalty"], dtype=object
+        ),
         constraint_names=np.array(get_constraint_names(2), dtype=object),
     )
 

@@ -28,7 +28,11 @@ from larrak2.orchestration.adapters.simulation_adapter import (
     candidate_openfoam_params,
 )
 from larrak2.pipelines.openfoam import OpenFoamPipeline
-from larrak2.pipelines.principles_core import expand_reduced_vector, reduced_bounds, reduced_seed_states
+from larrak2.pipelines.principles_core import (
+    expand_reduced_vector,
+    reduced_bounds,
+    reduced_seed_states,
+)
 from larrak2.surrogate.quality_contract import validate_artifact_quality
 from larrak2.surrogate.stack.runtime import default_feature_names
 from larrak2.training.workflows import (
@@ -140,7 +144,9 @@ def _principles_candidates(
     for i in range(int(n)):
         seed = np.asarray(seeds[i % len(seeds)], dtype=np.float64)
         noise = rng.normal(loc=0.0, scale=0.035, size=seed.shape[0]) * span
-        x_full, _ = expand_reduced_vector(seed + noise, profile_payload=principles_profile, rpm=float(rpm))
+        x_full, _ = expand_reduced_vector(
+            seed + noise, profile_payload=principles_profile, rpm=float(rpm)
+        )
         x_rows.append(np.asarray(x_full, dtype=np.float64))
     return _clip_candidates(np.vstack(x_rows))
 
@@ -179,7 +185,9 @@ def _build_candidate_pool(
 ) -> np.ndarray:
     rows = [
         _quasirandom_candidates(n_quasi, rng=rng),
-        _principles_candidates(n_principles, rpm=rpm, rng=rng, principles_profile=principles_profile),
+        _principles_candidates(
+            n_principles, rpm=rpm, rng=rng, principles_profile=principles_profile
+        ),
         _local_perturb_candidates(n_local, rpm=rpm, rng=rng, principles_profile=principles_profile),
     ]
     rows = [row for row in rows if row.size > 0]
@@ -251,7 +259,9 @@ def _collect_stack_targets(result: Any, *, constraint_names: tuple[str, ...]) ->
     return np.asarray(ordered, dtype=np.float64)
 
 
-def _build_truth_cases(profile: dict[str, Any], *, principles_profile: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_truth_cases(
+    profile: dict[str, Any], *, principles_profile: dict[str, Any]
+) -> list[dict[str, Any]]:
     points = list((profile.get("openfoam", {}) or {}).get("truth_operating_points", []) or [])
     rng = np.random.default_rng(int((profile.get("openfoam", {}) or {}).get("truth_seed", 0)))
     seeds = list(reduced_seed_states(principles_profile).values())
@@ -285,7 +295,9 @@ def _run_openfoam_case(
     run_dir: Path,
     seed: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    context = _f0_context(profile, rpm=float(case["rpm"]), torque=float(case["torque"]), seed=int(seed))
+    context = _f0_context(
+        profile, rpm=float(case["rpm"]), torque=float(case["torque"]), seed=int(seed)
+    )
     candidate = {"id": str(case["id"]), "x": np.asarray(case["x"], dtype=np.float64)}
     eval_result = evaluate_candidate(np.asarray(case["x"], dtype=np.float64), context)
     params = candidate_openfoam_params(candidate, context, eval_diag=eval_result.diag)
@@ -316,7 +328,11 @@ def _run_openfoam_case(
         "truth_ok": bool(result.get("ok", False)),
         "rpm": float(case["rpm"]),
         "torque": float(case["torque"]),
-        "operating_point": {"rpm": float(case["rpm"]), "torque": float(case["torque"]), "fidelity": 2},
+        "operating_point": {
+            "rpm": float(case["rpm"]),
+            "torque": float(case["torque"]),
+            "fidelity": 2,
+        },
         "candidate": {"id": str(case["id"]), "x": np.asarray(case["x"], dtype=np.float64).tolist()},
         "openfoam": openfoam_payload,
         "diag": {"thermo": dict((eval_result.diag or {}).get("thermo", {}))},
@@ -367,11 +383,21 @@ def _build_anchor_manifest(
         max_anchors=0,
         rpm_min=float((openfoam_cfg.get("validated_envelope", {}) or {}).get("rpm_min", 1000.0)),
         rpm_max=float((openfoam_cfg.get("validated_envelope", {}) or {}).get("rpm_max", 7000.0)),
-        torque_min=float((openfoam_cfg.get("validated_envelope", {}) or {}).get("torque_min", 40.0)),
-        torque_max=float((openfoam_cfg.get("validated_envelope", {}) or {}).get("torque_max", 400.0)),
-        delta_m_air_rel_max=float((openfoam_cfg.get("thresholds", {}) or {}).get("delta_m_air_rel_max", 0.10)),
-        delta_residual_abs_max=float((openfoam_cfg.get("thresholds", {}) or {}).get("delta_residual_abs_max", 0.05)),
-        delta_scavenging_abs_max=float((openfoam_cfg.get("thresholds", {}) or {}).get("delta_scavenging_abs_max", 0.08)),
+        torque_min=float(
+            (openfoam_cfg.get("validated_envelope", {}) or {}).get("torque_min", 40.0)
+        ),
+        torque_max=float(
+            (openfoam_cfg.get("validated_envelope", {}) or {}).get("torque_max", 400.0)
+        ),
+        delta_m_air_rel_max=float(
+            (openfoam_cfg.get("thresholds", {}) or {}).get("delta_m_air_rel_max", 0.10)
+        ),
+        delta_residual_abs_max=float(
+            (openfoam_cfg.get("thresholds", {}) or {}).get("delta_residual_abs_max", 0.05)
+        ),
+        delta_scavenging_abs_max=float(
+            (openfoam_cfg.get("thresholds", {}) or {}).get("delta_scavenging_abs_max", 0.08)
+        ),
     )
     manifest = build_manifest(args)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -461,7 +487,6 @@ def build_openfoam_training_dataset(
     docker_image: str | None,
     log_fn,
 ) -> tuple[Path, dict[str, Any]]:
-    from larrak2.surrogate.calculix_nn import DEFAULT_FEATURE_KEYS as CCX_KEYS
 
     principles_profile = _load_principles_profile(profile.get("principles_profile_path"))
     cfg = dict(profile.get("openfoam", {}) or {})
@@ -484,8 +509,14 @@ def build_openfoam_training_dataset(
     n_local = int(cfg.get("n_anchor_perturbations", 0))
     core_points = [
         (
-            float(rng.uniform(float(core.get("rpm_min", 1800.0)), float(core.get("rpm_max", 2800.0)))),
-            float(rng.uniform(float(core.get("torque_min", 80.0)), float(core.get("torque_max", 160.0)))),
+            float(
+                rng.uniform(float(core.get("rpm_min", 1800.0)), float(core.get("rpm_max", 2800.0)))
+            ),
+            float(
+                rng.uniform(
+                    float(core.get("torque_min", 80.0)), float(core.get("torque_max", 160.0))
+                )
+            ),
             "core",
         )
         for _ in range(n_core)
@@ -539,7 +570,9 @@ def build_openfoam_training_dataset(
                 n_local=1,
             )[0]
         candidate = {"id": f"of_{i:03d}", "x": np.asarray(x, dtype=np.float64)}
-        context = _f0_context(profile, rpm=rpm, torque=torque, seed=int(cfg.get("dataset_seed", 42)) + i)
+        context = _f0_context(
+            profile, rpm=rpm, torque=torque, seed=int(cfg.get("dataset_seed", 42)) + i
+        )
         eval_result = evaluate_candidate(np.asarray(x, dtype=np.float64), context)
         params = candidate_openfoam_params(candidate, context, eval_diag=eval_result.diag)
         params["endTime"] = float(runtime.get("endTime", params.get("endTime", 3.0e-4)))
@@ -618,8 +651,16 @@ def build_calculix_training_dataset(
     for _ in range(int(cfg.get("n_core_samples", 0))):
         plan.append(
             (
-                float(rng.uniform(float(core.get("rpm_min", 1800.0)), float(core.get("rpm_max", 2800.0)))),
-                float(rng.uniform(float(core.get("torque_min", 80.0)), float(core.get("torque_max", 160.0)))),
+                float(
+                    rng.uniform(
+                        float(core.get("rpm_min", 1800.0)), float(core.get("rpm_max", 2800.0))
+                    )
+                ),
+                float(
+                    rng.uniform(
+                        float(core.get("torque_min", 80.0)), float(core.get("torque_max", 160.0))
+                    )
+                ),
                 "core",
             )
         )
@@ -663,8 +704,12 @@ def build_calculix_training_dataset(
                 n_principles=0,
                 n_local=1,
             )[0]
-        context = _f0_context(profile, rpm=rpm, torque=torque, seed=int(cfg.get("dataset_seed", 43)) + i)
-        params = candidate_calculix_params({"id": f"ccx_{i:03d}", "x": np.asarray(x, dtype=np.float64)}, context)
+        context = _f0_context(
+            profile, rpm=rpm, torque=torque, seed=int(cfg.get("dataset_seed", 43)) + i
+        )
+        params = candidate_calculix_params(
+            {"id": f"ccx_{i:03d}", "x": np.asarray(x, dtype=np.float64)}, context
+        )
         result = runner.execute(
             run_dir=runs_root / f"case_{i:06d}",
             job_name=f"job_{i:06d}",
@@ -734,7 +779,10 @@ def build_stack_dataset(
     principles_profile = _load_principles_profile(profile.get("principles_profile_path"))
     cfg = dict(profile.get("stack", {}) or {})
     rng = np.random.default_rng(int(cfg.get("dataset_seed", 44)))
-    op_points = [(float(rec["rpm"]), float(rec["torque"])) for rec in list(cfg.get("operating_points", []) or [])]
+    op_points = [
+        (float(rec["rpm"]), float(rec["torque"]))
+        for rec in list(cfg.get("operating_points", []) or [])
+    ]
     if not op_points:
         raise ValueError("Stack campaign requires non-empty operating_points")
     per_point = dict(cfg.get("per_point", {}) or {})
@@ -777,12 +825,19 @@ def build_stack_dataset(
             try:
                 result = evaluate_candidate(np.asarray(x, dtype=np.float64), context)
                 diag = dict(result.diag or {})
-                names = tuple(str(v) for v in ((diag.get("objectives", {}) or {}).get("names", []) or []))
+                names = tuple(
+                    str(v) for v in ((diag.get("objectives", {}) or {}).get("names", []) or [])
+                )
                 if not names:
-                    names = _infer_objective_names(fidelity=2, rpm=rpm, torque=torque, n_obj=len(result.F))
+                    names = _infer_objective_names(
+                        fidelity=2, rpm=rpm, torque=torque, n_obj=len(result.F)
+                    )
                 if objective_names is None:
                     objective_names = names
-                feats = np.asarray(list(np.asarray(x, dtype=np.float64)) + [float(rpm), float(torque)], dtype=np.float64)
+                feats = np.asarray(
+                    list(np.asarray(x, dtype=np.float64)) + [float(rpm), float(torque)],
+                    dtype=np.float64,
+                )
                 targets = _collect_stack_targets(result, constraint_names=constraint_names)
                 X_rows.append(feats)
                 Y_rows.append(targets)
@@ -851,7 +906,9 @@ def run_overnight_f2_nn_campaign(
         "promotion": {"install_canonical": install_canonical},
     }
 
-    openfoam_template = Path(str(getattr(args, "openfoam_template", "")).strip() or str(DEFAULT_OPENFOAM_TEMPLATE))
+    openfoam_template = Path(
+        str(getattr(args, "openfoam_template", "")).strip() or str(DEFAULT_OPENFOAM_TEMPLATE)
+    )
     if not openfoam_template.exists():
         raise FileNotFoundError(f"OpenFOAM template directory not found: {openfoam_template}")
     calculix_template_raw = str(getattr(args, "calculix_template", "")).strip()
@@ -901,7 +958,9 @@ def run_overnight_f2_nn_campaign(
             authoritative_for_strict_f2=True,
             anchor_manifest=str(truth_bundle["anchor_manifest_path"]),
             truth_source_summary=json.dumps(truth_bundle, sort_keys=True),
-            authority_bundle_root=str(getattr(args, "openfoam_authority_bundle_root", outdir / "openfoam_authority")),
+            authority_bundle_root=str(
+                getattr(args, "openfoam_authority_bundle_root", outdir / "openfoam_authority")
+            ),
             source_metadata_json=json.dumps(openfoam_data_meta, sort_keys=True),
             doe_template_path=str(openfoam_template),
             authority_run_id=run_id,
@@ -912,12 +971,16 @@ def run_overnight_f2_nn_campaign(
         raise CampaignError("OpenFOAM authority bundle is not promotable after overnight training")
 
     openfoam_artifact_path = Path(str(openfoam_summary.get("artifact_path", "")))
-    validate_artifact_quality(openfoam_artifact_path, surrogate_kind="openfoam", validation_mode="strict")
+    validate_artifact_quality(
+        openfoam_artifact_path, surrogate_kind="openfoam", validation_mode="strict"
+    )
     if install_canonical:
         from larrak2.surrogate.openfoam_authority import promote_openfoam_artifact
 
         promote_result = promote_openfoam_artifact(
-            staged_dir=Path(str((openfoam_summary.get("authority_bundle", {}) or {}).get("staged_dir", ""))),
+            staged_dir=Path(
+                str((openfoam_summary.get("authority_bundle", {}) or {}).get("staged_dir", ""))
+            ),
             canonical_dir=str(DEFAULT_OPENFOAM_NN_ARTIFACT.parent),
             backup_root=str(_repo_root() / "outputs/artifacts/surrogates/openfoam_nn/archive"),
         )
@@ -928,7 +991,9 @@ def run_overnight_f2_nn_campaign(
         )
         summary["promotion"]["openfoam"] = promote_result
         summary["promotion"]["anchor_manifest"] = anchor_install
-    openfoam_runtime_path = str(DEFAULT_OPENFOAM_NN_ARTIFACT if install_canonical else openfoam_artifact_path)
+    openfoam_runtime_path = str(
+        DEFAULT_OPENFOAM_NN_ARTIFACT if install_canonical else openfoam_artifact_path
+    )
 
     calculix_data, calculix_data_meta = build_calculix_training_dataset(
         profile=profile,
@@ -952,8 +1017,12 @@ def run_overnight_f2_nn_campaign(
             name=str(getattr(args, "calculix_name", "calculix_stress.pt")),
         )
     )
-    calculix_artifact_path = calculix_stage_dir / str(getattr(args, "calculix_name", "calculix_stress.pt"))
-    validate_artifact_quality(calculix_artifact_path, surrogate_kind="calculix", validation_mode="strict")
+    calculix_artifact_path = calculix_stage_dir / str(
+        getattr(args, "calculix_name", "calculix_stress.pt")
+    )
+    validate_artifact_quality(
+        calculix_artifact_path, surrogate_kind="calculix", validation_mode="strict"
+    )
     summary["steps"]["calculix_train"] = {
         "artifact_path": str(calculix_artifact_path),
         "quality_report": str(calculix_stage_dir / "quality_report.json"),
@@ -969,15 +1038,24 @@ def run_overnight_f2_nn_campaign(
             _repo_root() / DEFAULT_CALCULIX_NN_ARTIFACT.parent / "quality_report.json",
             backup_root=outdir / "backups" / "calculix",
         )
-        summary["promotion"]["calculix"] = {"artifact": calc_backup, "quality_report": calc_report_backup}
-    calculix_runtime_path = str(DEFAULT_CALCULIX_NN_ARTIFACT if install_canonical else calculix_artifact_path)
+        summary["promotion"]["calculix"] = {
+            "artifact": calc_backup,
+            "quality_report": calc_report_backup,
+        }
+    calculix_runtime_path = str(
+        DEFAULT_CALCULIX_NN_ARTIFACT if install_canonical else calculix_artifact_path
+    )
 
     stack_dataset_path, stack_dataset_meta = build_stack_dataset(
         profile=profile,
         outdir=outdir / "stack_dataset",
         openfoam_model_path=openfoam_runtime_path,
         calculix_model_path=calculix_runtime_path,
-        anchor_manifest_path=(str(DEFAULT_ANCHOR_MANIFEST) if install_canonical else str(truth_bundle["anchor_manifest_path"])),
+        anchor_manifest_path=(
+            str(DEFAULT_ANCHOR_MANIFEST)
+            if install_canonical
+            else str(truth_bundle["anchor_manifest_path"])
+        ),
         log_fn=log_fn,
     )
     summary["steps"]["stack_dataset"] = stack_dataset_meta
@@ -999,7 +1077,9 @@ def run_overnight_f2_nn_campaign(
             lr=float(getattr(args, "stack_lr", 1e-3)),
             weight_decay=float(getattr(args, "stack_weight_decay", 1e-6)),
             val_frac=float((profile.get("stack", {}).get("split", {}) or {}).get("val_frac", 0.15)),
-            test_frac=float((profile.get("stack", {}).get("split", {}) or {}).get("test_frac", 0.15)),
+            test_frac=float(
+                (profile.get("stack", {}).get("split", {}) or {}).get("test_frac", 0.15)
+            ),
             seed=int(getattr(args, "seed", 42)),
         )
     )
@@ -1018,7 +1098,10 @@ def run_overnight_f2_nn_campaign(
             stack_target.parent / "quality_report.json",
             backup_root=outdir / "backups" / "stack",
         )
-        summary["promotion"]["stack"] = {"artifact": stack_backup, "quality_report": stack_report_backup}
+        summary["promotion"]["stack"] = {
+            "artifact": stack_backup,
+            "quality_report": stack_report_backup,
+        }
 
     summary["status"] = "ok"
     return summary

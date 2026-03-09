@@ -157,7 +157,9 @@ def train_stack_surrogate(
     max_holdout = max(1, X.shape[0] - 1)
     if n_val + n_test > max_holdout:
         total_holdout = max(1, min(max_holdout, n_val + n_test))
-        n_val = max(1, int(round(total_holdout * float(val_frac) / max(float(val_frac + test_frac), 1e-12))))
+        n_val = max(
+            1, int(round(total_holdout * float(val_frac) / max(float(val_frac + test_frac), 1e-12)))
+        )
         n_test = max(1, total_holdout - n_val)
     n_val = min(n_val, X.shape[0] - 1)
     n_test = min(n_test, max(0, X.shape[0] - n_val - 1))

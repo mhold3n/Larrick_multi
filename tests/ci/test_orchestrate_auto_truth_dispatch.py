@@ -166,7 +166,9 @@ def test_orchestrate_context_includes_thermo_path_overrides(tmp_path: Path) -> N
     assert ctx.thermo_anchor_manifest_path == "data/thermo/anchor_manifest_v1.json"
 
 
-def test_orchestrate_emits_truth_records_jsonl_for_successful_openfoam_truth(tmp_path: Path) -> None:
+def test_orchestrate_emits_truth_records_jsonl_for_successful_openfoam_truth(
+    tmp_path: Path,
+) -> None:
     outdir = tmp_path / "orch_truth_records"
     cfg = OrchestrationConfig(
         outdir=outdir,
@@ -191,7 +193,11 @@ def test_orchestrate_emits_truth_records_jsonl_for_successful_openfoam_truth(tmp
 
     truth_path = outdir / "truth_records.jsonl"
     assert truth_path.exists()
-    lines = [json.loads(line) for line in truth_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        json.loads(line)
+        for line in truth_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert len(lines) == 2
     assert all(row["truth_backend"] == "openfoam_dispatch" for row in lines)
     assert all(row["truth_ok"] is True for row in lines)

@@ -341,7 +341,9 @@ class Orchestrator:
                 "torque": float(context.torque),
                 "run_openfoam": bool(getattr(self.simulation, "run_openfoam", False)),
                 "run_calculix": bool(getattr(self.simulation, "run_calculix", False)),
-                "openfoam_backend": str(getattr(getattr(self.simulation, "openfoam_runner", None), "backend", "")),
+                "openfoam_backend": str(
+                    getattr(getattr(self.simulation, "openfoam_runner", None), "backend", "")
+                ),
                 "openfoam_template": str(
                     getattr(getattr(self.simulation, "openfoam_runner", None), "template_dir", "")
                 ),
@@ -829,7 +831,9 @@ class Orchestrator:
                         truth_request = self._truth_cache_request(cand, context=context)
                         payload, was_cached = self.cache.get_or_compute(
                             truth_request,
-                            lambda item: self.simulation.evaluate(item["candidate"], context=context),
+                            lambda item: self.simulation.evaluate(
+                                item["candidate"], context=context
+                            ),
                         )
                         objective = self._extract_objective(
                             payload if isinstance(payload, dict) else {}

@@ -20,8 +20,8 @@ from larrak2.cli.run_workflows import (
     run_dress_rehearsal_workflow,
     run_explore_exploit_workflow,
     run_openfoam_doe_workflow,
-    run_overnight_f2_nn_campaign_workflow,
     run_orchestrate_workflow,
+    run_overnight_f2_nn_campaign_workflow,
     run_pareto_grid_workflow,
     run_pareto_staged_workflow,
     run_promote_openfoam_artifact_workflow,
@@ -337,7 +337,9 @@ def main() -> int:
         "overnight-f2-nn-campaign",
         help="Run staged overnight DOE/training/promotion workflow for F2 NN artifacts",
     )
-    oc.add_argument("--profile", type=str, default="data/training/f2_nn_overnight_core_edge_v1.json")
+    oc.add_argument(
+        "--profile", type=str, default="data/training/f2_nn_overnight_core_edge_v1.json"
+    )
     oc.add_argument("--outdir-root", type=str, default="outputs/overnight_f2")
     oc.add_argument("--run-id", type=str, default="")
     oc.add_argument(

@@ -69,9 +69,7 @@ def candidate_openfoam_params(
         )
     )
     exhaust_open = float(
-        valve_timing.get(
-            "exhaust_open_deg", decoded.thermo.exhaust_open_offset_from_expansion_tdc
-        )
+        valve_timing.get("exhaust_open_deg", decoded.thermo.exhaust_open_offset_from_expansion_tdc)
     )
     exhaust_close = float(
         valve_timing.get(
@@ -227,7 +225,9 @@ class PhysicsSimulationAdapter:
         if self.run_openfoam and self.openfoam_runner is not None:
             run_dir = self.work_dir / f"openfoam_{run_token}"
             try:
-                openfoam_params = self._openfoam_params(candidate, context, eval_diag=eval_result.diag)
+                openfoam_params = self._openfoam_params(
+                    candidate, context, eval_diag=eval_result.diag
+                )
                 try:
                     of_metrics = self.openfoam_runner.execute(
                         run_dir=run_dir,
