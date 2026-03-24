@@ -16,7 +16,10 @@ from larrak2.cem.lubrication import LubricationMode, LubricationParams  # noqa: 
 from larrak2.cem.material_db import MaterialClass, MaterialProperties, get_material  # noqa: E402
 from larrak2.cem.post_processing import CoatingType, HeatTreatment  # noqa: E402
 from larrak2.cem.registry import DatasetRegistry, get_registry  # noqa: E402
-from larrak2.cem.surface_finish import SurfaceFinishTier, effective_composite_roughness  # noqa: E402
+from larrak2.cem.surface_finish import (  # noqa: E402
+    SurfaceFinishTier,
+    effective_composite_roughness,
+)
 from larrak2.cem.tribology import (  # noqa: E402
     LubeRegime,
     TribologyParams,
