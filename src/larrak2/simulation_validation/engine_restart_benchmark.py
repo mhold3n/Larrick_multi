@@ -39,7 +39,11 @@ def _resolve_restart_profile(profile_name: str) -> str:
 
 
 def _ensure_runtime_table_dir(entry: dict[str, Any], *, refresh: bool = False) -> Path | None:
-    table_dir = Path(str(entry.get("runtime_table_dir", "")).strip()) if str(entry.get("runtime_table_dir", "")).strip() else None
+    table_dir = (
+        Path(str(entry.get("runtime_table_dir", "")).strip())
+        if str(entry.get("runtime_table_dir", "")).strip()
+        else None
+    )
     if table_dir and (table_dir / "runtime_chemistry_table_manifest.json").exists() and not refresh:
         return table_dir
     config_path = str(entry.get("runtime_table_config_path", "")).strip()
@@ -173,7 +177,8 @@ def benchmark_engine_restart_profiles(
     window_angle_deg: float = 0.01,
     solver_name: str = "larrakEngineFoam",
     docker_timeout_s: int = 1800,
-    runtime_strategy_config: str | Path = "data/simulation_validation/engine_runtime_mechanism_strategy.json",
+    runtime_strategy_config: str
+    | Path = "data/simulation_validation/engine_runtime_mechanism_strategy.json",
     package_label: str = "",
     docker_image: str | None = None,
     refresh_runtime_tables: bool = False,
@@ -194,19 +199,26 @@ def benchmark_engine_restart_profiles(
 
     runs: list[dict[str, Any]] = []
     runtime_entry = dict(strategy.get("runtime_package", {}) or {})
-    checkpoint_entries = [dict(item) for item in list(strategy.get("checkpoint_packages", []) or [])]
+    checkpoint_entries = [
+        dict(item) for item in list(strategy.get("checkpoint_packages", []) or [])
+    ]
 
     for profile_name in profiles:
         normalized_profile = str(profile_name).strip()
-        resolved_profile = _resolve_restart_profile(profile_name) if normalized_profile in {
-            "default",
-            "current",
-            "fast_runtime",
-            "low_clamp",
-            "closed_valve_ignition_v1",
-            "closed_valve_ignition_fast_runtime_v1",
-            "closed_valve_ignition_low_clamp_v1",
-        } else "closed_valve_ignition_fast_runtime_v1"
+        resolved_profile = (
+            _resolve_restart_profile(profile_name)
+            if normalized_profile
+            in {
+                "default",
+                "current",
+                "fast_runtime",
+                "low_clamp",
+                "closed_valve_ignition_v1",
+                "closed_valve_ignition_fast_runtime_v1",
+                "closed_valve_ignition_low_clamp_v1",
+            }
+            else "closed_valve_ignition_fast_runtime_v1"
+        )
 
         mode_name = normalized_profile.lower()
         selected_package_dir = runtime_package_dir
@@ -228,13 +240,17 @@ def benchmark_engine_restart_profiles(
                 runtime_entry,
                 refresh=refresh_runtime_tables,
             )
-        elif mode_name in {
-            "chem679_direct",
-            "chem679_direct_reference",
-            "chem679_lookup",
-            "chem679_lookup_permissive",
-            "chem679_lookup_strict",
-        } and checkpoint_entries:
+        elif (
+            mode_name
+            in {
+                "chem679_direct",
+                "chem679_direct_reference",
+                "chem679_lookup",
+                "chem679_lookup_permissive",
+                "chem679_lookup_strict",
+            }
+            and checkpoint_entries
+        ):
             selected_package_dir, selected_manifest = resolve_engine_runtime_package(
                 config_path=runtime_strategy_config,
                 package_label=str(checkpoint_entries[0].get("label", "")),
@@ -253,7 +269,9 @@ def benchmark_engine_restart_profiles(
                 )
         elif mode_name in {"fast_runtime", "closed_valve_ignition_fast_runtime_v1"}:
             runtime_mode_override = "lookupTableStrict"
-            runtime_table_dir = _ensure_runtime_table_dir(runtime_entry, refresh=refresh_runtime_tables)
+            runtime_table_dir = _ensure_runtime_table_dir(
+                runtime_entry, refresh=refresh_runtime_tables
+            )
         else:
             runtime_mode_override = "fullReducedKinetics"
 
@@ -276,10 +294,12 @@ def benchmark_engine_restart_profiles(
             chemistry_package_dir=selected_package_dir,
             runtime_chemistry_table_dir=runtime_table_dir,
         )
-        case_params, case_staged_inputs, _, package_manifest, runtime_table_manifest = pipeline._engine_case_assets(  # noqa: SLF001
-            case_params,
-            handoff_bundle=dict(handoff_artifact["handoff_bundle"]),
-            staged_inputs=None,
+        case_params, case_staged_inputs, _, package_manifest, runtime_table_manifest = (
+            pipeline._engine_case_assets(  # noqa: SLF001
+                case_params,
+                handoff_bundle=dict(handoff_artifact["handoff_bundle"]),
+                staged_inputs=None,
+            )
         )
         remaining = pipeline._remaining_engine_stages(  # noqa: SLF001
             base_params=case_params,
@@ -371,7 +391,9 @@ def benchmark_engine_restart_profiles(
         run_record = {
             "profile_name": str(profile_name),
             "resolved_profile": resolved_profile,
-            "runtime_mode": str(runtime_mode_override or case_params.get("runtime_chemistry_mode", "")),
+            "runtime_mode": str(
+                runtime_mode_override or case_params.get("runtime_chemistry_mode", "")
+            ),
             "benchmark_run_dir": str(benchmark_run_dir),
             "solver_ok": bool(ok),
             "stage_result": str(stage_result),

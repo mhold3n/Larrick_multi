@@ -6,12 +6,9 @@ import importlib
 import re
 from pathlib import Path
 
-
 LLNL_DETAILED_GASOLINE_SURROGATE = "llnl_detailed_gasoline_surrogate"
 
-NUMERIC_TOKEN_RE = re.compile(
-    r"(?<![Ee])(?P<coeff>(?:\d+\.\d*|\.\d+))(?P<exp>[+-]\d{2,3})(?!\d)"
-)
+NUMERIC_TOKEN_RE = re.compile(r"(?<![Ee])(?P<coeff>(?:\d+\.\d*|\.\d+))(?P<exp>[+-]\d{2,3})(?!\d)")
 EXCLUDED_SPECIES = {"C5H81OOH4-5O2", "C5H81OOH5-4O2"}
 
 
@@ -112,11 +109,15 @@ def sanitize_chemkin_bundle(
     sanitized_transport = scratch_dir / transport_file.name if transport_file else None
 
     sanitized_input.write_text(
-        "".join(_sanitize_llnl_mechanism_lines(input_file.read_text(encoding="utf-8").splitlines(True))),
+        "".join(
+            _sanitize_llnl_mechanism_lines(input_file.read_text(encoding="utf-8").splitlines(True))
+        ),
         encoding="utf-8",
     )
     sanitized_thermo.write_text(
-        "".join(_sanitize_llnl_thermo_lines(thermo_file.read_text(encoding="utf-8").splitlines(True))),
+        "".join(
+            _sanitize_llnl_thermo_lines(thermo_file.read_text(encoding="utf-8").splitlines(True))
+        ),
         encoding="utf-8",
     )
     if sanitized_transport and transport_file:

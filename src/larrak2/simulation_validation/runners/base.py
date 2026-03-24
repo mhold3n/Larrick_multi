@@ -8,7 +8,6 @@ from typing import Any
 from ..models import (
     ComparisonMode,
     RegimeStatus,
-    SourceType,
     ValidationCaseSpec,
     ValidationDatasetManifest,
     ValidationMetricResult,

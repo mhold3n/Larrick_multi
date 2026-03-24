@@ -8,8 +8,8 @@ from larrak2.simulation_validation.engine_calibration import (
     compare_engine_calibration_reports,
     derive_cantera_preignition_handoff_bundle,
     derive_two_zone_cantera_preignition_handoff_bundle,
-    propose_preignition_handoff_bundle,
     propose_engine_tuning_params,
+    propose_preignition_handoff_bundle,
 )
 
 

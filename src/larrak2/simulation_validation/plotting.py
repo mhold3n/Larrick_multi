@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from .models import ValidationMetricResult
 
@@ -13,6 +12,7 @@ def _safe_import_plotly():
     try:
         import plotly.graph_objects as go
         import plotly.subplots as sp
+
         return go, sp
     except ImportError:
         return None, None
@@ -38,20 +38,24 @@ def generate_metric_comparison_plot(
     colors = ["#2ecc71" if r.passed else "#e74c3c" for r in results]
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        name="Measured",
-        x=metric_ids,
-        y=measured,
-        marker_color="#3498db",
-        opacity=0.8,
-    ))
-    fig.add_trace(go.Bar(
-        name="Simulated",
-        x=metric_ids,
-        y=simulated,
-        marker_color=colors,
-        opacity=0.8,
-    ))
+    fig.add_trace(
+        go.Bar(
+            name="Measured",
+            x=metric_ids,
+            y=measured,
+            marker_color="#3498db",
+            opacity=0.8,
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            name="Simulated",
+            x=metric_ids,
+            y=simulated,
+            marker_color=colors,
+            opacity=0.8,
+        )
+    )
 
     fig.update_layout(
         title=title,
@@ -84,21 +88,25 @@ def generate_error_summary_plot(
     colors = ["#2ecc71" if r.passed else "#e74c3c" for r in results]
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        name="Error",
-        x=metric_ids,
-        y=errors,
-        marker_color=colors,
-        opacity=0.85,
-    ))
-    fig.add_trace(go.Scatter(
-        name="Tolerance",
-        x=metric_ids,
-        y=tolerances,
-        mode="markers+lines",
-        marker=dict(color="#f1c40f", size=10, symbol="diamond"),
-        line=dict(dash="dash", color="#f1c40f"),
-    ))
+    fig.add_trace(
+        go.Bar(
+            name="Error",
+            x=metric_ids,
+            y=errors,
+            marker_color=colors,
+            opacity=0.85,
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            name="Tolerance",
+            x=metric_ids,
+            y=tolerances,
+            mode="markers+lines",
+            marker=dict(color="#f1c40f", size=10, symbol="diamond"),
+            line=dict(dash="dash", color="#f1c40f"),
+        )
+    )
 
     fig.update_layout(
         title=title,
@@ -130,27 +138,31 @@ def generate_parity_plot(
     colors = ["#2ecc71" if r.passed else "#e74c3c" for r in results]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=measured,
-        y=simulated,
-        mode="markers+text",
-        text=labels,
-        textposition="top center",
-        marker=dict(color=colors, size=12),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=measured,
+            y=simulated,
+            mode="markers+text",
+            text=labels,
+            textposition="top center",
+            marker=dict(color=colors, size=12),
+        )
+    )
 
     # Perfect agreement line
     all_vals = measured + simulated
     if all_vals:
         lo = min(all_vals) * 0.9
         hi = max(all_vals) * 1.1
-        fig.add_trace(go.Scatter(
-            x=[lo, hi],
-            y=[lo, hi],
-            mode="lines",
-            line=dict(dash="dash", color="#95a5a6"),
-            name="Perfect Agreement",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[lo, hi],
+                y=[lo, hi],
+                mode="lines",
+                line=dict(dash="dash", color="#95a5a6"),
+                name="Perfect Agreement",
+            )
+        )
 
     fig.update_layout(
         title=title,

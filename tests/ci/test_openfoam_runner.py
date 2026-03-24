@@ -12,9 +12,7 @@ def test_setup_case_with_assets_sanitizes_chemkin_transport_comments(tmp_path: P
 
     source = tmp_path / "transport.txt"
     source.write_text(
-        "SPEC1 1 2 3 4 5 6 ! inline comment\n"
-        "! full-line comment\n"
-        "SPEC2 7 8 9 10 11 12\n",
+        "SPEC1 1 2 3 4 5 6 ! inline comment\n! full-line comment\nSPEC2 7 8 9 10 11 12\n",
         encoding="utf-8",
     )
 

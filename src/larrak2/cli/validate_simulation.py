@@ -57,15 +57,17 @@ def _build_dataset_and_case(
     ds_cfg = config.get("dataset", {})
     metrics = []
     for m in ds_cfg.get("metrics", []):
-        metrics.append(ValidationMetricSpec(
-            metric_id=str(m["metric_id"]),
-            units=str(m.get("units", "")),
-            comparison_mode=ComparisonMode(m.get("comparison_mode", "absolute")),
-            tolerance_band=float(m.get("tolerance_band", 0.0)),
-            source_type=SourceType(m.get("source_type", "measured")),
-            required=bool(m.get("required", True)),
-            description=str(m.get("description", "")),
-        ))
+        metrics.append(
+            ValidationMetricSpec(
+                metric_id=str(m["metric_id"]),
+                units=str(m.get("units", "")),
+                comparison_mode=ComparisonMode(m.get("comparison_mode", "absolute")),
+                tolerance_band=float(m.get("tolerance_band", 0.0)),
+                source_type=SourceType(m.get("source_type", "measured")),
+                required=bool(m.get("required", True)),
+                description=str(m.get("description", "")),
+            )
+        )
 
     dataset = ValidationDatasetManifest(
         dataset_id=str(ds_cfg.get("dataset_id", f"{regime}_default")),
@@ -232,8 +234,10 @@ def _run_single_regime_cmd(args: argparse.Namespace, regime_name: str) -> int:
     # Print summary
     print(f"\n{'=' * 60}")
     print(f"  {regime_name.upper()} VALIDATION: {run_manifest.status.value}")
-    print(f"  Metrics: {sum(1 for r in run_manifest.metric_results if r.passed)}/"
-          f"{len(run_manifest.metric_results)} passed")
+    print(
+        f"  Metrics: {sum(1 for r in run_manifest.metric_results if r.passed)}/"
+        f"{len(run_manifest.metric_results)} passed"
+    )
     print(f"{'=' * 60}\n")
 
     return 0 if run_manifest.passed else 1
@@ -298,8 +302,10 @@ def _run_chemistry_cache_cmd(args: argparse.Namespace) -> int:
         print(f"Offline chemistry cache: {cache_path}")
     print(f"\n{'=' * 60}")
     print(f"  CHEMISTRY CACHE BUILD: {run_manifest.status.value}")
-    print(f"  Metrics: {sum(1 for r in run_manifest.metric_results if r.passed)}/"
-          f"{len(run_manifest.metric_results)} passed")
+    print(
+        f"  Metrics: {sum(1 for r in run_manifest.metric_results if r.passed)}/"
+        f"{len(run_manifest.metric_results)} passed"
+    )
     print(f"{'=' * 60}\n")
     return 0 if run_manifest.passed else 1
 
@@ -408,9 +414,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="larrak-validate-sim",
         description="Canonical-regime simulation validation suite.",
     )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Enable verbose logging"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
     subparsers = parser.add_subparsers(dest="command", help="Validation regime")
 
@@ -423,9 +427,7 @@ def main(argv: list[str] | None = None) -> int:
         ("full-handoff", "Run full engine phase-handoff validation"),
     ]:
         sub = subparsers.add_parser(regime_name, help=help_text)
-        sub.add_argument(
-            "--config", required=True, help="Path to regime config JSON"
-        )
+        sub.add_argument("--config", required=True, help="Path to regime config JSON")
         sub.add_argument(
             "--outdir",
             default=f"outputs/validation/{regime_name.replace('-', '_')}",
@@ -434,9 +436,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Suite subcommand
     suite_sub = subparsers.add_parser("suite", help="Run full validation suite")
-    suite_sub.add_argument(
-        "--config", required=True, help="Path to suite config JSON"
-    )
+    suite_sub.add_argument("--config", required=True, help="Path to suite config JSON")
     suite_sub.add_argument(
         "--outdir",
         default="outputs/validation/suite",

@@ -58,7 +58,9 @@ def _write_uniform_scalar_field(
     )
 
 
-def _write_uniform_vector_field(path: Path, *, name: str, value: tuple[float, float, float], location: str) -> None:
+def _write_uniform_vector_field(
+    path: Path, *, name: str, value: tuple[float, float, float], location: str
+) -> None:
     path.write_text(
         "\n".join(
             [

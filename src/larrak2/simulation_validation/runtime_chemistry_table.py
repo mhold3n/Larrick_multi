@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import importlib
 import importlib.util
-import itertools
 import json
 import math
 import re
@@ -66,7 +65,9 @@ def _resolve_package_manifest(table_cfg: dict[str, Any]) -> tuple[Path, dict[str
     if package_dir:
         manifest_path = package_dir / "package_manifest.json"
         if not manifest_path.exists():
-            raise FileNotFoundError(f"OpenFOAM chemistry package manifest not found: {manifest_path}")
+            raise FileNotFoundError(
+                f"OpenFOAM chemistry package manifest not found: {manifest_path}"
+            )
         return package_dir, _load_json(manifest_path)
     raise ValueError("Runtime chemistry table config must define package_dir")
 
@@ -78,7 +79,9 @@ def _resolve_yaml_path(package_manifest: dict[str, Any], *, repo_root: Path) -> 
     if not yaml_path.is_absolute():
         yaml_path = repo_root / yaml_path
     if not yaml_path.exists():
-        raise FileNotFoundError(f"Cantera YAML referenced by package manifest not found: {yaml_path}")
+        raise FileNotFoundError(
+            f"Cantera YAML referenced by package manifest not found: {yaml_path}"
+        )
     return yaml_path
 
 
@@ -160,7 +163,8 @@ def _state_axes(
             span = hi - lo
         margin = max(
             float(margin_absolute_cfg.get(axis_name, 0.0)),
-            span * float(margin_fraction_cfg.get(axis_name, _default_axis_margin_fraction(axis_name))),
+            span
+            * float(margin_fraction_cfg.get(axis_name, _default_axis_margin_fraction(axis_name))),
         )
         lo -= margin
         hi += margin
@@ -409,7 +413,9 @@ def _sample_field_points_from_time_dir(
     points: list[dict[str, float]] = []
     for cell_index in sample_indices:
         point = {
-            "Temperature": float(field_arrays["T"][0 if len(field_arrays["T"]) == 1 else cell_index]),
+            "Temperature": float(
+                field_arrays["T"][0 if len(field_arrays["T"]) == 1 else cell_index]
+            ),
             "Pressure": float(field_arrays["p"][0 if len(field_arrays["p"]) == 1 else cell_index]),
         }
         for species_name in axis_order[2:]:
@@ -510,12 +516,16 @@ def _authority_scan(
                 excess = low - value
             else:
                 excess = value - high
-            max_out_of_bound[axis_name] = max(float(max_out_of_bound.get(axis_name, 0.0)), float(excess))
+            max_out_of_bound[axis_name] = max(
+                float(max_out_of_bound.get(axis_name, 0.0)), float(excess)
+            )
         if point_missed:
             missed_points.append(dict(point))
     return {
         "authority_pass": not missed_points,
-        "authority_miss_counts_by_variable": {key: int(value) for key, value in sorted(miss_counts.items())},
+        "authority_miss_counts_by_variable": {
+            key: int(value) for key, value in sorted(miss_counts.items())
+        },
         "authority_max_out_of_bound_by_variable": {
             key: float(value) for key, value in sorted(max_out_of_bound.items())
         },
@@ -582,7 +592,9 @@ def _sparse_points_from_axes(
     sparse_level: int,
 ) -> list[dict[str, float]]:
     centers = _center_indices(axes)
-    indices = _sparse_index_points([len(axis_values) for axis_values in axes], centers, int(sparse_level))
+    indices = _sparse_index_points(
+        [len(axis_values) for axis_values in axes], centers, int(sparse_level)
+    )
     seen: set[tuple[float, ...]] = set()
     points: list[dict[str, float]] = []
     for index_set in indices:
@@ -715,7 +727,9 @@ def _extract_seed_points(
             if not isinstance(row, dict):
                 continue
             point = dict(seed_trace_defaults)
-            point["Temperature"] = float(row.get("mean_temperature_K", center_defaults["Temperature"]))
+            point["Temperature"] = float(
+                row.get("mean_temperature_K", center_defaults["Temperature"])
+            )
             point["Pressure"] = float(row.get("mean_pressure_Pa", center_defaults["Pressure"]))
             seeds.append(point)
 
@@ -725,7 +739,9 @@ def _extract_seed_points(
         field_arrays: dict[str, np.ndarray] = {}
         try:
             for field_name in field_names:
-                field_arrays[field_name] = _parse_openfoam_internal_scalar_field(time_dir / field_name)
+                field_arrays[field_name] = _parse_openfoam_internal_scalar_field(
+                    time_dir / field_name
+                )
         except (FileNotFoundError, ValueError):
             continue
         field_size = len(field_arrays["T"])
@@ -748,8 +764,12 @@ def _extract_seed_points(
             sample_indices = sorted(selected_indices)[:max_cells_per_dir]
         for cell_index in sample_indices:
             point = dict(center_defaults)
-            point["Temperature"] = float(field_arrays["T"][0 if len(field_arrays["T"]) == 1 else cell_index])
-            point["Pressure"] = float(field_arrays["p"][0 if len(field_arrays["p"]) == 1 else cell_index])
+            point["Temperature"] = float(
+                field_arrays["T"][0 if len(field_arrays["T"]) == 1 else cell_index]
+            )
+            point["Pressure"] = float(
+                field_arrays["p"][0 if len(field_arrays["p"]) == 1 else cell_index]
+            )
             for species_name in axis_order[2:]:
                 values = field_arrays[species_name]
                 point[species_name] = float(values[0 if len(values) == 1 else cell_index])
@@ -799,7 +819,9 @@ def _local_rbf_interpolate(
     eps = max(float(epsilon), 1.0e-12)
     kernel = np.exp(-((eps * pairwise) ** 2))
     kernel += np.eye(stencil) * 1.0e-10
-    rhs = np.exp(-((eps * np.linalg.norm(neighbour_states - normalized_query[None, :], axis=1)) ** 2))
+    rhs = np.exp(
+        -((eps * np.linalg.norm(neighbour_states - normalized_query[None, :], axis=1)) ** 2)
+    )
     weights = np.linalg.solve(kernel, rhs)
     value = weights @ neighbour_values
     return np.asarray(value, dtype=float)
@@ -881,7 +903,9 @@ def _evaluate_sample(
 
     species_names = list(gas.species_names)
     molecular_weights = np.asarray(gas.molecular_weights, dtype=float)
-    mass_fractions = np.asarray([float(mass_fractions_dict.get(name, 0.0)) for name in species_names], dtype=float)
+    mass_fractions = np.asarray(
+        [float(mass_fractions_dict.get(name, 0.0)) for name in species_names], dtype=float
+    )
     mole_fractions = np.asarray(gas.X, dtype=float)
     net_rates = np.asarray(gas.net_production_rates, dtype=float)
     partial_molar_enthalpies = np.asarray(gas.partial_molar_enthalpies, dtype=float)
@@ -915,11 +939,15 @@ def _evaluate_sample(
             else:
                 transfer = min(delta_y, max(perturbed.get(balance_species, 0.0) * 0.5, 1.0e-8))
                 perturbed[species_name] = max(perturbed.get(species_name, 0.0) + transfer, 0.0)
-                perturbed[balance_species] = max(perturbed.get(balance_species, 0.0) - transfer, 0.0)
+                perturbed[balance_species] = max(
+                    perturbed.get(balance_species, 0.0) - transfer, 0.0
+                )
                 delta_y = transfer
             gas.TPY = temperature, pressure, perturbed
             rates_perturbed = np.asarray(gas.net_production_rates, dtype=float)
-            source_dY[:, species_index] = ((rates_perturbed - net_rates) / delta_y) * molecular_weights
+            source_dY[:, species_index] = (
+                (rates_perturbed - net_rates) / delta_y
+            ) * molecular_weights
             gas.TPY = temperature, pressure, mass_fractions_dict
 
     full_jacobian = np.concatenate([source_dT[:, None], source_dY], axis=1)
@@ -930,7 +958,9 @@ def _evaluate_sample(
         mass_fractions=mass_fractions_dict,
         delta_T=max(temperature * 1.0e-4, 1.0e-3),
     )
-    row_ptr, col_idx, csr_values = _sparsify_dense_matrix(full_jacobian, threshold=jacobian_threshold)
+    row_ptr, col_idx, csr_values = _sparsify_dense_matrix(
+        full_jacobian, threshold=jacobian_threshold
+    )
     diag_jacobian = np.diag(source_dY).astype(float)
     temperature_sensitivity = source_dT.astype(float)
 
@@ -1069,7 +1099,9 @@ def _foam_nested_scalar_lists(values: np.ndarray, *, indent: str = "    ") -> st
     lines = [f"{indent}("]
     for row in np.asarray(values, dtype=float):
         lines.append(
-            f"{indent}    (" + " ".join(_format_number(float(value)) for value in row.tolist()) + ")"
+            f"{indent}    ("
+            + " ".join(_format_number(float(value)) for value in row.tolist())
+            + ")"
         )
     lines.append(f"{indent})")
     return "\n".join(lines)
@@ -1254,7 +1286,8 @@ def _effective_trust_region(
     )
     effective["max_abs_jacobian"] = max(
         float(trust_region_cfg.get("max_abs_jacobian", 0.0)),
-        float(trust_region_cfg.get("jacobian_multiplier", 2.0)) * float(np.max(np.abs(diag_jacobian))),
+        float(trust_region_cfg.get("jacobian_multiplier", 2.0))
+        * float(np.max(np.abs(diag_jacobian))),
     )
     effective["max_abs_qdot"] = max(
         float(trust_region_cfg.get("max_abs_qdot", 0.0)),
@@ -1294,7 +1327,13 @@ def build_runtime_chemistry_table_from_spec(
     manifest_path = output_dir / "runtime_chemistry_table_manifest.json"
     data_path = output_dir / "runtime_chemistry_table_data.npz"
     jacobian_path = output_dir / "runtime_chemistry_jacobian_csr.npz"
-    if dict_path.exists() and manifest_path.exists() and data_path.exists() and jacobian_path.exists() and not refresh:
+    if (
+        dict_path.exists()
+        and manifest_path.exists()
+        and data_path.exists()
+        and jacobian_path.exists()
+        and not refresh
+    ):
         return _load_json(manifest_path)
 
     state_species = [
@@ -1304,7 +1343,10 @@ def build_runtime_chemistry_table_from_spec(
     ]
     if not state_species:
         raise ValueError("Runtime chemistry table must define at least one state species")
-    balance_species = str(table_cfg.get("balance_species", DEFAULT_BALANCE_SPECIES)).strip() or DEFAULT_BALANCE_SPECIES
+    balance_species = (
+        str(table_cfg.get("balance_species", DEFAULT_BALANCE_SPECIES)).strip()
+        or DEFAULT_BALANCE_SPECIES
+    )
     if balance_species in state_species:
         raise ValueError("balance_species must not also appear in state_species")
 
@@ -1312,14 +1354,21 @@ def build_runtime_chemistry_table_from_spec(
     adaptive_cfg.update(dict(table_cfg.get("adaptive_sampling", {}) or {}))
     trust_region_cfg = _default_trust_region()
     trust_region_cfg.update(dict(table_cfg.get("trust_region", {}) or {}))
-    interpolation_method = str(
-        table_cfg.get("interpolation_method", DEFAULT_INTERPOLATION_METHOD)
-    ).strip() or DEFAULT_INTERPOLATION_METHOD
-    fallback_policy = str(
-        table_cfg.get("fallback_policy", DEFAULT_FALLBACK_POLICY)
-    ).strip() or DEFAULT_FALLBACK_POLICY
-    jacobian_mode = str(table_cfg.get("jacobian_mode", DEFAULT_JACOBIAN_MODE)).strip() or DEFAULT_JACOBIAN_MODE
-    jacobian_storage = str(table_cfg.get("jacobian_storage", DEFAULT_JACOBIAN_STORAGE)).strip() or DEFAULT_JACOBIAN_STORAGE
+    interpolation_method = (
+        str(table_cfg.get("interpolation_method", DEFAULT_INTERPOLATION_METHOD)).strip()
+        or DEFAULT_INTERPOLATION_METHOD
+    )
+    fallback_policy = (
+        str(table_cfg.get("fallback_policy", DEFAULT_FALLBACK_POLICY)).strip()
+        or DEFAULT_FALLBACK_POLICY
+    )
+    jacobian_mode = (
+        str(table_cfg.get("jacobian_mode", DEFAULT_JACOBIAN_MODE)).strip() or DEFAULT_JACOBIAN_MODE
+    )
+    jacobian_storage = (
+        str(table_cfg.get("jacobian_storage", DEFAULT_JACOBIAN_STORAGE)).strip()
+        or DEFAULT_JACOBIAN_STORAGE
+    )
     max_untracked_mass_fraction = float(table_cfg.get("max_untracked_mass_fraction", 0.02))
     jacobian_threshold = float(table_cfg.get("jacobian_sparsity_tolerance", 1.0e-16))
 
@@ -1346,7 +1395,9 @@ def build_runtime_chemistry_table_from_spec(
     for point in [*raw_seed_points, *authority_points]:
         axis_seed_points[_point_key(point, axis_order)] = dict(point)
     authority_enrichment_rounds = max(int(table_cfg.get("authority_enrichment_rounds", 2)), 0)
-    authority_scan_max_points = max(int(table_cfg.get("authority_scan_max_points_per_round", 256)), 1)
+    authority_scan_max_points = max(
+        int(table_cfg.get("authority_scan_max_points_per_round", 256)), 1
+    )
     authority_status: dict[str, Any] = {
         "authority_pass": len(authority_points) == 0,
         "authority_miss_counts_by_variable": {},
@@ -1481,9 +1532,8 @@ def build_runtime_chemistry_table_from_spec(
                 tracked_indices=tracked_indices,
                 actual_sample=actual_sample,
             )
-            if (
-                source_error > float(adaptive_cfg["source_tolerance"])
-                or jacobian_error > float(adaptive_cfg["jacobian_tolerance"])
+            if source_error > float(adaptive_cfg["source_tolerance"]) or jacobian_error > float(
+                adaptive_cfg["jacobian_tolerance"]
             ):
                 worst_candidates.append((source_error, jacobian_error, actual_sample))
         if not worst_candidates:
@@ -1499,7 +1549,9 @@ def build_runtime_chemistry_table_from_spec(
                 break
 
     sample_records.sort(
-        key=lambda sample: tuple(float(sample["point_state"][axis_name]) for axis_name in axis_order)
+        key=lambda sample: tuple(
+            float(sample["point_state"][axis_name]) for axis_name in axis_order
+        )
     )
 
     sample_states_raw = np.asarray(
@@ -1527,8 +1579,12 @@ def build_runtime_chemistry_table_from_spec(
         [float(sample["qdot_temperature_sensitivity"]) for sample in sample_records],
         dtype=float,
     )
-    source_terms = np.asarray([np.asarray(sample["source_terms"], dtype=float) for sample in sample_records], dtype=float)
-    diag_jacobian = np.asarray([np.asarray(sample["diag_jacobian"], dtype=float) for sample in sample_records], dtype=float)
+    source_terms = np.asarray(
+        [np.asarray(sample["source_terms"], dtype=float) for sample in sample_records], dtype=float
+    )
+    diag_jacobian = np.asarray(
+        [np.asarray(sample["diag_jacobian"], dtype=float) for sample in sample_records], dtype=float
+    )
     temperature_sensitivity = np.asarray(
         [np.asarray(sample["temperature_sensitivity"], dtype=float) for sample in sample_records],
         dtype=float,
@@ -1547,7 +1603,9 @@ def build_runtime_chemistry_table_from_spec(
         csr_offsets[sample_index + 1] = csr_offsets[sample_index] + values.size
         csr_col_idx_chunks.append(cols)
         csr_value_chunks.append(values)
-    csr_col_idx = np.concatenate(csr_col_idx_chunks) if csr_col_idx_chunks else np.zeros(0, dtype=np.int32)
+    csr_col_idx = (
+        np.concatenate(csr_col_idx_chunks) if csr_col_idx_chunks else np.zeros(0, dtype=np.int32)
+    )
     csr_values = np.concatenate(csr_value_chunks) if csr_value_chunks else np.zeros(0, dtype=float)
     effective_trust_region_cfg = _effective_trust_region(
         trust_region_cfg=trust_region_cfg,
@@ -1614,14 +1672,16 @@ def build_runtime_chemistry_table_from_spec(
         "table_point_count": int(sample_states.shape[0]),
         "species_count": len(species_names),
         "state_variables": axis_order,
-        "state_axis_strategy": str(table_cfg.get("state_axis_strategy", "explicit")).strip() or "explicit",
+        "state_axis_strategy": str(table_cfg.get("state_axis_strategy", "explicit")).strip()
+        or "explicit",
         "state_species": state_species,
         "balance_species": balance_species,
-        "state_axes": {axis_name: axis_values for axis_name, axis_values in zip(axis_order, axes, strict=True)},
+        "state_axes": {
+            axis_name: axis_values for axis_name, axis_values in zip(axis_order, axes, strict=True)
+        },
         "transformed_state_variables": transformed_state_variables,
         "state_transform_floors": {
-            axis_name: float(state_transform_floors.get(axis_name, 0.0))
-            for axis_name in axis_order
+            axis_name: float(state_transform_floors.get(axis_name, 0.0)) for axis_name in axis_order
         },
         "interpolation_method": interpolation_method,
         "fallback_policy": fallback_policy,
@@ -1642,7 +1702,8 @@ def build_runtime_chemistry_table_from_spec(
         "authority_max_out_of_bound_by_variable": dict(
             authority_status.get("authority_max_out_of_bound_by_variable", {})
         ),
-        "strict_runtime_certified": bool(authority_points) and bool(authority_status.get("authority_pass", False)),
+        "strict_runtime_certified": bool(authority_points)
+        and bool(authority_status.get("authority_pass", False)),
         "trust_region": effective_trust_region_cfg,
         "trust_region_config": trust_region_cfg,
         "files": {

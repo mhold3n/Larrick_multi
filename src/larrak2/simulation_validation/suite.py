@@ -15,15 +15,15 @@ from .models import (
     ValidationCaseSpec,
     ValidationDatasetManifest,
     ValidationRunManifest,
-    ValidationSuiteProfile,
     ValidationSuiteManifest,
+    ValidationSuiteProfile,
 )
 from .regimes import CanonicalRegime, canonical_prerequisite_names
 from .runners.chemistry import ChemistryRunner
-from .runners.spray import SprayRunner
-from .runners.reacting_flow import ReactingFlowRunner
 from .runners.closed_cylinder import ClosedCylinderRunner
 from .runners.full_handoff import FullHandoffRunner
+from .runners.reacting_flow import ReactingFlowRunner
+from .runners.spray import SprayRunner
 from .solver_adapters import resolve_simulation_inputs
 
 logger = logging.getLogger(__name__)
@@ -109,9 +109,7 @@ def run_suite(
     )
     ordered_regimes = profile.normalized_regime_order()
     prerequisite_map = (
-        dict(profile.prerequisites)
-        if profile.prerequisites
-        else canonical_prerequisite_names()
+        dict(profile.prerequisites) if profile.prerequisites else canonical_prerequisite_names()
     )
 
     suite = ValidationSuiteManifest(
@@ -145,9 +143,7 @@ def run_suite(
                 ),
                 status=RegimeStatus.BLOCKED_BY_PREREQUISITE,
                 blocked_by=gate.blockers,
-                messages=[
-                    f"Blocked by prerequisite(s): {', '.join(gate.blockers)}"
-                ],
+                messages=[f"Blocked by prerequisite(s): {', '.join(gate.blockers)}"],
             )
             results[regime_name] = blocked_manifest
             continue

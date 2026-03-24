@@ -16,13 +16,14 @@ from ..models import (
 )
 from .base import BaseRegimeRunner, evaluate_metric
 
-
-REACTING_FLOW_METRIC_CATEGORIES = frozenset({
-    "temperature",
-    "species",
-    "velocity",
-    "scalar_dissipation",
-})
+REACTING_FLOW_METRIC_CATEGORIES = frozenset(
+    {
+        "temperature",
+        "species",
+        "velocity",
+        "scalar_dissipation",
+    }
+)
 
 
 class ReactingFlowRunner(BaseRegimeRunner):
@@ -59,17 +60,19 @@ class ReactingFlowRunner(BaseRegimeRunner):
             if sim_key not in simulation_data:
                 if spec.required:
                     messages.append(f"Missing simulation result for required metric '{sim_key}'")
-                    results.append(ValidationMetricResult(
-                        metric_id=spec.metric_id,
-                        measured_value=0.0,
-                        simulated_value=0.0,
-                        error=float("inf"),
-                        tolerance_used=spec.tolerance_band,
-                        passed=False,
-                        source_type=spec.source_type,
-                        units=spec.units,
-                        details={"reason": "missing_simulation_data"},
-                    ))
+                    results.append(
+                        ValidationMetricResult(
+                            metric_id=spec.metric_id,
+                            measured_value=0.0,
+                            simulated_value=0.0,
+                            error=float("inf"),
+                            tolerance_used=spec.tolerance_band,
+                            passed=False,
+                            source_type=spec.source_type,
+                            units=spec.units,
+                            details={"reason": "missing_simulation_data"},
+                        )
+                    )
                 else:
                     messages.append(f"Skipping optional metric '{sim_key}' (no data)")
                 continue

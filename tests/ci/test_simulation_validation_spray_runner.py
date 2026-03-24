@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from larrak2.simulation_validation.models import (
     ComparisonMode,
     RegimeStatus,

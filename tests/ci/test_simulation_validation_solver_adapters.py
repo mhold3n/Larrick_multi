@@ -23,8 +23,10 @@ from larrak2.simulation_validation.models import (
     ValidationDatasetManifest,
     ValidationMetricSpec,
 )
-from larrak2.simulation_validation.solver_adapters import resolve_simulation_inputs
-from larrak2.simulation_validation.solver_adapters import _compute_cantera_flame_speed
+from larrak2.simulation_validation.solver_adapters import (
+    _compute_cantera_flame_speed,
+    resolve_simulation_inputs,
+)
 
 
 def _chemistry_dataset() -> ValidationDatasetManifest:
@@ -53,7 +55,9 @@ def _chemistry_dataset() -> ValidationDatasetManifest:
 
 
 def test_native_cantera_backend_fails_fast_when_runtime_missing(monkeypatch) -> None:
-    monkeypatch.setattr("importlib.util.find_spec", lambda name: None if name == "cantera" else object())
+    monkeypatch.setattr(
+        "importlib.util.find_spec", lambda name: None if name == "cantera" else object()
+    )
 
     dataset = _chemistry_dataset()
     case_spec = ValidationCaseSpec(
@@ -145,6 +149,7 @@ def test_auto_chemistry_adapter_falls_back_when_cantera_run_fails(monkeypatch) -
             }
         },
     )
+
     def _boom(*args, **kwargs):
         raise RuntimeError("synthetic cantera failure")
 
@@ -226,7 +231,9 @@ def test_chemistry_adapter_prefers_offline_cache(monkeypatch, tmp_path: Path) ->
     assert any("offline cache" in msg for msg in resolved.messages)
 
 
-def test_chemistry_adapter_uses_fixture_when_offline_cache_is_missing(monkeypatch, tmp_path: Path) -> None:
+def test_chemistry_adapter_uses_fixture_when_offline_cache_is_missing(
+    monkeypatch, tmp_path: Path
+) -> None:
     dataset = _chemistry_dataset()
     case_spec = ValidationCaseSpec(
         case_id="chem_offline_cache_missing",
@@ -262,7 +269,9 @@ def test_chemistry_adapter_uses_fixture_when_offline_cache_is_missing(monkeypatc
     assert any("Offline chemistry cache missing" in msg for msg in resolved.messages)
 
 
-def test_chemistry_adapter_writes_offline_cache_after_live_compute(monkeypatch, tmp_path: Path) -> None:
+def test_chemistry_adapter_writes_offline_cache_after_live_compute(
+    monkeypatch, tmp_path: Path
+) -> None:
     dataset = _chemistry_dataset()
     cache_path = tmp_path / "chemistry_offline_results.json"
     case_spec = ValidationCaseSpec(
@@ -419,9 +428,9 @@ def test_chemistry_adapter_allows_metric_specific_reduced_mechanism_override(
     assert metric_provenance["ignition_delay_796K_15bar_phi0p66"]["mechanism_file"].endswith(
         "ChemDetailed.inp.txt"
     )
-    assert metric_provenance[
-        "laminar_flame_speed_phi1_Tu353K_P3p33bar_iso_octane"
-    ]["mechanism_file"].endswith("Chem323.inp.txt")
+    assert metric_provenance["laminar_flame_speed_phi1_Tu353K_P3p33bar_iso_octane"][
+        "mechanism_file"
+    ].endswith("Chem323.inp.txt")
 
     cached = json.loads(cache_path.read_text(encoding="utf-8"))
     assert cached["metric_mechanism_provenance"][
@@ -580,7 +589,9 @@ def test_compute_cantera_flame_speed_supports_fixed_grid_and_solution_profile(
             )
             calls["solve_calls"] = solve_calls
 
-        def save(self, filename, name="solution", description=None, overwrite=False, **kwargs) -> None:
+        def save(
+            self, filename, name="solution", description=None, overwrite=False, **kwargs
+        ) -> None:
             Path(filename).write_text("solution\n", encoding="utf-8")
             calls["save"] = (filename, name, description, overwrite)
 

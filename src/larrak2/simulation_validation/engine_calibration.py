@@ -16,9 +16,7 @@ from ..orchestration.adapters.simulation_adapter import (
     candidate_openfoam_params,
 )
 from ..thermo.validation import ThermoValidationError
-
 from .cantera_mechanisms import convert_chemkin_to_yaml
-
 
 DEFAULT_ENGINE_PACKAGE_MANIFEST = Path(
     "mechanisms/openfoam/v2512/chem323_reduced/package_manifest.json"
@@ -160,9 +158,7 @@ def build_engine_calibration_report(
     reacting_temperature = float(
         reacting_targets.get("gas_temperature_K_iso_octane_reacting", 980.0)
     )
-    reacting_velocity = float(
-        reacting_targets.get("bulk_velocity_m_s_iso_octane_reacting", 15.0)
-    )
+    reacting_velocity = float(reacting_targets.get("bulk_velocity_m_s_iso_octane_reacting", 15.0))
 
     report = {
         "suite_id": str(suite_cfg.get("suite_id", "")),
@@ -179,9 +175,7 @@ def build_engine_calibration_report(
             "spray_penetration_target_mm": float(
                 spray_targets.get("liquid_penetration_max_mm_sprayG", 0.0)
             ),
-            "spray_smd_target_um": float(
-                spray_targets.get("droplet_smd_um_sprayG_z15mm", 0.0)
-            ),
+            "spray_smd_target_um": float(spray_targets.get("droplet_smd_um_sprayG_z15mm", 0.0)),
         },
         "gap_report": {},
     }
@@ -226,10 +220,15 @@ def propose_engine_tuning_params(
     engine_metrics = dict(calibration_report.get("engine_metrics", {}) or {})
 
     target_pressure = float(
-        reacting_targets.get("pressure_Pa_target", reacting_targets.get("gas_pressure_Pa_iso_octane_reacting", 15.0e5))
+        reacting_targets.get(
+            "pressure_Pa_target",
+            reacting_targets.get("gas_pressure_Pa_iso_octane_reacting", 15.0e5),
+        )
     )
     current_pressure = max(float(engine_summary.get("mean_pressure_Pa", 1.0e5)), 1.0e5)
-    current_temperature = float(engine_summary.get("mean_temperature_K", tuned.get("T_intake_K", 300.0)))
+    current_temperature = float(
+        engine_summary.get("mean_temperature_K", tuned.get("T_intake_K", 300.0))
+    )
     current_velocity = max(
         0.0,
         float(
@@ -239,10 +238,14 @@ def propose_engine_tuning_params(
             )
         ),
     )
-    target_temperature = float(reacting_targets.get("gas_temperature_K_iso_octane_reacting", 1400.0))
+    target_temperature = float(
+        reacting_targets.get("gas_temperature_K_iso_octane_reacting", 1400.0)
+    )
     target_velocity = float(recommended.get("handoff_velocity_m_s", 44.0))
     target_residual = 1.0 - float(recommended.get("mixture_homogeneity_index", 0.75))
-    current_residual = float(engine_metrics.get("residual_fraction", tuned.get("residual_fraction_seed", 0.08)))
+    current_residual = float(
+        engine_metrics.get("residual_fraction", tuned.get("residual_fraction_seed", 0.08))
+    )
 
     pressure_gap = max(0.0, target_pressure - current_pressure)
     temperature_gap = max(0.0, target_temperature - current_temperature)
@@ -259,14 +262,18 @@ def propose_engine_tuning_params(
     if velocity_gap > 100.0:
         pressure_split = _clamp(mean_pressure_target * 0.01, 2.0e3, 6.0e3)
         tuned["p_manifold_Pa"] = _clamp(mean_pressure_target - 0.5 * pressure_split, 1.1e5, 2.1e5)
-        tuned["p_back_Pa"] = _clamp(mean_pressure_target + 0.5 * pressure_split, tuned["p_manifold_Pa"], 2.25e5)
+        tuned["p_back_Pa"] = _clamp(
+            mean_pressure_target + 0.5 * pressure_split, tuned["p_manifold_Pa"], 2.25e5
+        )
         tuned["handoff_velocity_m_s"] = _clamp(
             min(float(tuned.get("handoff_velocity_m_s", target_velocity)), target_velocity * 0.25),
             0.0,
             12.0,
         )
         tuned["intake_port_area_m2"] = max(float(tuned.get("intake_port_area_m2", 4.0e-4)), 4.5e-4)
-        tuned["exhaust_port_area_m2"] = max(float(tuned.get("exhaust_port_area_m2", 4.0e-4)), 4.5e-4)
+        tuned["exhaust_port_area_m2"] = max(
+            float(tuned.get("exhaust_port_area_m2", 4.0e-4)), 4.5e-4
+        )
         tuned["intake_open_deg"] = -125.0
         tuned["intake_close_deg"] = -85.0
         tuned["exhaust_open_deg"] = 35.0
@@ -274,7 +281,9 @@ def propose_engine_tuning_params(
     else:
         pressure_split = _clamp(mean_pressure_target * 0.04, 5.0e3, 2.0e4)
         tuned["p_manifold_Pa"] = _clamp(mean_pressure_target + 0.5 * pressure_split, 1.1e5, 2.25e5)
-        tuned["p_back_Pa"] = _clamp(mean_pressure_target - 0.5 * pressure_split, 1.0e5, tuned["p_manifold_Pa"])
+        tuned["p_back_Pa"] = _clamp(
+            mean_pressure_target - 0.5 * pressure_split, 1.0e5, tuned["p_manifold_Pa"]
+        )
         tuned["handoff_velocity_m_s"] = target_velocity
         tuned["intake_port_area_m2"] = float(tuned.get("intake_port_area_m2", 4.0e-4))
         tuned["exhaust_port_area_m2"] = float(tuned.get("exhaust_port_area_m2", 4.0e-4))
@@ -294,7 +303,10 @@ def propose_engine_tuning_params(
         1200.0,
     )
     tuned["engine_wall_temperature_K"] = _clamp(
-        max(float(tuned.get("engine_wall_temperature_K", 600.0)), current_temperature + 0.18 * temperature_gap),
+        max(
+            float(tuned.get("engine_wall_temperature_K", 600.0)),
+            current_temperature + 0.18 * temperature_gap,
+        ),
         500.0,
         600.0,
     )
@@ -304,7 +316,10 @@ def propose_engine_tuning_params(
         1350.0,
     )
     tuned["residual_fraction_seed"] = _clamp(
-        max(float(tuned.get("residual_fraction_seed", 0.08)), current_residual + 0.5 * max(target_residual - current_residual, 0.0)),
+        max(
+            float(tuned.get("residual_fraction_seed", 0.08)),
+            current_residual + 0.5 * max(target_residual - current_residual, 0.0),
+        ),
         0.10,
         0.20,
     )
@@ -354,7 +369,14 @@ def _resolve_cantera_mechanism_from_package_manifest(
             f"Package manifest '{manifest_path}' does not include enough source_raw_files to rebuild Cantera YAML"
         )
 
-    mechanism_file = next((path for path in raw_files if path.suffix.lower() in {".inp", ".txt"} and "chem" in path.name.lower()), raw_files[0])
+    mechanism_file = next(
+        (
+            path
+            for path in raw_files
+            if path.suffix.lower() in {".inp", ".txt"} and "chem" in path.name.lower()
+        ),
+        raw_files[0],
+    )
     thermo_file = next((path for path in raw_files if "therm" in path.name.lower()), None)
     transport_file = next((path for path in raw_files if "transport" in path.name.lower()), None)
     if thermo_file is None:
@@ -388,7 +410,9 @@ def _derive_cantera_handoff_from_seed(
     initial_temperature_boost_K: float = 0.0,
     bundle_id: str = "preignition_cantera_seed_v1",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    manifest, mechanism_path = _resolve_cantera_mechanism_from_package_manifest(package_manifest_path)
+    manifest, mechanism_path = _resolve_cantera_mechanism_from_package_manifest(
+        package_manifest_path
+    )
     ct = _load_cantera_module()
 
     composition = _normalize_species_mole_fractions(
@@ -610,7 +634,9 @@ def derive_two_zone_cantera_preignition_handoff_bundle(
         tuned_params=tuned_params,
     )
 
-    spark_absolute_deg = float(ignition_stage.get("spark_absolute_deg", proposed_seed["cycle_coordinate_deg"]))
+    spark_absolute_deg = float(
+        ignition_stage.get("spark_absolute_deg", proposed_seed["cycle_coordinate_deg"])
+    )
     cycle_coordinate_deg = _wrap_cycle_angle_deg(spark_absolute_deg - float(pre_spark_deg))
     engine_end_angle_deg = float(tuned_params.get("engine_end_angle_deg", 20.0))
     window_span_deg = max(4.0, abs(engine_end_angle_deg - cycle_coordinate_deg))
@@ -685,7 +711,9 @@ def derive_two_zone_cantera_preignition_handoff_bundle(
                 base_bundle.get("total_mass_kg", 4.0e-4),
             )
         ),
-        "residual_fraction": float(proposed_seed.get("residual_fraction", base_bundle.get("residual_fraction", 0.1))),
+        "residual_fraction": float(
+            proposed_seed.get("residual_fraction", base_bundle.get("residual_fraction", 0.1))
+        ),
     }
     seed["total_energy_J"] = float(
         seed["total_mass_kg"] * max(float(seed["temperature_K"]), 1.0) * 1000.0
@@ -753,13 +781,24 @@ def propose_preignition_handoff_bundle(
     engine_summary = dict(calibration_report.get("engine_latest_summary", {}) or {})
     engine_metrics = dict(calibration_report.get("engine_metrics", {}) or {})
 
-    base_pressure = max(float(engine_summary.get("mean_pressure_Pa", tuned_params.get("p_manifold_Pa", 2.0e5))), 2.0e5)
+    base_pressure = max(
+        float(engine_summary.get("mean_pressure_Pa", tuned_params.get("p_manifold_Pa", 2.0e5))),
+        2.0e5,
+    )
     base_temperature = max(
-        float(engine_metrics.get("mass_weighted_temperature_K", engine_summary.get("mean_temperature_K", tuned_params.get("T_intake_K", 420.0)))),
+        float(
+            engine_metrics.get(
+                "mass_weighted_temperature_K",
+                engine_summary.get("mean_temperature_K", tuned_params.get("T_intake_K", 420.0)),
+            )
+        ),
         float(tuned_params.get("T_intake_K", 420.0)),
     )
     residual_fraction = _clamp(
-        max(float(engine_metrics.get("residual_fraction", 0.0)), float(tuned_params.get("residual_fraction_seed", 0.12))),
+        max(
+            float(engine_metrics.get("residual_fraction", 0.0)),
+            float(tuned_params.get("residual_fraction_seed", 0.12)),
+        ),
         0.18,
         0.30,
     )

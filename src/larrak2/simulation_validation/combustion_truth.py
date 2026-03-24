@@ -85,15 +85,14 @@ def _build_suite_profile(config: dict[str, Any]) -> ValidationSuiteProfile:
 def _is_inside_core(point: dict[str, float], core: dict[str, Any]) -> bool:
     rpm = float(point["rpm"])
     torque = float(point["torque"])
-    return (
-        float(core.get("rpm_min", rpm)) <= rpm <= float(core.get("rpm_max", rpm))
-        and float(core.get("torque_min", torque))
-        <= torque
-        <= float(core.get("torque_max", torque))
-    )
+    return float(core.get("rpm_min", rpm)) <= rpm <= float(core.get("rpm_max", rpm)) and float(
+        core.get("torque_min", torque)
+    ) <= torque <= float(core.get("torque_max", torque))
 
 
-def load_core_operating_points(profile_path: str | Path = DEFAULT_PROFILE_PATH) -> list[dict[str, float]]:
+def load_core_operating_points(
+    profile_path: str | Path = DEFAULT_PROFILE_PATH,
+) -> list[dict[str, float]]:
     """Return core-corridor operating points from the overnight campaign profile."""
     profile = _load_json(profile_path)
     openfoam_cfg = dict(profile.get("openfoam", {}) or {})
@@ -125,7 +124,9 @@ def _resolved_payload(run_manifest) -> dict[str, Any]:
 
 
 def _metric_map(run_manifest) -> dict[str, float]:
-    return {result.metric_id: float(result.simulated_value) for result in run_manifest.metric_results}
+    return {
+        result.metric_id: float(result.simulated_value) for result in run_manifest.metric_results
+    }
 
 
 def _estimate_trapped_o2_mass(bundle: dict[str, Any]) -> float:
@@ -145,8 +146,7 @@ def _build_truth_record(
         regime: run.status.value for regime, run in suite_manifest.regime_results.items()
     }
     resolved = {
-        regime: _resolved_payload(run)
-        for regime, run in suite_manifest.regime_results.items()
+        regime: _resolved_payload(run) for regime, run in suite_manifest.regime_results.items()
     }
     chemistry_run = suite_manifest.regime_results.get("chemistry")
     spray_run = suite_manifest.regime_results.get("spray")
@@ -256,22 +256,28 @@ def run_combustion_truth_workflow(
     suite_index: list[dict[str, Any]] = []
 
     for index, point in enumerate(operating_points):
-        candidate_id = f"core_rpm{int(round(point['rpm']))}_tq{int(round(point['torque']))}_{index:02d}"
+        candidate_id = (
+            f"core_rpm{int(round(point['rpm']))}_tq{int(round(point['torque']))}_{index:02d}"
+        )
         point_root = out_root / candidate_id
         validation_root = point_root / "validation"
         validation_root.mkdir(parents=True, exist_ok=True)
 
         regime_configs: dict[str, dict[str, Any]] = {}
         for regime_name in suite_profile.normalized_regime_order():
-            regime_cfg = _deepcopy_payload(dict(suite_cfg.get("regimes", {}).get(regime_name, {}) or {}))
+            regime_cfg = _deepcopy_payload(
+                dict(suite_cfg.get("regimes", {}).get(regime_name, {}) or {})
+            )
             if not regime_cfg:
                 continue
             case_cfg = regime_cfg.setdefault("case_spec", {})
             operating_point = dict(case_cfg.get("operating_point", {}) or {})
-            operating_point.update({
-                "rpm": float(point["rpm"]),
-                "torque": float(point["torque"]),
-            })
+            operating_point.update(
+                {
+                    "rpm": float(point["rpm"]),
+                    "torque": float(point["torque"]),
+                }
+            )
             case_cfg["operating_point"] = operating_point
             case_cfg["case_id"] = f"{case_cfg.get('case_id', regime_name)}_{candidate_id}"
 
@@ -304,13 +310,15 @@ def run_combustion_truth_workflow(
         )
         with truth_records_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(truth_record, ensure_ascii=True) + "\n")
-        suite_index.append({
-            "candidate_id": candidate_id,
-            "rpm": float(point["rpm"]),
-            "torque": float(point["torque"]),
-            "suite_passed": bool(suite_manifest.overall_passed),
-            "suite_manifest": str(validation_root / "suite_manifest.json"),
-        })
+        suite_index.append(
+            {
+                "candidate_id": candidate_id,
+                "rpm": float(point["rpm"]),
+                "torque": float(point["torque"]),
+                "suite_passed": bool(suite_manifest.overall_passed),
+                "suite_manifest": str(validation_root / "suite_manifest.json"),
+            }
+        )
 
     summary = {
         "suite_id": suite_profile.suite_id,

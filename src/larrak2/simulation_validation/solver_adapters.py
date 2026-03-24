@@ -6,7 +6,7 @@ import importlib
 import importlib.util
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -137,14 +137,12 @@ def _write_chemistry_offline_cache(
         "cantera_mechanism_file": cantera_mechanism_file,
         "fuel_name": str(adapter_cfg.get("fuel_name", dataset.fuel_family)),
     }
-    metric_mechanism_provenance = dict(
-        simulation_data.get("metric_mechanism_provenance", {}) or {}
-    )
+    metric_mechanism_provenance = dict(simulation_data.get("metric_mechanism_provenance", {}) or {})
     if metric_mechanism_provenance:
         payload["metric_mechanism_provenance"] = metric_mechanism_provenance
     payload["chemistry_cache_metadata"] = {
         "cache_version": 1,
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "dataset_id": dataset.dataset_id,
         "case_id": case_spec.case_id,
         "fuel_family": dataset.fuel_family,
@@ -172,9 +170,15 @@ def _prepare_cantera_mechanism(
     """Return a Cantera-loadable mechanism path, converting CHEMKIN if needed."""
     mechanism_path = Path(mechanism_file)
     mechanism_format = str(adapter_cfg.get("mechanism_format", "")).strip().lower()
-    if mechanism_path.suffix.lower() in {".yaml", ".yml", ".cti", ".xml"} and mechanism_format != "chemkin":
+    if (
+        mechanism_path.suffix.lower() in {".yaml", ".yml", ".cti", ".xml"}
+        and mechanism_format != "chemkin"
+    ):
         return mechanism_file
-    if mechanism_format not in {"", "chemkin"} and mechanism_path.suffix.lower() not in {".inp", ".txt"}:
+    if mechanism_format not in {"", "chemkin"} and mechanism_path.suffix.lower() not in {
+        ".inp",
+        ".txt",
+    }:
         return mechanism_file
 
     thermo_file = str(adapter_cfg.get("thermo_file", "")).strip()
@@ -334,9 +338,7 @@ def _compute_cantera_flame_speed(
     loglevel = int(metric_cfg.get("loglevel", 0))
     refine_grid = bool(metric_cfg.get("refine_grid", True))
     restore_path = str(
-        metric_cfg.get("restore_solution_path")
-        or metric_cfg.get("solution_profile_path")
-        or ""
+        metric_cfg.get("restore_solution_path") or metric_cfg.get("solution_profile_path") or ""
     ).strip()
     solution_name = str(metric_cfg.get("solution_name", "solution")).strip() or "solution"
     if restore_path and Path(restore_path).exists():
@@ -348,9 +350,7 @@ def _compute_cantera_flame_speed(
     else:
         flame.solve(loglevel=loglevel, auto=auto, refine_grid=refine_grid)
     save_path = str(
-        metric_cfg.get("save_solution_path")
-        or metric_cfg.get("solution_profile_path")
-        or ""
+        metric_cfg.get("save_solution_path") or metric_cfg.get("solution_profile_path") or ""
     ).strip()
     if save_path:
         save_file = Path(save_path)
@@ -380,9 +380,7 @@ def _resolve_chemistry_inputs(
     offline_results_only = bool(adapter_cfg.get("offline_results_only", False))
     refresh_offline_results = bool(adapter_cfg.get("refresh_offline_results", False))
     mechanism_file = str(
-        adapter_cfg.get("mechanism_file")
-        or case_spec.solver_config.get("mechanism_file")
-        or ""
+        adapter_cfg.get("mechanism_file") or case_spec.solver_config.get("mechanism_file") or ""
     ).strip()
 
     def _fixture_fallback(message: str) -> ResolvedSimulationInputs:
@@ -421,9 +419,7 @@ def _resolve_chemistry_inputs(
             )
         n_after = sum(1 for metric_id in metric_ids if metric_id in merged)
         if n_after > n_before:
-            messages.append(
-                f"Loaded partial chemistry offline cache from '{offline_results_path}'"
-            )
+            messages.append(f"Loaded partial chemistry offline cache from '{offline_results_path}'")
 
     if offline_results_path and offline_results_only:
         if fixture_path:
@@ -432,8 +428,7 @@ def _resolve_chemistry_inputs(
                 "fixture results"
             )
         raise RuntimeError(
-            "Offline chemistry results were required but not available at "
-            f"'{offline_results_path}'"
+            f"Offline chemistry results were required but not available at '{offline_results_path}'"
         )
 
     if backend == "fixture":
@@ -441,11 +436,14 @@ def _resolve_chemistry_inputs(
             raise ValueError("Chemistry fixture adapter requires fixture_results_path")
         payload = _read_json_mapping(fixture_path)
         _merge_metric_payload(merged, payload, metric_ids=metric_ids)
-        merged.setdefault("mechanism_provenance", {
-            "backend": "fixture",
-            "fixture_results_path": fixture_path,
-            "fuel_name": str(adapter_cfg.get("fuel_name", dataset.fuel_family)),
-        })
+        merged.setdefault(
+            "mechanism_provenance",
+            {
+                "backend": "fixture",
+                "fixture_results_path": fixture_path,
+                "fuel_name": str(adapter_cfg.get("fuel_name", dataset.fuel_family)),
+            },
+        )
         return ResolvedSimulationInputs(
             simulation_data=merged,
             solver_artifacts={"chemistry_fixture_results": str(Path(fixture_path))},
@@ -472,6 +470,7 @@ def _resolve_chemistry_inputs(
     metric_mechanism_provenance = dict(merged.get("metric_mechanism_provenance", {}) or {})
 
     try:
+
         def _checkpoint_cache() -> None:
             if offline_results_path:
                 _write_chemistry_offline_cache(
@@ -525,9 +524,7 @@ def _resolve_chemistry_inputs(
                         "generated_yaml_path": str(
                             metric_adapter_cfg.get("generated_yaml_path", "")
                         ),
-                        "sanitizer_profile": str(
-                            metric_adapter_cfg.get("sanitizer_profile", "")
-                        ),
+                        "sanitizer_profile": str(metric_adapter_cfg.get("sanitizer_profile", "")),
                         "fuel_name": str(metric_adapter_cfg.get("fuel_name", fuel)),
                         "oxidizer": dict(metric_adapter_cfg.get("oxidizer", oxidizer) or {}),
                     },
@@ -584,9 +581,7 @@ def _resolve_chemistry_inputs(
                         "generated_yaml_path": str(
                             metric_adapter_cfg.get("generated_yaml_path", "")
                         ),
-                        "sanitizer_profile": str(
-                            metric_adapter_cfg.get("sanitizer_profile", "")
-                        ),
+                        "sanitizer_profile": str(metric_adapter_cfg.get("sanitizer_profile", "")),
                         "fuel_name": str(metric_adapter_cfg.get("fuel_name", fuel)),
                         "oxidizer": dict(metric_adapter_cfg.get("oxidizer", oxidizer) or {}),
                     },
@@ -655,16 +650,17 @@ def _resolve_chemistry_inputs(
             adapter_cfg=adapter_cfg,
         )
         cache_artifacts["chemistry_offline_results"] = written_path
-        cache_messages.append(
-            f"Wrote chemistry offline cache to '{written_path}'"
-        )
+        cache_messages.append(f"Wrote chemistry offline cache to '{written_path}'")
 
-    merged.setdefault("mechanism_provenance", {
-        "backend": "native_cantera",
-        "mechanism_file": mechanism_file,
-        "cantera_mechanism_file": cantera_mechanism_file,
-        "fuel_name": fuel,
-    })
+    merged.setdefault(
+        "mechanism_provenance",
+        {
+            "backend": "native_cantera",
+            "mechanism_file": mechanism_file,
+            "cantera_mechanism_file": cantera_mechanism_file,
+            "fuel_name": fuel,
+        },
+    )
     return ResolvedSimulationInputs(
         simulation_data=merged,
         solver_artifacts={
@@ -699,10 +695,13 @@ def _resolve_openfoam_case(
             raise ValueError(f"{regime_name} fixture adapter requires fixture_results_path")
         payload = _read_json_mapping(fixture_path)
         _merge_metric_payload(merged, payload, metric_ids=metric_ids)
-        merged.setdefault(provenance_key, {
-            "backend": "fixture",
-            "fixture_results_path": fixture_path,
-        })
+        merged.setdefault(
+            provenance_key,
+            {
+                "backend": "fixture",
+                "fixture_results_path": fixture_path,
+            },
+        )
         return ResolvedSimulationInputs(
             simulation_data=merged,
             solver_artifacts={f"{regime_name}_fixture_results": str(Path(fixture_path))},
@@ -721,11 +720,13 @@ def _resolve_openfoam_case(
     )
     params = dict(adapter_cfg.get("params", {}) or {})
     if not params:
-        params.update({
-            k: v
-            for k, v in dict(case_spec.operating_point or {}).items()
-            if isinstance(v, (int, float))
-        })
+        params.update(
+            {
+                k: v
+                for k, v in dict(case_spec.operating_point or {}).items()
+                if isinstance(v, (int, float))
+            }
+        )
     runner = OpenFoamRunner(
         template_dir=template_dir,
         solver_cmd=str(adapter_cfg.get("solver_cmd", "pisoFoam")),
@@ -741,19 +742,20 @@ def _resolve_openfoam_case(
             timeout_s=int(adapter_cfg.get("timeout_s", 1800)),
         )
         if not success:
-            raise RuntimeError(
-                f"{regime_name} OpenFOAM case failed for template '{template_dir}'"
-            )
+            raise RuntimeError(f"{regime_name} OpenFOAM case failed for template '{template_dir}'")
 
     payload = runner.parse_results(run_dir)
     _merge_metric_payload(merged, payload, metric_ids=metric_ids)
-    merged.setdefault(provenance_key, {
-        "backend": backend,
-        "template_dir": str(Path(template_dir)),
-        "run_dir": str(run_dir),
-        "solver_cmd": str(adapter_cfg.get("solver_cmd", "pisoFoam")),
-        "force_run": should_run_solver,
-    })
+    merged.setdefault(
+        provenance_key,
+        {
+            "backend": backend,
+            "template_dir": str(Path(template_dir)),
+            "run_dir": str(run_dir),
+            "solver_cmd": str(adapter_cfg.get("solver_cmd", "pisoFoam")),
+            "force_run": should_run_solver,
+        },
+    )
     return ResolvedSimulationInputs(
         simulation_data=merged,
         solver_artifacts={
@@ -787,10 +789,13 @@ def _resolve_fixture_case(
         payload,
         metric_ids=[spec.metric_id for spec in dataset.metrics],
     )
-    merged.setdefault(provenance_key, {
-        "backend": "fixture",
-        "fixture_results_path": fixture_path,
-    })
+    merged.setdefault(
+        provenance_key,
+        {
+            "backend": "fixture",
+            "fixture_results_path": fixture_path,
+        },
+    )
     return ResolvedSimulationInputs(
         simulation_data=merged,
         solver_artifacts={f"{regime_name}_fixture_results": str(Path(fixture_path))},
@@ -827,8 +832,7 @@ def _resolve_full_handoff_inputs(
         validation_errors.extend(bundle.validate())
     if validation_errors:
         raise ValueError(
-            "Reduced-state handoff bundle validation failed: "
-            + "; ".join(validation_errors)
+            "Reduced-state handoff bundle validation failed: " + "; ".join(validation_errors)
         )
 
     tolerances = dict(adapter_cfg.get("conservation_tolerances", {}) or {})
@@ -839,21 +843,22 @@ def _resolve_full_handoff_inputs(
     )
     merged.update(conservation)
     merged["handoff_bundle"] = state_chain[0].to_dict() if state_chain else {}
-    merged.setdefault("full_handoff_provenance", {
-        "backend": "derived_contract",
-        "bundle_id": state_chain[0].bundle_id if state_chain else "",
-        "mechanism_id": state_chain[0].mechanism_id if state_chain else "",
-        "fuel_name": state_chain[0].fuel_name if state_chain else "",
-    })
+    merged.setdefault(
+        "full_handoff_provenance",
+        {
+            "backend": "derived_contract",
+            "bundle_id": state_chain[0].bundle_id if state_chain else "",
+            "mechanism_id": state_chain[0].mechanism_id if state_chain else "",
+            "fuel_name": state_chain[0].fuel_name if state_chain else "",
+        },
+    )
     return ResolvedSimulationInputs(
         simulation_data=merged,
         solver_artifacts={
             "handoff_bundle_id": state_chain[0].bundle_id if state_chain else "",
             "handoff_stage_count": str(len(state_chain)),
         },
-        messages=[
-            "Built reduced-state handoff contract from upstream regime outputs"
-        ],
+        messages=["Built reduced-state handoff contract from upstream regime outputs"],
     )
 
 

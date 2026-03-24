@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import (
-    RegimeStatus,
     SourceType,
     ValidationCaseSpec,
     ValidationDatasetManifest,
@@ -19,14 +18,15 @@ from ..models import (
 )
 from .base import BaseRegimeRunner, evaluate_metric
 
-
-FULL_HANDOFF_METRIC_CATEGORIES = frozenset({
-    "state_conservation",
-    "transition_residual",
-    "restart_consistency",
-    "timestep_coupling",
-    "end_to_end_comparison",
-})
+FULL_HANDOFF_METRIC_CATEGORIES = frozenset(
+    {
+        "state_conservation",
+        "transition_residual",
+        "restart_consistency",
+        "timestep_coupling",
+        "end_to_end_comparison",
+    }
+)
 
 
 class FullHandoffRunner(BaseRegimeRunner):
@@ -65,17 +65,19 @@ class FullHandoffRunner(BaseRegimeRunner):
             if sim_key not in simulation_data:
                 if spec.required:
                     messages.append(f"Missing simulation result for required metric '{sim_key}'")
-                    results.append(ValidationMetricResult(
-                        metric_id=spec.metric_id,
-                        measured_value=0.0,
-                        simulated_value=0.0,
-                        error=float("inf"),
-                        tolerance_used=spec.tolerance_band,
-                        passed=False,
-                        source_type=spec.source_type,
-                        units=spec.units,
-                        details={"reason": "missing_simulation_data"},
-                    ))
+                    results.append(
+                        ValidationMetricResult(
+                            metric_id=spec.metric_id,
+                            measured_value=0.0,
+                            simulated_value=0.0,
+                            error=float("inf"),
+                            tolerance_used=spec.tolerance_band,
+                            passed=False,
+                            source_type=spec.source_type,
+                            units=spec.units,
+                            details={"reason": "missing_simulation_data"},
+                        )
+                    )
                 else:
                     messages.append(f"Skipping optional metric '{sim_key}' (no data)")
                 continue
@@ -93,20 +95,24 @@ class FullHandoffRunner(BaseRegimeRunner):
             conservation_error = float(state.get("conservation_error", 0.0))
             tolerance = float(state.get("conservation_tolerance", 1e-6))
             passed = conservation_error <= tolerance
-            results.append(ValidationMetricResult(
-                metric_id=f"handoff_conservation_{i}",
-                measured_value=0.0,
-                simulated_value=conservation_error,
-                error=conservation_error,
-                tolerance_used=tolerance,
-                passed=passed,
-                source_type=dataset.metrics[0].source_type if dataset.metrics else SourceType.DERIVED_CONSTRAINT,
-                units="",
-                details={
-                    "transition_from": state.get("from_phase", ""),
-                    "transition_to": state.get("to_phase", ""),
-                },
-            ))
+            results.append(
+                ValidationMetricResult(
+                    metric_id=f"handoff_conservation_{i}",
+                    measured_value=0.0,
+                    simulated_value=conservation_error,
+                    error=conservation_error,
+                    tolerance_used=tolerance,
+                    passed=passed,
+                    source_type=dataset.metrics[0].source_type
+                    if dataset.metrics
+                    else SourceType.DERIVED_CONSTRAINT,
+                    units="",
+                    details={
+                        "transition_from": state.get("from_phase", ""),
+                        "transition_to": state.get("to_phase", ""),
+                    },
+                )
+            )
 
         solver_artifacts: dict[str, str] = {}
         provenance = simulation_data.get("full_handoff_provenance", {})

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from larrak2.simulation_validation.models import (
     ComparisonMode,
     SourceType,
@@ -94,7 +92,7 @@ class TestToleranceFromDatasetRecords:
         r_tight = evaluate_metric(spec_tight, measured=50.0, simulated=52.0)
         r_loose = evaluate_metric(spec_loose, measured=50.0, simulated=52.0)
         assert r_tight.passed is False  # 2.0 > 0.5
-        assert r_loose.passed is True   # 2.0 <= 5.0
+        assert r_loose.passed is True  # 2.0 <= 5.0
 
     def test_near_zero_measured_relative(self):
         """Relative comparison near zero uses safe denominator."""

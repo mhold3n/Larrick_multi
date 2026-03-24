@@ -10,7 +10,7 @@ import time
 import traceback
 import warnings
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -205,9 +205,7 @@ def classify_diagnostic_results(
     tractable_limit_s: float = 600.0,
 ) -> tuple[str, str]:
     """Classify tractability based on diagnostic outcomes."""
-    attempted_flame_cases = [
-        result for result in results if result.mode == "free_flame"
-    ]
+    attempted_flame_cases = [result for result in results if result.mode == "free_flame"]
     successful_flame_cases = [
         result
         for result in results
@@ -279,7 +277,10 @@ def _prepare_mechanism(
     normalized_format = mechanism_format.strip().lower()
     if mechanism_path.suffix.lower() in {".yaml", ".yml"} and normalized_format != "chemkin":
         return str(mechanism_path)
-    if normalized_format not in {"", "chemkin"} and mechanism_path.suffix.lower() not in {".inp", ".txt"}:
+    if normalized_format not in {"", "chemkin"} and mechanism_path.suffix.lower() not in {
+        ".inp",
+        ".txt",
+    }:
         return str(mechanism_path)
     if not thermo_file:
         raise ValueError("CHEMKIN flame diagnostics require thermo_file")
@@ -455,7 +456,7 @@ def write_diagnostic_artifacts(
     """Persist JSON and Markdown summaries."""
     outdir.mkdir(parents=True, exist_ok=True)
     summary = {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "metadata": metadata,
         "diagnosis_classification": diagnosis_classification,
         "diagnosis_summary": diagnosis_summary,

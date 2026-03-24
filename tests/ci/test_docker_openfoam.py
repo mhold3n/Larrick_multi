@@ -23,9 +23,7 @@ def test_default_config_targets_latest_supported_microfluidica_image() -> None:
 
 
 def test_openfoam11_image_still_resolves_legacy_bashrc_path() -> None:
-    runner = DockerOpenFoam(
-        DockerOpenFoamConfig(image="openfoam/openfoam11-paraview510")
-    )
+    runner = DockerOpenFoam(DockerOpenFoamConfig(image="openfoam/openfoam11-paraview510"))
     assert "/opt/openfoam11/etc/bashrc" in runner._bashrc_candidates()
 
 
@@ -60,7 +58,8 @@ def test_run_solver_prepends_custom_solver_path(monkeypatch, tmp_path: Path) -> 
     assert code == 0
     assert "/custom-bin-0" in str(observed["script"])
     assert any(
-        mount[1] == "/custom-bin-0" for mount in observed["mounts"]  # type: ignore[index]
+        mount[1] == "/custom-bin-0"
+        for mount in observed["mounts"]  # type: ignore[index]
     )
 
 

@@ -143,7 +143,9 @@ def test_default_engine_execute_stages_package_and_handoff(tmp_path: Path, monke
     assert "{{" not in (run_dir / "0" / "O2").read_text(encoding="utf-8")
     assert "{{" not in (run_dir / "constant" / "engineGeometry").read_text(encoding="utf-8")
     assert "{{" not in (run_dir / "constant" / "dynamicMeshDict").read_text(encoding="utf-8")
-    assert "{{" not in (run_dir / "constant" / "thermophysicalProperties").read_text(encoding="utf-8")
+    assert "{{" not in (run_dir / "constant" / "thermophysicalProperties").read_text(
+        encoding="utf-8"
+    )
     assert "{{" not in (run_dir / "system" / "createBafflesDict").read_text(encoding="utf-8")
     assert "{{" not in (run_dir / "system" / "blockMeshDict").read_text(encoding="utf-8")
     assert "{{" not in (run_dir / "system" / "snappyHexMeshDict").read_text(encoding="utf-8")
@@ -199,7 +201,9 @@ def test_default_engine_execute_can_disable_chemistry_for_breathing_proof(
     )
     monkeypatch.setattr(pipeline, "_ensure_custom_solver", lambda log_file=None: {})
     monkeypatch.setattr(pipeline, "run_meshing", lambda run_dir: (True, ""))
-    monkeypatch.setattr(pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, ""))
+    monkeypatch.setattr(
+        pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, "")
+    )
     monkeypatch.setattr(
         pipeline,
         "_ensure_case_metrics",
@@ -266,8 +270,12 @@ def test_default_engine_execute_respects_package_dir_override_in_params(
     checkpoint_package = tmp_path / "chem679_reduced"
     checkpoint_package.mkdir(parents=True)
     (checkpoint_package / "reactions").write_text("checkpoint\n", encoding="utf-8")
-    (checkpoint_package / "thermo.compressibleGas").write_text("thermo-checkpoint\n", encoding="utf-8")
-    (checkpoint_package / "transportProperties").write_text("transport-checkpoint\n", encoding="utf-8")
+    (checkpoint_package / "thermo.compressibleGas").write_text(
+        "thermo-checkpoint\n", encoding="utf-8"
+    )
+    (checkpoint_package / "transportProperties").write_text(
+        "transport-checkpoint\n", encoding="utf-8"
+    )
     (checkpoint_package / "package_manifest.json").write_text(
         json.dumps({"package_id": "chem679_reduced_v2512", "package_hash": "checkpoint-hash"}),
         encoding="utf-8",
@@ -282,7 +290,9 @@ def test_default_engine_execute_respects_package_dir_override_in_params(
     )
     monkeypatch.setattr(pipeline, "_ensure_custom_solver", lambda log_file=None: {})
     monkeypatch.setattr(pipeline, "run_meshing", lambda run_dir: (True, ""))
-    monkeypatch.setattr(pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, ""))
+    monkeypatch.setattr(
+        pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, "")
+    )
     monkeypatch.setattr(
         pipeline,
         "_ensure_case_metrics",
@@ -412,7 +422,9 @@ def test_default_engine_execute_stages_runtime_chemistry_table_when_present(
     )
     monkeypatch.setattr(pipeline, "_ensure_custom_solver", lambda log_file=None: {})
     monkeypatch.setattr(pipeline, "run_meshing", lambda run_dir: (True, ""))
-    monkeypatch.setattr(pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, ""))
+    monkeypatch.setattr(
+        pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, "")
+    )
     monkeypatch.setattr(
         pipeline,
         "_ensure_case_metrics",
@@ -609,7 +621,9 @@ def test_staged_engine_profile_accepts_near_target_stage_completion(
     assert chemistry_spinup["stage_result"] == ""
     assert chemistry_spinup["completion_mode"] == "near_target_tolerance"
     assert chemistry_spinup["completion_status"]["within_tolerance"] is True
-    assert chemistry_spinup["completion_status"]["time_gap_s"] == pytest.approx(4.177497577842384e-09)
+    assert chemistry_spinup["completion_status"]["time_gap_s"] == pytest.approx(
+        4.177497577842384e-09
+    )
 
 
 def test_default_engine_execute_proof_mode_derives_full_cycle_runtime(
@@ -635,7 +649,9 @@ def test_default_engine_execute_proof_mode_derives_full_cycle_runtime(
     )
     monkeypatch.setattr(pipeline, "_ensure_custom_solver", lambda log_file=None: {})
     monkeypatch.setattr(pipeline, "run_meshing", lambda run_dir: (True, ""))
-    monkeypatch.setattr(pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, ""))
+    monkeypatch.setattr(
+        pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, "")
+    )
     monkeypatch.setattr(
         pipeline,
         "_ensure_case_metrics",
@@ -703,7 +719,9 @@ def test_default_engine_execute_reacting_calibration_profile_enables_chemistry(
     )
     monkeypatch.setattr(pipeline, "_ensure_custom_solver", lambda log_file=None: {})
     monkeypatch.setattr(pipeline, "run_meshing", lambda run_dir: (True, ""))
-    monkeypatch.setattr(pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, ""))
+    monkeypatch.setattr(
+        pipeline, "run_solver_with_custom_dirs", lambda run_dir, *, custom_solver_dirs: (True, "")
+    )
     monkeypatch.setattr(
         pipeline,
         "_ensure_case_metrics",
@@ -779,9 +797,7 @@ def test_default_engine_execute_staged_reacting_profile_runs_multiple_segments(
                 "combustion": (run_dir / "constant" / "combustionProperties").read_text(
                     encoding="utf-8"
                 ),
-                "engine": (run_dir / "constant" / "engineGeometry").read_text(
-                    encoding="utf-8"
-                ),
+                "engine": (run_dir / "constant" / "engineGeometry").read_text(encoding="utf-8"),
             }
         )
         return True, ""

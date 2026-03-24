@@ -23,8 +23,8 @@ REQUIRED_BRANCHES = [
 ]
 
 REQUIRED_CONCEPTS = [
-    "codex/",        # task-branch naming convention
-    "main",          # integration branch
+    "codex/",  # task-branch naming convention
+    "main",  # integration branch
     "contents: write" not in "",  # placeholder — checked below via separate assertion
 ]
 
@@ -46,7 +46,9 @@ def test_agent_doc_contains_all_workflow_branches(label: str, path: Path) -> Non
 @pytest.mark.parametrize("label,path", list(AGENT_FILES.items()))
 def test_agent_doc_contains_codex_branch_convention(label: str, path: Path) -> None:
     content = path.read_text(encoding="utf-8")
-    assert "codex/" in content, f"{label} must document the codex/<workflow>/<topic> naming convention"
+    assert "codex/" in content, (
+        f"{label} must document the codex/<workflow>/<topic> naming convention"
+    )
 
 
 @pytest.mark.parametrize("label,path", list(AGENT_FILES.items()))
@@ -57,6 +59,4 @@ def test_agent_doc_does_not_permit_contents_write(label: str, path: Path) -> Non
     # is expected and desirable.
     assert "contents: write" not in content.replace("Do **not** add `contents: write`", "").replace(
         "Do not add `contents: write`", ""
-    ), (
-        f"{label} must not instruct agents to add contents:write permissions"
-    )
+    ), f"{label} must not instruct agents to add contents:write permissions"

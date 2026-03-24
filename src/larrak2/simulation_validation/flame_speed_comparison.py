@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -75,7 +75,9 @@ def load_flame_speed_comparison_config(path: str | Path) -> FlameSpeedComparison
         comparison_id=str(payload.get("comparison_id", "flame_speed_comparison_v1")),
         description=str(payload.get("description", "")),
         case_set=str(payload.get("case_set", "quick")),
-        reference_candidate_id=str(payload.get("reference_candidate_id", candidates[0].candidate_id)),
+        reference_candidate_id=str(
+            payload.get("reference_candidate_id", candidates[0].candidate_id)
+        ),
         temperature_K=float(shared.get("temperature_K", 353.0)),
         pressure_bar=float(shared.get("pressure_bar", 3.33)),
         equivalence_ratio=float(shared.get("equivalence_ratio", 1.0)),
@@ -125,7 +127,9 @@ def _candidate_summary(
     best_flame = _best_flame_result(diagnostic_summary)
     flame_speed = None if best_flame is None else float(best_flame["flame_speed_m_s"])
     flame_total_s = None if best_flame is None else float(best_flame["total_time_s"])
-    n_species = max((int(item.get("n_species", 0)) for item in diagnostic_summary.get("results", [])), default=0)
+    n_species = max(
+        (int(item.get("n_species", 0)) for item in diagnostic_summary.get("results", [])), default=0
+    )
     n_reactions = max(
         (int(item.get("n_reactions", 0)) for item in diagnostic_summary.get("results", [])),
         default=0,
@@ -208,8 +212,12 @@ def write_flame_speed_comparison_artifacts(
         "|-----------|----------------|--------------|------------------|-------------------|-----------------|",
     ]
     for item in summary.get("candidates", []):
-        load_value = "" if item.get("fastest_load_time_s") is None else f"{item['fastest_load_time_s']:.3f}"
-        flame_value = "" if item.get("flame_speed_m_s") is None else f"{item['flame_speed_m_s']:.6g}"
+        load_value = (
+            "" if item.get("fastest_load_time_s") is None else f"{item['fastest_load_time_s']:.3f}"
+        )
+        flame_value = (
+            "" if item.get("flame_speed_m_s") is None else f"{item['flame_speed_m_s']:.6g}"
+        )
         lines.append(
             f"| {item['candidate_id']} | {item['diagnosis_classification']} | "
             f"{item['fuel_matched']} | {load_value} | {flame_value} | "
@@ -234,7 +242,9 @@ def compare_flame_speed_mechanisms(
     artifact_paths_by_candidate: dict[str, tuple[str, str]] = {}
     source_by_candidate: dict[str, str] = {}
     for candidate in config.candidates:
-        artifact_path = Path(candidate.diagnostic_artifact_path) if candidate.diagnostic_artifact_path else None
+        artifact_path = (
+            Path(candidate.diagnostic_artifact_path) if candidate.diagnostic_artifact_path else None
+        )
         if artifact_path is not None and artifact_path.exists() and not refresh:
             diagnostic_summary = _load_diagnostic_summary(artifact_path)
             markdown_path = artifact_path.with_suffix(".md")
@@ -308,7 +318,7 @@ def compare_flame_speed_mechanisms(
     summary = {
         "comparison_id": config.comparison_id,
         "description": config.description,
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "reference_candidate_id": config.reference_candidate_id,
         "case_set": config.case_set,
         "shared_conditions": {

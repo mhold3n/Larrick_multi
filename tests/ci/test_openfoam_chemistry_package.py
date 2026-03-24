@@ -201,8 +201,10 @@ def test_build_openfoam_chemistry_package_from_spec_writes_manifest_and_files(
     assert "irreversiblethirdBodyArrheniusReaction" in reactions_text
     assert "reversibleArrheniusTroeFallOffReaction" in reactions_text
     assert '"C3H51-2,3OOH"' in reactions_text
-    assert 'foamChemistryThermoFile' not in thermo_text
+    assert "foamChemistryThermoFile" not in thermo_text
     assert '"C3H51-2,3OOH"' in thermo_text
 
-    manifest_on_disk = json.loads((output_dir / "package_manifest.json").read_text(encoding="utf-8"))
+    manifest_on_disk = json.loads(
+        (output_dir / "package_manifest.json").read_text(encoding="utf-8")
+    )
     assert manifest_on_disk["package_hash"] == manifest["package_hash"]

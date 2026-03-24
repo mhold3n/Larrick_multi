@@ -122,7 +122,11 @@ def test_build_engine_results_computes_closed_cylinder_metrics(tmp_path: Path) -
     assert results["metrics"]["peak_pressure_crank_angle_deg"] == pytest.approx(0.0)
     assert results["metrics"]["imep_Pa"] is not None
     assert results["metrics"]["ca10_deg"] is not None
-    assert results["metrics"]["ca10_deg"] < results["metrics"]["ca50_deg"] < results["metrics"]["ca90_deg"]
+    assert (
+        results["metrics"]["ca10_deg"]
+        < results["metrics"]["ca50_deg"]
+        < results["metrics"]["ca90_deg"]
+    )
     assert results["metrics"]["trapped_mass"] == pytest.approx(1.1e-3)
     assert results["metrics"]["residual_fraction"] == pytest.approx(0.12)
     assert results["metrics"]["trapped_o2_mass"] == pytest.approx(2.4e-4)

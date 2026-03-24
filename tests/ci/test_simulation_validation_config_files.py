@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 CONFIG_DIR = Path("data/simulation_validation")
 REGIME_CONFIGS = (
     "chemistry_config.json",
@@ -17,6 +16,7 @@ REGIME_CONFIGS = (
     "closed_cylinder_config.json",
     "full_handoff_config.json",
 )
+
 
 def _load_config(filename: str) -> dict:
     return json.loads((CONFIG_DIR / filename).read_text(encoding="utf-8"))

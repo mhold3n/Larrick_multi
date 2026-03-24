@@ -167,16 +167,18 @@ def _thermo_lines(gas: Any) -> list[str]:
         composition = dict(species.composition or {})
         a_s, ts = transport_coeffs[species_name]
         mol_weight = float(gas.molecular_weights[gas.species_index(species_name)])
-        lines.extend([
-            f"{_format_word(species_name)}",
-            "{",
-            "    specie",
-            "    {",
-            f"        molWeight       {_format_number(mol_weight)};",
-            "    }",
-            "    elements",
-            "    {",
-        ])
+        lines.extend(
+            [
+                f"{_format_word(species_name)}",
+                "{",
+                "    specie",
+                "    {",
+                f"        molWeight       {_format_number(mol_weight)};",
+                "    }",
+                "    elements",
+                "    {",
+            ]
+        )
         for element_name, count in composition.items():
             numeric_count = float(count)
             if abs(numeric_count - round(numeric_count)) < 1.0e-12:
@@ -184,24 +186,26 @@ def _thermo_lines(gas: Any) -> list[str]:
             else:
                 formatted_count = _format_number(numeric_count)
             lines.append(f"        {_format_word(str(element_name))}       {formatted_count};")
-        lines.extend([
-            "    }",
-            "    thermodynamics",
-            "    {",
-            f"        Tlow            {_format_number(float(temperature_ranges[0]))};",
-            f"        Thigh           {_format_number(float(temperature_ranges[2]))};",
-            f"        Tcommon         {_format_number(float(temperature_ranges[1]))};",
-            f"        highCpCoeffs    {_format_coeff_list(high_coeffs)};",
-            f"        lowCpCoeffs     {_format_coeff_list(low_coeffs)};",
-            "    }",
-            "    transport",
-            "    {",
-            f"        As              {_format_number(a_s)};",
-            f"        Ts              {_format_number(ts)};",
-            "    }",
-            "}",
-            "",
-        ])
+        lines.extend(
+            [
+                "    }",
+                "    thermodynamics",
+                "    {",
+                f"        Tlow            {_format_number(float(temperature_ranges[0]))};",
+                f"        Thigh           {_format_number(float(temperature_ranges[2]))};",
+                f"        Tcommon         {_format_number(float(temperature_ranges[1]))};",
+                f"        highCpCoeffs    {_format_coeff_list(high_coeffs)};",
+                f"        lowCpCoeffs     {_format_coeff_list(low_coeffs)};",
+                "    }",
+                "    transport",
+                "    {",
+                f"        As              {_format_number(a_s)};",
+                f"        Ts              {_format_number(ts)};",
+                "    }",
+                "}",
+                "",
+            ]
+        )
     return lines
 
 
@@ -220,13 +224,13 @@ def _third_body_coeff_lines(
     ]
     for species_name in gas.species_names:
         efficiency = float(efficiencies.get(species_name, default_efficiency))
-        lines.append(
-            f"{indent}({_format_word(species_name)} {_format_number(efficiency)})"
-        )
-    lines.extend([
-        f"{indent})",
-        f"{indent};",
-    ])
+        lines.append(f"{indent}({_format_word(species_name)} {_format_number(efficiency)})")
+    lines.extend(
+        [
+            f"{indent})",
+            f"{indent};",
+        ]
+    )
     return lines
 
 
@@ -241,83 +245,99 @@ def _reaction_entry_lines(gas: Any, reaction_index: int, reaction: Any) -> list[
 
     if rate_type == "Arrhenius":
         reaction_type = f"{base_type}ArrheniusReaction"
-        lines.extend([
-            f"        type            {reaction_type};",
-            f'        reaction        "{_reaction_equation(reaction)}";',
-            *_arrhenius_block_lines(rate_constant=dict(input_data.get("rate-constant", {}) or {})),
-        ])
+        lines.extend(
+            [
+                f"        type            {reaction_type};",
+                f'        reaction        "{_reaction_equation(reaction)}";',
+                *_arrhenius_block_lines(
+                    rate_constant=dict(input_data.get("rate-constant", {}) or {})
+                ),
+            ]
+        )
     elif rate_type == "three-body-Arrhenius":
         reaction_type = f"{base_type}thirdBodyArrheniusReaction"
         third_body = getattr(reaction, "third_body", None)
-        lines.extend([
-            f"        type            {reaction_type};",
-            f'        reaction        "{_reaction_equation(reaction)}";',
-            *_arrhenius_block_lines(rate_constant=dict(input_data.get("rate-constant", {}) or {})),
-            *_third_body_coeff_lines(
-                gas=gas,
-                efficiencies=dict(input_data.get("efficiencies", {}) or {}),
-                default_efficiency=float(getattr(third_body, "default_efficiency", 1.0)),
-                indent="        ",
-            ),
-        ])
+        lines.extend(
+            [
+                f"        type            {reaction_type};",
+                f'        reaction        "{_reaction_equation(reaction)}";',
+                *_arrhenius_block_lines(
+                    rate_constant=dict(input_data.get("rate-constant", {}) or {})
+                ),
+                *_third_body_coeff_lines(
+                    gas=gas,
+                    efficiencies=dict(input_data.get("efficiencies", {}) or {}),
+                    default_efficiency=float(getattr(third_body, "default_efficiency", 1.0)),
+                    indent="        ",
+                ),
+            ]
+        )
     elif rate_type in {"falloff-Troe", "falloff-Lindemann"}:
         falloff_name = "Troe" if rate_type.endswith("Troe") else "Lindemann"
         reaction_type = f"{base_type}Arrhenius{falloff_name}FallOffReaction"
         third_body = getattr(reaction, "third_body", None)
-        lines.extend([
-            f"        type            {reaction_type};",
-            f'        reaction        "{_reaction_equation(reaction)}";',
-            "        k0",
-            "        {",
-            *_arrhenius_block_lines(
-                rate_constant=dict(input_data.get("low-P-rate-constant", {}) or {}),
-                indent="            ",
-            ),
-            "        }",
-            "        kInf",
-            "        {",
-            *_arrhenius_block_lines(
-                rate_constant=dict(input_data.get("high-P-rate-constant", {}) or {}),
-                indent="            ",
-            ),
-            "        }",
-            "        F",
-            "        {",
-        ])
+        lines.extend(
+            [
+                f"        type            {reaction_type};",
+                f'        reaction        "{_reaction_equation(reaction)}";',
+                "        k0",
+                "        {",
+                *_arrhenius_block_lines(
+                    rate_constant=dict(input_data.get("low-P-rate-constant", {}) or {}),
+                    indent="            ",
+                ),
+                "        }",
+                "        kInf",
+                "        {",
+                *_arrhenius_block_lines(
+                    rate_constant=dict(input_data.get("high-P-rate-constant", {}) or {}),
+                    indent="            ",
+                ),
+                "        }",
+                "        F",
+                "        {",
+            ]
+        )
         if falloff_name == "Troe":
             troe = dict(input_data.get("Troe", {}) or {})
             if troe:
-                lines.extend([
-                    f"            alpha           {_format_number(float(troe.get('A', 0.0)))};",
-                    f"            Tsss            {_format_number(float(troe.get('T3', 0.0)))};",
-                    f"            Ts              {_format_number(float(troe.get('T1', 0.0)))};",
-                ])
+                lines.extend(
+                    [
+                        f"            alpha           {_format_number(float(troe.get('A', 0.0)))};",
+                        f"            Tsss            {_format_number(float(troe.get('T3', 0.0)))};",
+                        f"            Ts              {_format_number(float(troe.get('T1', 0.0)))};",
+                    ]
+                )
                 if "T2" in troe:
                     lines.append(
                         f"            Tss             {_format_number(float(troe.get('T2', 0.0)))};"
                     )
-        lines.extend([
-            "        }",
-            "        thirdBodyEfficiencies",
-            "        {",
-            *_third_body_coeff_lines(
-                gas=gas,
-                efficiencies=dict(input_data.get("efficiencies", {}) or {}),
-                default_efficiency=float(getattr(third_body, "default_efficiency", 1.0)),
-                indent="            ",
-            ),
-            "        }",
-        ])
+        lines.extend(
+            [
+                "        }",
+                "        thirdBodyEfficiencies",
+                "        {",
+                *_third_body_coeff_lines(
+                    gas=gas,
+                    efficiencies=dict(input_data.get("efficiencies", {}) or {}),
+                    default_efficiency=float(getattr(third_body, "default_efficiency", 1.0)),
+                    indent="            ",
+                ),
+                "        }",
+            ]
+        )
     else:
         raise ValueError(
             f"Unsupported OpenFOAM chemistry package reaction type '{rate_type}' "
             f"for reaction '{reaction.equation}'"
         )
 
-    lines.extend([
-        "    }",
-        "",
-    ])
+    lines.extend(
+        [
+            "    }",
+            "",
+        ]
+    )
     return lines
 
 
@@ -336,21 +356,25 @@ def _reactions_lines(gas: Any) -> list[str]:
     ]
     for element_name in getattr(gas, "element_names", []):
         lines.append(_format_word(str(element_name)))
-    lines.extend([
-        ");",
-        "",
-        "",
-        "species",
-        "(",
-    ])
+    lines.extend(
+        [
+            ");",
+            "",
+            "",
+            "species",
+            "(",
+        ]
+    )
     for species_name in gas.species_names:
         lines.append(f"    {_format_word(species_name)}")
-    lines.extend([
-        ");",
-        "",
-        "reactions",
-        "{",
-    ])
+    lines.extend(
+        [
+            ");",
+            "",
+            "reactions",
+            "{",
+        ]
+    )
     for reaction_index in range(gas.n_reactions):
         lines.extend(_reaction_entry_lines(gas, reaction_index, gas.reaction(reaction_index)))
     lines.append("}")
@@ -371,17 +395,21 @@ def _transport_properties_lines(gas: Any) -> list[str]:
         "{",
     ]
     for species_name in gas.species_names:
-        lines.extend([
-            f"    {_format_word(species_name)}",
-            "    {",
-            f"        As          {_format_number(DEFAULT_TRANSPORT_AS)};",
-            f"        Ts          {_format_number(DEFAULT_TRANSPORT_TS)};",
-            "    }",
-        ])
-    lines.extend([
-        "}",
-        "",
-    ])
+        lines.extend(
+            [
+                f"    {_format_word(species_name)}",
+                "    {",
+                f"        As          {_format_number(DEFAULT_TRANSPORT_AS)};",
+                f"        Ts          {_format_number(DEFAULT_TRANSPORT_TS)};",
+                "    }",
+            ]
+        )
+    lines.extend(
+        [
+            "}",
+            "",
+        ]
+    )
     return lines
 
 
@@ -463,9 +491,10 @@ def build_openfoam_chemistry_package_from_spec(
     package_dir.mkdir(parents=True, exist_ok=True)
 
     package_id = str(package_cfg.get("package_id", "chem323_reduced_v2512")).strip()
-    openfoam_version = str(
-        package_cfg.get("openfoam_version", OPENFOAM_VERSION_DEFAULT)
-    ).strip() or OPENFOAM_VERSION_DEFAULT
+    openfoam_version = (
+        str(package_cfg.get("openfoam_version", OPENFOAM_VERSION_DEFAULT)).strip()
+        or OPENFOAM_VERSION_DEFAULT
+    )
     fuel_species = str(package_cfg.get("fuel_species", "IC8H18")).strip() or "IC8H18"
     generated_yaml_path = Path(
         str(package_cfg.get("generated_yaml_path", "")).strip()
@@ -485,8 +514,7 @@ def build_openfoam_chemistry_package_from_spec(
         not refresh
         and all(path.exists() for path in output_files)
         and all(
-            min(path.stat().st_mtime for path in output_files)
-            >= source_path.stat().st_mtime
+            min(path.stat().st_mtime for path in output_files) >= source_path.stat().st_mtime
             for source_path in source_files
         )
     ):
@@ -523,7 +551,9 @@ def build_openfoam_chemistry_package_from_spec(
         str(yaml_path): _sha256_file(Path(yaml_path)),
     }
     package_hash = hashlib.sha256(
-        "".join(generated_hashes[str(path)] for path in (reactions_path, thermo_path, transport_path)).encode("utf-8")
+        "".join(
+            generated_hashes[str(path)] for path in (reactions_path, thermo_path, transport_path)
+        ).encode("utf-8")
     ).hexdigest()
 
     manifest = {

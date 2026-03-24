@@ -91,13 +91,15 @@ def test_chemistry_cache_cli_forces_native_cache_build(monkeypatch, tmp_path: Pa
         lambda **kwargs: (tmp_path / "manifest.json", tmp_path / "summary.md"),
     )
 
-    code = validate_simulation_main([
-        "chemistry-cache",
-        "--config",
-        str(config_path),
-        "--outdir",
-        str(tmp_path / "artifacts"),
-    ])
+    code = validate_simulation_main(
+        [
+            "chemistry-cache",
+            "--config",
+            str(config_path),
+            "--outdir",
+            str(tmp_path / "artifacts"),
+        ]
+    )
 
     assert code == 0
     case_spec = captured["case_spec"]

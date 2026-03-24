@@ -78,7 +78,9 @@ def _closest_time_dir(
         candidates.append(time_dirs[idx - 1])
     if not candidates:
         return None
-    nearest_time, nearest_path = min(candidates, key=lambda item: abs(item[0] - float(target_time_s)))
+    nearest_time, nearest_path = min(
+        candidates, key=lambda item: abs(item[0] - float(target_time_s))
+    )
     tolerance = max(1.0e-9, max(abs(float(target_time_s)), 1.0) * 1.0e-3)
     if abs(nearest_time - float(target_time_s)) > tolerance:
         return None
@@ -203,9 +205,7 @@ def build_engine_results(
         entry["matched_time_dir"] = matched_dir.name if matched_dir is not None else None
         entry["domain_volume_m3"] = volume
         entry["delta_t_s"] = (
-            None
-            if index == 0
-            else float(row["time_s"]) - float(trace[index - 1]["time_s"])
+            None if index == 0 else float(row["time_s"]) - float(trace[index - 1]["time_s"])
         )
         enriched_trace.append(entry)
 
@@ -225,7 +225,9 @@ def build_engine_results(
     displacement_volume = _displacement_volume_m3(resolved_params)
     angle_span = None
     if len(enriched_trace) >= 2:
-        angle_span = float(enriched_trace[-1]["crank_angle_deg"]) - float(enriched_trace[0]["crank_angle_deg"])
+        angle_span = float(enriched_trace[-1]["crank_angle_deg"]) - float(
+            enriched_trace[0]["crank_angle_deg"]
+        )
 
     heat_release_trace: list[dict[str, float]] = []
     net_work = 0.0
@@ -275,9 +277,7 @@ def build_engine_results(
                 None if point is None else float(point["apparent_heat_release_step_J"])
             )
             entry["cumulative_positive_heat_release_fraction"] = (
-                None
-                if point is None
-                else float(point["cumulative_positive_heat_release_fraction"])
+                None if point is None else float(point["cumulative_positive_heat_release_fraction"])
             )
     else:
         for entry in enriched_trace:
@@ -291,7 +291,12 @@ def build_engine_results(
         ca90 = _find_fraction_angle(heat_release_trace, fraction=0.90)
 
     imep = None
-    if displacement_volume and displacement_volume > 0.0 and angle_span is not None and abs(angle_span) >= 300.0:
+    if (
+        displacement_volume
+        and displacement_volume > 0.0
+        and angle_span is not None
+        and abs(angle_span) >= 300.0
+    ):
         imep = float(net_work / displacement_volume)
 
     results = {
@@ -321,7 +326,9 @@ def build_engine_results(
                 float(total_positive_heat_release) if heat_release_trace else None
             ),
             "trapped_mass": (
-                None if "trapped_mass" not in resolved_metrics else float(resolved_metrics["trapped_mass"])
+                None
+                if "trapped_mass" not in resolved_metrics
+                else float(resolved_metrics["trapped_mass"])
             ),
             "residual_fraction": (
                 None

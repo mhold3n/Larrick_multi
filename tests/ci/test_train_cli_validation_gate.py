@@ -56,9 +56,7 @@ def test_train_cli_runs_validation_preflight_before_training(monkeypatch, tmp_pa
     assert captured["train_data"] == str(data_path)
 
 
-def test_train_cli_blocks_training_when_validation_fails(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_train_cli_blocks_training_when_validation_fails(monkeypatch, tmp_path: Path) -> None:
     called = {"train": False}
 
     def _fake_preflight(regime_or_suite: str, *, config_path: str, outdir: str) -> int:
@@ -93,7 +91,9 @@ def test_train_cli_blocks_training_when_validation_fails(
             str(config_path),
         ],
     ):
-        with pytest.raises(RuntimeError, match="Training blocked by simulation validation preflight"):
+        with pytest.raises(
+            RuntimeError, match="Training blocked by simulation validation preflight"
+        ):
             train_main()
 
     assert called["train"] is False
@@ -116,5 +116,7 @@ def test_train_cli_requires_both_validation_args(monkeypatch, tmp_path: Path) ->
             "chemistry",
         ],
     ):
-        with pytest.raises(ValueError, match="requires both --validation-regime and --validation-config"):
+        with pytest.raises(
+            ValueError, match="requires both --validation-regime and --validation-config"
+        ):
             train_main()

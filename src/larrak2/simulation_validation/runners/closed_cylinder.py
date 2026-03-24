@@ -17,20 +17,21 @@ from ..models import (
 )
 from .base import BaseRegimeRunner, evaluate_metric
 
-
-CLOSED_CYLINDER_METRIC_CATEGORIES = frozenset({
-    "pressure_trace",
-    "ca10",
-    "ca50",
-    "ca90",
-    "apparent_heat_release",
-    "work_imep",
-    "peak_pressure",
-    "peak_pressure_timing",
-    "expansion_pressure_decay",
-    "burn_duration",
-    "ignition_delay_soc",
-})
+CLOSED_CYLINDER_METRIC_CATEGORIES = frozenset(
+    {
+        "pressure_trace",
+        "ca10",
+        "ca50",
+        "ca90",
+        "apparent_heat_release",
+        "work_imep",
+        "peak_pressure",
+        "peak_pressure_timing",
+        "expansion_pressure_decay",
+        "burn_duration",
+        "ignition_delay_soc",
+    }
+)
 
 
 class ClosedCylinderRunner(BaseRegimeRunner):
@@ -70,17 +71,19 @@ class ClosedCylinderRunner(BaseRegimeRunner):
             if sim_key not in simulation_data:
                 if spec.required:
                     messages.append(f"Missing simulation result for required metric '{sim_key}'")
-                    results.append(ValidationMetricResult(
-                        metric_id=spec.metric_id,
-                        measured_value=0.0,
-                        simulated_value=0.0,
-                        error=float("inf"),
-                        tolerance_used=spec.tolerance_band,
-                        passed=False,
-                        source_type=spec.source_type,
-                        units=spec.units,
-                        details={"reason": "missing_simulation_data"},
-                    ))
+                    results.append(
+                        ValidationMetricResult(
+                            metric_id=spec.metric_id,
+                            measured_value=0.0,
+                            simulated_value=0.0,
+                            error=float("inf"),
+                            tolerance_used=spec.tolerance_band,
+                            passed=False,
+                            source_type=spec.source_type,
+                            units=spec.units,
+                            details={"reason": "missing_simulation_data"},
+                        )
+                    )
                 else:
                     messages.append(f"Skipping optional metric '{sim_key}' (no data)")
                 continue

@@ -6,7 +6,6 @@ import enum
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Source types
 # ---------------------------------------------------------------------------
@@ -97,13 +96,11 @@ class ValidationDatasetManifest:
         if self.source_type == SourceType.SYNTHETIC:
             if not self.measured_anchor_ids:
                 errors.append(
-                    f"Dataset '{self.dataset_id}': synthetic target must record "
-                    f"measured_anchor_ids"
+                    f"Dataset '{self.dataset_id}': synthetic target must record measured_anchor_ids"
                 )
             if not self.governing_basis:
                 errors.append(
-                    f"Dataset '{self.dataset_id}': synthetic target must record "
-                    f"governing_basis"
+                    f"Dataset '{self.dataset_id}': synthetic target must record governing_basis"
                 )
         return errors
 
@@ -220,10 +217,12 @@ class ValidationSuiteManifest:
         for regime_name in ordered_regimes:
             run = self.regime_results.get(regime_name)
             if run is None:
-                entries.append(RegimeScoreboardEntry(
-                    regime=regime_name,
-                    status=RegimeStatus.NOT_RUN,
-                ))
+                entries.append(
+                    RegimeScoreboardEntry(
+                        regime=regime_name,
+                        status=RegimeStatus.NOT_RUN,
+                    )
+                )
                 continue
             n_total = len(run.metric_results)
             n_passed = sum(1 for r in run.metric_results if r.passed)
@@ -233,20 +232,20 @@ class ValidationSuiteManifest:
                 if not r.passed:
                     first_fail = r.metric_id
                     break
-            entries.append(RegimeScoreboardEntry(
-                regime=regime_name,
-                status=run.status,
-                n_metrics_total=n_total,
-                n_metrics_passed=n_passed,
-                n_metrics_failed=n_failed,
-                blocked_by=list(run.blocked_by),
-                first_failing_metric=first_fail,
-            ))
+            entries.append(
+                RegimeScoreboardEntry(
+                    regime=regime_name,
+                    status=run.status,
+                    n_metrics_total=n_total,
+                    n_metrics_passed=n_passed,
+                    n_metrics_failed=n_failed,
+                    blocked_by=list(run.blocked_by),
+                    first_failing_metric=first_fail,
+                )
+            )
 
         self.scoreboard = entries
-        all_passed = all(
-            e.status == RegimeStatus.PASSED for e in entries
-        )
+        all_passed = all(e.status == RegimeStatus.PASSED for e in entries)
         self.overall_passed = all_passed
 
         # Identify first blocker

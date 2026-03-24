@@ -276,7 +276,9 @@ def _apply_engine_runtime_profile(params: dict[str, Any]) -> dict[str, Any]:
         normalized["deltaT"] = (
             5.0e-6
             if mode == STAGED_REACTING_ENGINE_CALIBRATION_MODE
-            else 2.0e-5 if mode == REACTING_ENGINE_CALIBRATION_MODE else 1.0e-4
+            else 2.0e-5
+            if mode == REACTING_ENGINE_CALIBRATION_MODE
+            else 1.0e-4
         )
     if mode == STAGED_REACTING_ENGINE_CALIBRATION_MODE:
         normalized.setdefault("engine_stage_profile", "closed_valve_ignition_v1")
@@ -330,7 +332,9 @@ def _engine_seed_bundle(
             )
         ),
         "mechanism_id": str(
-            incoming.get("mechanism_id", package_manifest.get("package_id", "chem323_reduced_v2512"))
+            incoming.get(
+                "mechanism_id", package_manifest.get("package_id", "chem323_reduced_v2512")
+            )
         ),
         "fuel_name": str(incoming.get("fuel_name", "iso-octane")),
         "pressure_Pa": pressure,
@@ -343,9 +347,14 @@ def _engine_seed_bundle(
         "turbulence_intensity": float(incoming.get("turbulence_intensity", 0.05)),
         "stage_marker": str(incoming.get("stage_marker", "engine_intake_start")),
         "cycle_coordinate_deg": cycle_coordinate,
-        "total_mass_kg": float(incoming.get("total_mass_kg", params.get("trapped_mass_seed", 4.0e-4))),
+        "total_mass_kg": float(
+            incoming.get("total_mass_kg", params.get("trapped_mass_seed", 4.0e-4))
+        ),
         "total_energy_J": float(
-            incoming.get("total_energy_J", params.get("handoff_total_energy_J", 4.0e-4 * 1000.0 * temperature))
+            incoming.get(
+                "total_energy_J",
+                params.get("handoff_total_energy_J", 4.0e-4 * 1000.0 * temperature),
+            )
         ),
         "residual_fraction": residual_fraction,
     }
@@ -359,9 +368,13 @@ def _engine_case_placeholders(
     cycle_coordinate = float(handoff_bundle.get("cycle_coordinate_deg", -180.0))
     pressure = float(handoff_bundle.get("pressure_Pa", params.get("p_manifold_Pa", 101325.0)))
     temperature = float(handoff_bundle.get("temperature_K", params.get("T_intake_K", 300.0)))
-    residual_fraction = float(handoff_bundle.get("residual_fraction", params.get("residual_fraction_seed", 0.08)))
+    residual_fraction = float(
+        handoff_bundle.get("residual_fraction", params.get("residual_fraction_seed", 0.08))
+    )
     residual_temperature = float(
-        params.get("T_residual_K", max(float(params.get("T_intake_K", 300.0)) * 2.5, temperature * 1.3))
+        params.get(
+            "T_residual_K", max(float(params.get("T_intake_K", 300.0)) * 2.5, temperature * 1.3)
+        )
     )
     wall_temperature = float(
         params.get(
@@ -435,7 +448,9 @@ def _engine_case_placeholders(
             "engine_wall_temperature_K": wall_temperature,
             "chemistry_switch": "on" if bool(params.get("chemistry_enabled", True)) else "off",
             "combustion_switch": "yes" if bool(params.get("combustion_enabled", True)) else "no",
-            "chemistry_initial_timestep_s": float(params.get("chemistry_initial_timestep_s", 1.0e-7)),
+            "chemistry_initial_timestep_s": float(
+                params.get("chemistry_initial_timestep_s", 1.0e-7)
+            ),
             "chemistry_abs_tol": float(params.get("chemistry_abs_tol", 1.0e-12)),
             "chemistry_rel_tol": float(params.get("chemistry_rel_tol", 1.0e-7)),
             "chemistry_reduction_switch": "on"
@@ -465,20 +480,37 @@ def _engine_case_placeholders(
             "handoff_species_N2": mass_fractions.get("N2", 0.0),
             "handoff_species_CO2": mass_fractions.get("CO2", 0.0),
             "handoff_species_H2O": mass_fractions.get("H2O", 0.0),
-            "handoff_species_Ydefault": max(0.0, 1.0 - sum(mass_fractions.get(species, 0.0) for species in TRACKED_ENGINE_SPECIES)),
+            "handoff_species_Ydefault": max(
+                0.0,
+                1.0 - sum(mass_fractions.get(species, 0.0) for species in TRACKED_ENGINE_SPECIES),
+            ),
             "injection_pressure_bar": float(params.get("injection_pressure_bar", pressure / 1.0e5)),
             "ambient_pressure_bar": float(params.get("ambient_pressure_bar", pressure / 1.0e5)),
             "ambient_gas_temperature_K": temperature,
             "intake_valve_z": intake_valve_z,
             "exhaust_left_z": exhaust_left_z,
             "exhaust_right_z": exhaust_right_z,
-            "intake_valve_origin": str(params.get("intake_valve_origin", _point(0.0, 0.0, intake_valve_z))),
-            "exhaust_left_origin": str(params.get("exhaust_left_origin", _point(0.0, 0.0, exhaust_left_z))),
-            "exhaust_right_origin": str(params.get("exhaust_right_origin", _point(0.0, 0.0, exhaust_right_z))),
-            "intake_interface_point": str(params.get("intake_interface_point", _point(0.0, 0.0, intake_valve_z))),
-            "exhaust_left_interface_point": str(params.get("exhaust_left_interface_point", _point(0.0, 0.0, exhaust_left_z))),
-            "exhaust_right_interface_point": str(params.get("exhaust_right_interface_point", _point(0.0, 0.0, exhaust_right_z))),
-            "location_in_mesh": str(params.get("location_in_mesh", _point(0.0, 0.0, cylinder_length * 0.5))),
+            "intake_valve_origin": str(
+                params.get("intake_valve_origin", _point(0.0, 0.0, intake_valve_z))
+            ),
+            "exhaust_left_origin": str(
+                params.get("exhaust_left_origin", _point(0.0, 0.0, exhaust_left_z))
+            ),
+            "exhaust_right_origin": str(
+                params.get("exhaust_right_origin", _point(0.0, 0.0, exhaust_right_z))
+            ),
+            "intake_interface_point": str(
+                params.get("intake_interface_point", _point(0.0, 0.0, intake_valve_z))
+            ),
+            "exhaust_left_interface_point": str(
+                params.get("exhaust_left_interface_point", _point(0.0, 0.0, exhaust_left_z))
+            ),
+            "exhaust_right_interface_point": str(
+                params.get("exhaust_right_interface_point", _point(0.0, 0.0, exhaust_right_z))
+            ),
+            "location_in_mesh": str(
+                params.get("location_in_mesh", _point(0.0, 0.0, cylinder_length * 0.5))
+            ),
             "intake_valve_omega_rad_s": intake_valve_omega,
             "exhaust_left_omega_rad_s": exhaust_left_omega,
             "exhaust_right_omega_rad_s": exhaust_right_omega,
@@ -557,7 +589,9 @@ class OpenFoamPipeline:
         *,
         handoff_bundle: dict[str, Any] | None = None,
         staged_inputs: list[dict[str, str]] | None = None,
-    ) -> tuple[dict[str, Any], list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    ) -> tuple[
+        dict[str, Any], list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, Any]
+    ]:
         if not self._is_default_engine_template():
             return dict(params), list(staged_inputs or []), dict(handoff_bundle or {}), {}, {}
         normalized_params = _apply_engine_runtime_profile(params)
@@ -595,7 +629,9 @@ class OpenFoamPipeline:
             )
             normalized_params["openfoam_runtime_chemistry_table_dir"] = str(runtime_table_dir)
             normalized_params["runtime_chemistry_table_hash"] = str(
-                runtime_table_manifest.get("generated_file_hashes", {}).get("runtimeChemistryTable", "")
+                runtime_table_manifest.get("generated_file_hashes", {}).get(
+                    "runtimeChemistryTable", ""
+                )
             )
             merged_stage_inputs += _runtime_chemistry_table_staged_inputs(runtime_table_dir)
         else:
@@ -612,7 +648,13 @@ class OpenFoamPipeline:
         )
         merged_params = _engine_case_placeholders(normalized_params, engine_handoff)
         merged_params["openfoam_chemistry_package_dir"] = str(package_dir)
-        return merged_params, merged_stage_inputs, engine_handoff, package_manifest, runtime_table_manifest
+        return (
+            merged_params,
+            merged_stage_inputs,
+            engine_handoff,
+            package_manifest,
+            runtime_table_manifest,
+        )
 
     def _ensure_custom_solver(self, *, log_file: Path | None = None) -> dict[str, str]:
         if self.solver_cmd != "larrakEngineFoam":
@@ -679,8 +721,12 @@ class OpenFoamPipeline:
             exhaust_open_deg=(geometry_params or {}).get("exhaust_open_deg"),
             exhaust_close_deg=(geometry_params or {}).get("exhaust_close_deg"),
             engine_start_angle_deg=(geometry_params or {}).get("engine_start_angle_deg", -180.0),
-            intake_valve_rotation_sign=(geometry_params or {}).get("intake_valve_rotation_sign", 1.0),
-            exhaust_valve_rotation_sign=(geometry_params or {}).get("exhaust_valve_rotation_sign", -1.0),
+            intake_valve_rotation_sign=(geometry_params or {}).get(
+                "intake_valve_rotation_sign", 1.0
+            ),
+            exhaust_valve_rotation_sign=(geometry_params or {}).get(
+                "exhaust_valve_rotation_sign", -1.0
+            ),
         )
 
         generate_stl_workflow(args)
@@ -767,7 +813,9 @@ class OpenFoamPipeline:
                 "deltaT": min(float(params.get("deltaT", 5.0e-6)), 2.0e-6),
                 "maxDeltaT": min(float(params.get("deltaT", 5.0e-6)), 2.0e-6),
                 "maxCo": 0.08,
-                "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1500.0),
+                "engine_max_temperature_K": min(
+                    float(params.get("engine_max_temperature_K", 1700.0)), 1500.0
+                ),
                 "engine_max_thermo_delta_K": 20.0,
                 "engine_min_pressure_Pa": 2.0e4,
                 "engine_min_density_kg_m3": 0.05,
@@ -787,7 +835,9 @@ class OpenFoamPipeline:
                 "deltaT": 5.0e-7,
                 "maxDeltaT": 5.0e-7,
                 "maxCo": 0.03,
-                "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1425.0),
+                "engine_max_temperature_K": min(
+                    float(params.get("engine_max_temperature_K", 1700.0)), 1425.0
+                ),
                 "engine_max_thermo_delta_K": 6.0,
                 "engine_min_pressure_Pa": 2.5e4,
                 "engine_min_density_kg_m3": 0.08,
@@ -807,7 +857,9 @@ class OpenFoamPipeline:
                 "deltaT": 2.5e-7,
                 "maxDeltaT": 2.5e-7,
                 "maxCo": 0.02,
-                "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1500.0),
+                "engine_max_temperature_K": min(
+                    float(params.get("engine_max_temperature_K", 1700.0)), 1500.0
+                ),
                 "engine_max_thermo_delta_K": 4.0,
                 "engine_min_pressure_Pa": 3.0e4,
                 "engine_min_density_kg_m3": 0.10,
@@ -827,7 +879,9 @@ class OpenFoamPipeline:
                 "deltaT": 2.5e-7,
                 "maxDeltaT": 2.5e-7,
                 "maxCo": 0.03,
-                "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1600.0),
+                "engine_max_temperature_K": min(
+                    float(params.get("engine_max_temperature_K", 1700.0)), 1600.0
+                ),
                 "engine_max_thermo_delta_K": 5.0,
                 "engine_min_pressure_Pa": 3.0e4,
                 "engine_min_density_kg_m3": 0.10,
@@ -875,7 +929,9 @@ class OpenFoamPipeline:
                     "deltaT": 7.5e-7,
                     "maxDeltaT": 7.5e-7,
                     "maxCo": 0.045,
-                    "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1475.0),
+                    "engine_max_temperature_K": min(
+                        float(params.get("engine_max_temperature_K", 1700.0)), 1475.0
+                    ),
                     "engine_max_thermo_delta_K": 8.0,
                     "chemistry_initial_timestep_s": 5.0e-8,
                     "chemistry_abs_tol": 1.0e-13,
@@ -888,7 +944,9 @@ class OpenFoamPipeline:
                     "deltaT": 4.0e-7,
                     "maxDeltaT": 4.0e-7,
                     "maxCo": 0.03,
-                    "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1550.0),
+                    "engine_max_temperature_K": min(
+                        float(params.get("engine_max_temperature_K", 1700.0)), 1550.0
+                    ),
                     "engine_max_thermo_delta_K": 6.0,
                     "chemistry_initial_timestep_s": 2.5e-8,
                     "chemistry_abs_tol": 1.0e-13,
@@ -900,7 +958,9 @@ class OpenFoamPipeline:
                     "deltaT": 4.0e-7,
                     "maxDeltaT": 4.0e-7,
                     "maxCo": 0.04,
-                    "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1675.0),
+                    "engine_max_temperature_K": min(
+                        float(params.get("engine_max_temperature_K", 1700.0)), 1675.0
+                    ),
                     "engine_max_thermo_delta_K": 7.5,
                     "chemistry_initial_timestep_s": 5.0e-8,
                     "chemistry_abs_tol": 1.0e-13,
@@ -914,7 +974,9 @@ class OpenFoamPipeline:
                     "deltaT": 7.5e-7,
                     "maxDeltaT": 7.5e-7,
                     "maxCo": 0.035,
-                    "engine_max_temperature_K": float(params.get("engine_max_temperature_K", 1700.0)),
+                    "engine_max_temperature_K": float(
+                        params.get("engine_max_temperature_K", 1700.0)
+                    ),
                     "engine_max_thermo_delta_K": 12.0,
                     "chemistry_initial_timestep_s": 5.0e-8,
                     "chemistry_abs_tol": 1.0e-12,
@@ -935,7 +997,9 @@ class OpenFoamPipeline:
                     "deltaT": 3.0e-7,
                     "maxDeltaT": 3.0e-7,
                     "maxCo": 0.02,
-                    "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1500.0),
+                    "engine_max_temperature_K": min(
+                        float(params.get("engine_max_temperature_K", 1700.0)), 1500.0
+                    ),
                     "engine_max_thermo_delta_K": 9.0,
                     "chemistry_initial_timestep_s": 1.5e-8,
                     "chemistry_rel_tol": 4.0e-9,
@@ -945,7 +1009,9 @@ class OpenFoamPipeline:
                     "deltaT": 1.5e-7,
                     "maxDeltaT": 1.5e-7,
                     "maxCo": 0.0125,
-                    "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1575.0),
+                    "engine_max_temperature_K": min(
+                        float(params.get("engine_max_temperature_K", 1700.0)), 1575.0
+                    ),
                     "engine_max_thermo_delta_K": 7.0,
                     "chemistry_initial_timestep_s": 7.5e-9,
                     "chemistry_rel_tol": 2.0e-9,
@@ -954,7 +1020,9 @@ class OpenFoamPipeline:
                     "deltaT": 1.5e-7,
                     "maxDeltaT": 1.5e-7,
                     "maxCo": 0.015,
-                    "engine_max_temperature_K": min(float(params.get("engine_max_temperature_K", 1700.0)), 1750.0),
+                    "engine_max_temperature_K": min(
+                        float(params.get("engine_max_temperature_K", 1700.0)), 1750.0
+                    ),
                     "engine_max_thermo_delta_K": 8.0,
                     "chemistry_initial_timestep_s": 1.5e-8,
                     "chemistry_rel_tol": 2.0e-9,
@@ -964,7 +1032,9 @@ class OpenFoamPipeline:
                     "deltaT": 3.5e-7,
                     "maxDeltaT": 3.5e-7,
                     "maxCo": 0.02,
-                    "engine_max_temperature_K": max(float(params.get("engine_max_temperature_K", 1700.0)), 1750.0),
+                    "engine_max_temperature_K": max(
+                        float(params.get("engine_max_temperature_K", 1700.0)), 1750.0
+                    ),
                     "engine_max_thermo_delta_K": 10.0,
                     "chemistry_initial_timestep_s": 2.0e-8,
                     "chemistry_rel_tol": 4.0e-9,
@@ -987,7 +1057,11 @@ class OpenFoamPipeline:
         base_params: dict[str, Any],
         stage: dict[str, Any],
     ) -> None:
-        initial_angle = float(base_params.get("engine_initialCrankAngleDeg", base_params.get("engine_start_angle_deg", -180.0)))
+        initial_angle = float(
+            base_params.get(
+                "engine_initialCrankAngleDeg", base_params.get("engine_start_angle_deg", -180.0)
+            )
+        )
         rpm = float(base_params.get("engine_rpm", base_params.get("rpm", 1800.0)))
         end_time = _end_time_for_target_angle(
             rpm=rpm,
@@ -1003,7 +1077,9 @@ class OpenFoamPipeline:
         self._rewrite_dictionary_entry(control_dict, "endTime", f"{end_time:.12g}")
         self._rewrite_dictionary_entry(control_dict, "deltaT", f"{float(stage['deltaT']):.12g}")
         self._rewrite_dictionary_entry(control_dict, "maxCo", f"{float(stage['maxCo']):.12g}")
-        self._rewrite_dictionary_entry(control_dict, "maxDeltaT", f"{float(stage['maxDeltaT']):.12g}")
+        self._rewrite_dictionary_entry(
+            control_dict, "maxDeltaT", f"{float(stage['maxDeltaT']):.12g}"
+        )
         self._rewrite_dictionary_entry(
             control_dict,
             "writeInterval",
@@ -1043,7 +1119,12 @@ class OpenFoamPipeline:
         self._upsert_dictionary_entry(
             engine_geometry,
             "runtimeChemistryMode",
-            str(stage.get("runtime_chemistry_mode", base_params.get("runtime_chemistry_mode", "fullReducedKinetics"))),
+            str(
+                stage.get(
+                    "runtime_chemistry_mode",
+                    base_params.get("runtime_chemistry_mode", "fullReducedKinetics"),
+                )
+            ),
         )
         runtime_mode = str(
             stage.get(
@@ -1366,12 +1447,20 @@ class OpenFoamPipeline:
                 }
             )
             (run_dir / "engine_stage_manifest.json").write_text(
-                json.dumps({"profile": str(base_params.get("engine_stage_profile", "")), "stages": manifest_entries}, indent=2),
+                json.dumps(
+                    {
+                        "profile": str(base_params.get("engine_stage_profile", "")),
+                        "stages": manifest_entries,
+                    },
+                    indent=2,
+                ),
                 encoding="utf-8",
             )
             if not ok:
                 return False, str(stage_payload["name"])
-        latest_stage_log = run_dir / f"{self.solver_cmd}.stage_{len(stages):02d}_{stages[-1]['name']}.log"
+        latest_stage_log = (
+            run_dir / f"{self.solver_cmd}.stage_{len(stages):02d}_{stages[-1]['name']}.log"
+        )
         if latest_stage_log.exists():
             shutil.copy2(latest_stage_log, run_dir / f"{self.solver_cmd}.log")
         return True, ""
@@ -1636,7 +1725,13 @@ class OpenFoamPipeline:
     ) -> dict[str, Any]:
         """Execute full pipeline for a single case."""
         solver_metadata = self._ensure_custom_solver(log_file=run_dir / "custom_solver_build.log")
-        case_params, case_staged_inputs, engine_handoff, package_manifest, runtime_table_manifest = self._engine_case_assets(
+        (
+            case_params,
+            case_staged_inputs,
+            engine_handoff,
+            package_manifest,
+            runtime_table_manifest,
+        ) = self._engine_case_assets(
             params,
             handoff_bundle=handoff_bundle,
             staged_inputs=staged_inputs,
@@ -1784,14 +1879,14 @@ class OpenFoamPipeline:
             "openfoam_chemistry_package_hash": str(package_manifest.get("package_hash", "")),
             "runtime_chemistry_table_id": str(runtime_table_manifest.get("table_id", "")),
             "runtime_chemistry_table_hash": str(
-                runtime_table_manifest.get("generated_file_hashes", {}).get("runtimeChemistryTable", "")
+                runtime_table_manifest.get("generated_file_hashes", {}).get(
+                    "runtimeChemistryTable", ""
+                )
             ),
             "runtime_chemistry_interpolation_method": str(
                 runtime_table_manifest.get("interpolation_method", "")
             ),
-            "runtime_chemistry_jacobian_mode": str(
-                runtime_table_manifest.get("jacobian_mode", "")
-            ),
+            "runtime_chemistry_jacobian_mode": str(runtime_table_manifest.get("jacobian_mode", "")),
             "runtime_chemistry_authority_miss_path": (
                 str(run_dir / "runtimeChemistryAuthorityMiss.json")
                 if (run_dir / "runtimeChemistryAuthorityMiss.json").exists()

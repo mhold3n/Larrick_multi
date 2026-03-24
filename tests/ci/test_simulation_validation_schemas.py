@@ -6,7 +6,6 @@ import pytest
 
 from larrak2.simulation_validation.models import (
     ComparisonMode,
-    RegimeScoreboardEntry,
     RegimeStatus,
     SourceType,
     ValidationCaseSpec,
@@ -17,7 +16,6 @@ from larrak2.simulation_validation.models import (
     ValidationSuiteManifest,
 )
 from larrak2.simulation_validation.regimes import CanonicalRegime
-
 
 # ---------------------------------------------------------------------------
 # CanonicalRegime
@@ -170,8 +168,12 @@ class TestValidationRunManifest:
             case_spec=ValidationCaseSpec(case_id="c1", regime="chemistry"),
             metric_results=[
                 ValidationMetricResult(
-                    metric_id="m1", measured_value=1.0, simulated_value=1.0,
-                    error=0.0, tolerance_used=0.1, passed=True,
+                    metric_id="m1",
+                    measured_value=1.0,
+                    simulated_value=1.0,
+                    error=0.0,
+                    tolerance_used=0.1,
+                    passed=True,
                     source_type=SourceType.MEASURED,
                 ),
             ],
@@ -195,13 +197,21 @@ class TestValidationRunManifest:
             case_spec=ValidationCaseSpec(case_id="s1", regime="spray"),
             metric_results=[
                 ValidationMetricResult(
-                    metric_id="m1", measured_value=1.0, simulated_value=1.0,
-                    error=0.0, tolerance_used=0.1, passed=True,
+                    metric_id="m1",
+                    measured_value=1.0,
+                    simulated_value=1.0,
+                    error=0.0,
+                    tolerance_used=0.1,
+                    passed=True,
                     source_type=SourceType.MEASURED,
                 ),
                 ValidationMetricResult(
-                    metric_id="m2", measured_value=1.0, simulated_value=2.0,
-                    error=1.0, tolerance_used=0.1, passed=False,
+                    metric_id="m2",
+                    measured_value=1.0,
+                    simulated_value=2.0,
+                    error=1.0,
+                    tolerance_used=0.1,
+                    passed=False,
                     source_type=SourceType.MEASURED,
                 ),
             ],
@@ -224,8 +234,11 @@ class TestValidationSuiteManifest:
                 metric_results=[
                     ValidationMetricResult(
                         metric_id=f"{regime.value}_m1",
-                        measured_value=1.0, simulated_value=1.0,
-                        error=0.0, tolerance_used=0.1, passed=True,
+                        measured_value=1.0,
+                        simulated_value=1.0,
+                        error=0.0,
+                        tolerance_used=0.1,
+                        passed=True,
                         source_type=SourceType.MEASURED,
                     ),
                 ],
@@ -244,8 +257,11 @@ class TestValidationSuiteManifest:
             metric_results=[
                 ValidationMetricResult(
                     metric_id="ign_delay",
-                    measured_value=1.0, simulated_value=2.0,
-                    error=1.0, tolerance_used=0.1, passed=False,
+                    measured_value=1.0,
+                    simulated_value=2.0,
+                    error=1.0,
+                    tolerance_used=0.1,
+                    passed=False,
                     source_type=SourceType.MEASURED,
                 ),
             ],

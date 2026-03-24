@@ -182,19 +182,26 @@ def test_compare_flame_speed_mechanisms_uses_precomputed_reference_and_live_cand
 
 def test_flame_speed_compare_cli_runs(monkeypatch, tmp_path: Path) -> None:
     config_path = tmp_path / "comparison.json"
-    config_path.write_text(json.dumps({"candidates": [{"candidate_id": "x", "description": "", "mechanism_file": "x.yaml"}]}), encoding="utf-8")
+    config_path.write_text(
+        json.dumps(
+            {"candidates": [{"candidate_id": "x", "description": "", "mechanism_file": "x.yaml"}]}
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(
         "larrak2.simulation_validation.flame_speed_comparison.compare_flame_speed_mechanisms",
         lambda **kwargs: {"comparison_id": "cmp", "candidates": [], **kwargs},
     )
 
-    code = validate_simulation_main([
-        "flame-speed-compare",
-        "--config",
-        str(config_path),
-        "--outdir",
-        str(tmp_path / "out"),
-    ])
+    code = validate_simulation_main(
+        [
+            "flame-speed-compare",
+            "--config",
+            str(config_path),
+            "--outdir",
+            str(tmp_path / "out"),
+        ]
+    )
 
     assert code == 0

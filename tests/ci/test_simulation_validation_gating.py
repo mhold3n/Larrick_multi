@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from larrak2.simulation_validation.gating import (
     build_unblock_criteria,
     check_prerequisites,
@@ -16,7 +14,7 @@ from larrak2.simulation_validation.models import (
     ValidationMetricResult,
     ValidationRunManifest,
 )
-from larrak2.simulation_validation.regimes import CanonicalRegime, PREREQUISITE_MAP
+from larrak2.simulation_validation.regimes import PREREQUISITE_MAP, CanonicalRegime
 
 
 def _make_passing_run(regime: str) -> ValidationRunManifest:
@@ -26,8 +24,11 @@ def _make_passing_run(regime: str) -> ValidationRunManifest:
         metric_results=[
             ValidationMetricResult(
                 metric_id=f"{regime}_m1",
-                measured_value=1.0, simulated_value=1.0,
-                error=0.0, tolerance_used=0.1, passed=True,
+                measured_value=1.0,
+                simulated_value=1.0,
+                error=0.0,
+                tolerance_used=0.1,
+                passed=True,
                 source_type=SourceType.MEASURED,
             ),
         ],
@@ -42,8 +43,11 @@ def _make_failing_run(regime: str) -> ValidationRunManifest:
         metric_results=[
             ValidationMetricResult(
                 metric_id=f"{regime}_m1",
-                measured_value=1.0, simulated_value=5.0,
-                error=4.0, tolerance_used=0.1, passed=False,
+                measured_value=1.0,
+                simulated_value=5.0,
+                error=4.0,
+                tolerance_used=0.1,
+                passed=False,
                 source_type=SourceType.MEASURED,
             ),
         ],

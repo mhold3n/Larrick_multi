@@ -12,8 +12,8 @@ from .models import (
     ValidationMetricResult,
     ValidationMetricSpec,
     ValidationRunManifest,
-    ValidationSuiteProfile,
     ValidationSuiteManifest,
+    ValidationSuiteProfile,
 )
 from .regimes import CanonicalRegime
 

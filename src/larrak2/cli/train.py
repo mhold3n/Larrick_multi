@@ -71,8 +71,7 @@ def _maybe_run_validation_preflight(args: argparse.Namespace) -> None:
         Path("outputs") / "validation" / "pretrain" / str(getattr(args, "model_type", "unknown"))
     )
     print(
-        "Running simulation-validation preflight: "
-        f"regime={regime} config={config} outdir={outdir}"
+        f"Running simulation-validation preflight: regime={regime} config={config} outdir={outdir}"
     )
     code = run_validation_preflight(regime, config_path=config, outdir=outdir)
     if code != 0:

@@ -24,8 +24,8 @@ from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import BreathingConfig, EvalContext
 from larrak2.orchestration.adapters.simulation_adapter import (
     candidate_calculix_params,
-    candidate_openfoam_handoff_bundle,
     candidate_openfoam_geometry_args,
+    candidate_openfoam_handoff_bundle,
     candidate_openfoam_params,
 )
 from larrak2.pipelines.openfoam import OpenFoamPipeline
@@ -446,9 +446,16 @@ def build_truth_anchor_bundle(
             torque=float(smoke_case["torque"]),
             seed=int(cfg.get("truth_seed", 0)),
         )
-        smoke_candidate = {"id": str(smoke_case["id"]), "x": np.asarray(smoke_case["x"], dtype=np.float64)}
-        smoke_eval = evaluate_candidate(np.asarray(smoke_case["x"], dtype=np.float64), smoke_context)
-        smoke_params = candidate_openfoam_params(smoke_candidate, smoke_context, eval_diag=smoke_eval.diag)
+        smoke_candidate = {
+            "id": str(smoke_case["id"]),
+            "x": np.asarray(smoke_case["x"], dtype=np.float64),
+        }
+        smoke_eval = evaluate_candidate(
+            np.asarray(smoke_case["x"], dtype=np.float64), smoke_context
+        )
+        smoke_params = candidate_openfoam_params(
+            smoke_candidate, smoke_context, eval_diag=smoke_eval.diag
+        )
         smoke_geometry = candidate_openfoam_geometry_args(smoke_candidate, smoke_context)
         smoke_handoff = candidate_openfoam_handoff_bundle(
             smoke_candidate,
@@ -592,10 +599,14 @@ def build_openfoam_training_dataset(
             seed=int(cfg.get("dataset_seed", 42)),
         )
         smoke_eval = evaluate_candidate(np.asarray(smoke_x, dtype=np.float64), smoke_context)
-        smoke_params = candidate_openfoam_params(smoke_candidate, smoke_context, eval_diag=smoke_eval.diag)
+        smoke_params = candidate_openfoam_params(
+            smoke_candidate, smoke_context, eval_diag=smoke_eval.diag
+        )
         smoke_params["endTime"] = float(runtime.get("endTime", smoke_params.get("endTime", 3.0e-4)))
         smoke_params["deltaT"] = float(runtime.get("deltaT", smoke_params.get("deltaT", 1.0e-4)))
-        smoke_params["writeInterval"] = int(runtime.get("writeInterval", smoke_params.get("writeInterval", 1)))
+        smoke_params["writeInterval"] = int(
+            runtime.get("writeInterval", smoke_params.get("writeInterval", 1))
+        )
         smoke_params["metricWriteInterval"] = int(
             runtime.get("metricWriteInterval", smoke_params.get("metricWriteInterval", 1))
         )

@@ -189,9 +189,7 @@ class DockerOpenFoam:
         if not source_path.exists():
             raise FileNotFoundError(f"Custom OpenFOAM solver source not found: {source_path}")
 
-        cache_root_path = Path(
-            cache_root or self.cfg.custom_solver_cache_root
-        ).resolve()
+        cache_root_path = Path(cache_root or self.cfg.custom_solver_cache_root).resolve()
         source_hash = self._sha_tree(source_path)
         cache_dir = cache_root_path / f"{solver_name}_{self._image_token()}_{source_hash[:12]}"
         manifest_path = cache_dir / "build_manifest.json"

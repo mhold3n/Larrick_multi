@@ -30,9 +30,7 @@ def check_prerequisites(
     """
     regime_name = regime.value if isinstance(regime, CanonicalRegime) else str(regime)
     prerequisites = (
-        dict(prerequisite_map)
-        if prerequisite_map is not None
-        else canonical_prerequisite_names()
+        dict(prerequisite_map) if prerequisite_map is not None else canonical_prerequisite_names()
     ).get(regime_name, [])
     if not prerequisites:
         return GateResult(allowed=True, blockers=[], blocker_details={})
@@ -54,9 +52,8 @@ def check_prerequisites(
                 if not r.passed:
                     first_fail = r.metric_id
                     break
-            details[prereq_name] = (
-                f"status={run.status.value}"
-                + (f", first_failing_metric={first_fail}" if first_fail else "")
+            details[prereq_name] = f"status={run.status.value}" + (
+                f", first_failing_metric={first_fail}" if first_fail else ""
             )
 
     return GateResult(
@@ -84,17 +81,15 @@ def build_unblock_criteria(
             criteria[regime_name] = [f"Run {regime_name} validation"]
             continue
         if run.status == RegimeStatus.BLOCKED_BY_PREREQUISITE:
-            criteria[regime_name] = [
-                f"Resolve upstream blocker(s): {', '.join(run.blocked_by)}"
-            ]
+            criteria[regime_name] = [f"Resolve upstream blocker(s): {', '.join(run.blocked_by)}"]
             continue
         if run.status == RegimeStatus.FAILED:
-            failing = [
-                r.metric_id for r in run.metric_results if not r.passed
-            ]
-            criteria[regime_name] = [
-                f"Fix failing metric(s): {', '.join(failing)}"
-            ] if failing else [f"Resolve {regime_name} failure"]
+            failing = [r.metric_id for r in run.metric_results if not r.passed]
+            criteria[regime_name] = (
+                [f"Fix failing metric(s): {', '.join(failing)}"]
+                if failing
+                else [f"Resolve {regime_name} failure"]
+            )
 
     return criteria
 

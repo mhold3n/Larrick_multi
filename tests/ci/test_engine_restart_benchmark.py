@@ -57,22 +57,22 @@ def test_benchmark_engine_restart_profiles_clones_checkpoint_and_scores_profiles
     strategy_path = tmp_path / "strategy.json"
     strategy_path.write_text(
         json.dumps(
-                {
-                    "strategy_id": "engine_runtime_mechanism_ladder_v1",
-                    "runtime_package": {
-                        "label": "chem323_runtime",
+            {
+                "strategy_id": "engine_runtime_mechanism_ladder_v1",
+                "runtime_package": {
+                    "label": "chem323_runtime",
+                    "package_dir": str(runtime_package),
+                },
+                "checkpoint_packages": [
+                    {
+                        "label": "chem323_checkpoint_reference",
                         "package_dir": str(runtime_package),
-                    },
-                    "checkpoint_packages": [
-                        {
-                            "label": "chem323_checkpoint_reference",
-                            "package_dir": str(runtime_package),
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     tuned_params_path = tmp_path / "tuned_params.json"
     tuned_params_path.write_text(
@@ -232,7 +232,9 @@ def test_benchmark_engine_restart_profiles_clones_checkpoint_and_scores_profiles
     )
 
     assert len(summary["profiles"]) == 2
-    fast_runtime = next(item for item in summary["profiles"] if item["profile_name"] == "fast_runtime")
+    fast_runtime = next(
+        item for item in summary["profiles"] if item["profile_name"] == "fast_runtime"
+    )
     assert fast_runtime["runtime_mode"] == "lookupTableStrict"
     assert summary["recommendation"]["fastest_profile"] in {"fast_runtime", "low_clamp", None}
     assert summary["runtime_package_id"] == "chem323_reduced_v2512"

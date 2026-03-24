@@ -127,12 +127,16 @@ def build_reduced_state_handoff(
             if "peak_pressure_bar" in closed_cylinder
             else 0.0
         )
-        or _pressure_from_case(case_spec or ValidationCaseSpec(case_id="handoff", regime="full_handoff"))
+        or _pressure_from_case(
+            case_spec or ValidationCaseSpec(case_id="handoff", regime="full_handoff")
+        )
     )
     temperature_K = float(
         merged.get("temperature_K")
         or reacting.get("pilot_temperature_K_flameD_xd1")
-        or _temperature_from_case(case_spec or ValidationCaseSpec(case_id="handoff", regime="full_handoff"))
+        or _temperature_from_case(
+            case_spec or ValidationCaseSpec(case_id="handoff", regime="full_handoff")
+        )
     )
     species = dict(merged.get("species_mole_fractions", {}) or {})
     if not species:
@@ -153,16 +157,12 @@ def build_reduced_state_handoff(
             1.0,
             max(
                 0.0,
-                float(
-                    spray.get("vapor_spreading_angle_deg_sprayG", 0.0)
-                    / 120.0
-                ),
+                float(spray.get("vapor_spreading_angle_deg_sprayG", 0.0) / 120.0),
             ),
         )
     )
     homogeneity = float(
-        merged.get("mixture_homogeneity_index")
-        or min(1.0, max(0.0, vapor_fraction * 0.9 + 0.05))
+        merged.get("mixture_homogeneity_index") or min(1.0, max(0.0, vapor_fraction * 0.9 + 0.05))
     )
     turbulence_intensity = float(merged.get("turbulence_intensity", 0.12))
     cycle_coordinate_deg = float(merged.get("cycle_coordinate_deg", 365.0))
@@ -275,16 +275,18 @@ def compute_handoff_conservation(
         energy_error = abs(curr.total_energy_J - prev.total_energy_J)
         max_mass_error = max(max_mass_error, mass_error)
         max_energy_error = max(max_energy_error, energy_error)
-        handoff_states.append({
-            "from_phase": prev.stage_marker,
-            "to_phase": curr.stage_marker,
-            "conservation_error": max(mass_error, energy_error),
-            "conservation_tolerance": max(mass_tolerance, energy_tolerance),
-            "mass_error": mass_error,
-            "energy_error": energy_error,
-            "bundle_in": prev.to_dict(),
-            "bundle_out": curr.to_dict(),
-        })
+        handoff_states.append(
+            {
+                "from_phase": prev.stage_marker,
+                "to_phase": curr.stage_marker,
+                "conservation_error": max(mass_error, energy_error),
+                "conservation_tolerance": max(mass_tolerance, energy_tolerance),
+                "mass_error": mass_error,
+                "energy_error": energy_error,
+                "bundle_in": prev.to_dict(),
+                "bundle_out": curr.to_dict(),
+            }
+        )
 
     return {
         "state_conservation_mass": max_mass_error,

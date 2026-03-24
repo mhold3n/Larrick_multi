@@ -8,7 +8,6 @@ from pathlib import Path
 from larrak2.cli.validate_simulation import run_validation_preflight
 from larrak2.simulation_validation.combustion_truth import run_combustion_truth_workflow
 
-
 SUITE_CONFIG = "data/simulation_validation/gas_combustion_suite_config.json"
 PROFILE_CONFIG = "data/training/f2_nn_overnight_core_edge_v1.json"
 
@@ -76,7 +75,9 @@ def test_combustion_truth_workflow_writes_core_records(monkeypatch, tmp_path: Pa
 
     records = [
         json.loads(line)
-        for line in (outdir / "combustion_truth_records.jsonl").read_text(encoding="utf-8").splitlines()
+        for line in (outdir / "combustion_truth_records.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
         if line.strip()
     ]
     assert len(records) == 2

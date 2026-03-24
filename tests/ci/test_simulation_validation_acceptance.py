@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from larrak2.simulation_validation.dataset_registry import (
+    DatasetRegistry,
+    DatasetRegistryError,
+)
 from larrak2.simulation_validation.models import (
     ComparisonMode,
     RegimeStatus,
@@ -12,12 +16,7 @@ from larrak2.simulation_validation.models import (
     ValidationDatasetManifest,
     ValidationMetricSpec,
 )
-from larrak2.simulation_validation.dataset_registry import (
-    DatasetRegistry,
-    DatasetRegistryError,
-)
 from larrak2.simulation_validation.suite import run_suite
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -142,12 +141,14 @@ class TestNegativeScenarios:
         at the registry level."""
         reg = DatasetRegistry()
         # Register measured first
-        reg.register(ValidationDatasetManifest(
-            dataset_id="measured_ds",
-            regime="chemistry",
-            fuel_family="gasoline",
-            source_type=SourceType.MEASURED,
-        ))
+        reg.register(
+            ValidationDatasetManifest(
+                dataset_id="measured_ds",
+                regime="chemistry",
+                fuel_family="gasoline",
+                source_type=SourceType.MEASURED,
+            )
+        )
 
         # Try synthetic without anchors/basis
         bad_synthetic = ValidationDatasetManifest(
@@ -214,6 +215,4 @@ class TestSuiteSummary:
         suite = run_suite(configs)
         assert suite.overall_passed is True
         assert len(suite.scoreboard) == 5
-        assert all(
-            e.status == RegimeStatus.PASSED for e in suite.scoreboard
-        )
+        assert all(e.status == RegimeStatus.PASSED for e in suite.scoreboard)

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from larrak2.simulation_validation.models import (
     ComparisonMode,
     RegimeStatus,
@@ -61,7 +59,8 @@ class TestChemistryRunnerIntegration:
         runner = ChemistryRunner()
         dataset = _chemistry_dataset()
         case_spec = ValidationCaseSpec(
-            case_id="chem_case_pass", regime="chemistry",
+            case_id="chem_case_pass",
+            regime="chemistry",
             operating_point={"T": 800, "P_bar": 20, "phi": 1.0},
         )
         sim = {
@@ -84,7 +83,8 @@ class TestChemistryRunnerIntegration:
         runner = ChemistryRunner()
         dataset = _chemistry_dataset()
         case_spec = ValidationCaseSpec(
-            case_id="chem_case_fail", regime="chemistry",
+            case_id="chem_case_fail",
+            regime="chemistry",
         )
         sim = {
             "ignition_delay_800K": 5.0,

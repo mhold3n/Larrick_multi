@@ -17,13 +17,14 @@ from ..models import (
 )
 from .base import BaseRegimeRunner, evaluate_metric
 
-
 # Expected metric categories for chemistry regime
-CHEMISTRY_METRIC_CATEGORIES = frozenset({
-    "ignition_delay",
-    "species_profile",
-    "flame_speed",
-})
+CHEMISTRY_METRIC_CATEGORIES = frozenset(
+    {
+        "ignition_delay",
+        "species_profile",
+        "flame_speed",
+    }
+)
 
 # Default data sources for v1 gasoline path
 CHEMISTRY_DATA_SOURCES = [
@@ -69,17 +70,19 @@ class ChemistryRunner(BaseRegimeRunner):
             if sim_key not in simulation_data:
                 if spec.required:
                     messages.append(f"Missing simulation result for required metric '{sim_key}'")
-                    results.append(ValidationMetricResult(
-                        metric_id=spec.metric_id,
-                        measured_value=0.0,
-                        simulated_value=0.0,
-                        error=float("inf"),
-                        tolerance_used=spec.tolerance_band,
-                        passed=False,
-                        source_type=spec.source_type,
-                        units=spec.units,
-                        details={"reason": "missing_simulation_data"},
-                    ))
+                    results.append(
+                        ValidationMetricResult(
+                            metric_id=spec.metric_id,
+                            measured_value=0.0,
+                            simulated_value=0.0,
+                            error=float("inf"),
+                            tolerance_used=spec.tolerance_band,
+                            passed=False,
+                            source_type=spec.source_type,
+                            units=spec.units,
+                            details={"reason": "missing_simulation_data"},
+                        )
+                    )
                 else:
                     messages.append(f"Skipping optional metric '{sim_key}' (no data)")
                 continue
@@ -140,7 +143,5 @@ class ChemistryRunner(BaseRegimeRunner):
             "ignition_delay_error_table": ignition_delay_errors,
             "species_profile_comparisons": species_comparisons,
             "flame_speed_comparisons": flame_speed_comparisons,
-            "mechanism_provenance": run_manifest.solver_artifacts.get(
-                "mechanism_provenance", ""
-            ),
+            "mechanism_provenance": run_manifest.solver_artifacts.get("mechanism_provenance", ""),
         }

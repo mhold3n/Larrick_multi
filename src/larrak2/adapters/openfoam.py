@@ -12,8 +12,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .docker_openfoam import DockerOpenFoam, DockerOpenFoamConfig
 from larrak2.simulation_validation.cantera_mechanisms import sanitize_chemkin_file_text
+
+from .docker_openfoam import DockerOpenFoam, DockerOpenFoamConfig
 
 R_SPECIFIC_AIR = 287.05
 O2_MASS_FRACTION_AIR = 0.233
@@ -82,11 +83,17 @@ class OpenFoamRunner:
             destination.parent.mkdir(parents=True, exist_ok=True)
             if source.is_dir():
                 if sanitizer:
-                    raise ValueError("OpenFOAM staged input sanitizer cannot be used with directories")
+                    raise ValueError(
+                        "OpenFOAM staged input sanitizer cannot be used with directories"
+                    )
                 if destination.exists():
                     shutil.rmtree(destination)
                 shutil.copytree(source, destination)
-            elif sanitizer in {"llnl_gasoline_input", "llnl_gasoline_thermo", "llnl_gasoline_transport"}:
+            elif sanitizer in {
+                "llnl_gasoline_input",
+                "llnl_gasoline_thermo",
+                "llnl_gasoline_transport",
+            }:
                 file_kind = sanitizer.removeprefix("llnl_gasoline_")
                 destination.write_text(
                     sanitize_chemkin_file_text(
@@ -547,14 +554,22 @@ class OpenFoamRunner:
             raise FileNotFoundError(f"No numeric time directories found in '{run_dir}'")
 
         source_time_dir = str(generator_cfg.get("source_time_dir", "latest_time")).strip()
-        source_dir = latest_dir if not source_time_dir or source_time_dir == "latest_time" else run_dir / source_time_dir
+        source_dir = (
+            latest_dir
+            if not source_time_dir or source_time_dir == "latest_time"
+            else run_dir / source_time_dir
+        )
         if not source_dir.exists():
             raise FileNotFoundError(
                 f"Live validation source time directory '{source_dir}' does not exist"
             )
 
         output_time_dir = str(generator_cfg.get("output_time_dir", "latest_time")).strip()
-        output_dir_name = source_dir.name if not output_time_dir or output_time_dir == "latest_time" else output_time_dir
+        output_dir_name = (
+            source_dir.name
+            if not output_time_dir or output_time_dir == "latest_time"
+            else output_time_dir
+        )
         sample_root = run_dir / str(generator_cfg.get("sample_root", "postProcessing"))
         output_dir = sample_root / output_dir_name
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -623,9 +638,7 @@ class OpenFoamRunner:
             else cls.latest_numeric_subdir(sample_root)
         )
         if sample_dir is None or not sample_dir.exists():
-            raise FileNotFoundError(
-                f"Spray validation samples not found under '{sample_root}'"
-            )
+            raise FileNotFoundError(f"Spray validation samples not found under '{sample_root}'")
         metric_files = {
             "liquid_penetration_max_mm_sprayG": {
                 "path": "liquidPenetration_mm.dat",
@@ -653,12 +666,14 @@ class OpenFoamRunner:
             )
             for metric_id, spec in metric_files.items()
         }
-        metrics.update({
-            "metric_source": "live_case_fields",
-            "metric_authority": "live_case_fields",
-            "extractor_name": str(cfg.get("name", "spray_g_v1")),
-            "sampled_time_dir": sample_dir.name,
-        })
+        metrics.update(
+            {
+                "metric_source": "live_case_fields",
+                "metric_authority": "live_case_fields",
+                "extractor_name": str(cfg.get("name", "spray_g_v1")),
+                "sampled_time_dir": sample_dir.name,
+            }
+        )
         return metrics
 
     @classmethod
@@ -669,9 +684,7 @@ class OpenFoamRunner:
         extractor_cfg: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         cfg = dict(extractor_cfg or {})
-        sample_root = run_dir / str(
-            cfg.get("sample_root", "postProcessing/reactingValidation")
-        )
+        sample_root = run_dir / str(cfg.get("sample_root", "postProcessing/reactingValidation"))
         sample_dir = (
             sample_root / str(cfg["sampled_time_dir"])
             if str(cfg.get("sampled_time_dir", "")).strip()
@@ -708,12 +721,14 @@ class OpenFoamRunner:
             )
             for metric_id, spec in metric_files.items()
         }
-        metrics.update({
-            "metric_source": "live_case_fields",
-            "metric_authority": "live_case_fields",
-            "extractor_name": str(cfg.get("name", "reacting_iso_octane_v1")),
-            "sampled_time_dir": sample_dir.name,
-        })
+        metrics.update(
+            {
+                "metric_source": "live_case_fields",
+                "metric_authority": "live_case_fields",
+                "extractor_name": str(cfg.get("name", "reacting_iso_octane_v1")),
+                "sampled_time_dir": sample_dir.name,
+            }
+        )
         return metrics
 
     @classmethod

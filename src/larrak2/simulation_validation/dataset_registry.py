@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .models import SourceType, ValidationDatasetManifest, ValidationMetricSpec, ComparisonMode
+from .models import ComparisonMode, SourceType, ValidationDatasetManifest, ValidationMetricSpec
 
 
 class DatasetRegistryError(ValueError):
@@ -34,9 +34,7 @@ class DatasetRegistry:
         # Provenance check
         errors = dataset.validate_provenance()
         if errors:
-            raise DatasetRegistryError(
-                f"Provenance validation failed: {'; '.join(errors)}"
-            )
+            raise DatasetRegistryError(f"Provenance validation failed: {'; '.join(errors)}")
 
         # Synthetic extension requires existing measured dataset in same regime
         if dataset.source_type == SourceType.SYNTHETIC:
@@ -66,7 +64,8 @@ class DatasetRegistry:
 
     def measured_for_regime(self, regime: str) -> list[ValidationDatasetManifest]:
         return [
-            d for d in self._datasets.values()
+            d
+            for d in self._datasets.values()
             if d.regime == regime and d.source_type == SourceType.MEASURED
         ]
 
@@ -101,15 +100,17 @@ class DatasetRegistry:
         for entry in data.get("datasets", []):
             metrics = []
             for m in entry.get("metrics", []):
-                metrics.append(ValidationMetricSpec(
-                    metric_id=str(m["metric_id"]),
-                    units=str(m.get("units", "")),
-                    comparison_mode=ComparisonMode(m.get("comparison_mode", "absolute")),
-                    tolerance_band=float(m.get("tolerance_band", 0.0)),
-                    source_type=SourceType(m.get("source_type", "measured")),
-                    required=bool(m.get("required", True)),
-                    description=str(m.get("description", "")),
-                ))
+                metrics.append(
+                    ValidationMetricSpec(
+                        metric_id=str(m["metric_id"]),
+                        units=str(m.get("units", "")),
+                        comparison_mode=ComparisonMode(m.get("comparison_mode", "absolute")),
+                        tolerance_band=float(m.get("tolerance_band", 0.0)),
+                        source_type=SourceType(m.get("source_type", "measured")),
+                        required=bool(m.get("required", True)),
+                        description=str(m.get("description", "")),
+                    )
+                )
             dataset = ValidationDatasetManifest(
                 dataset_id=str(entry["dataset_id"]),
                 regime=str(entry["regime"]),
