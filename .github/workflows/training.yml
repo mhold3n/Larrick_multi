@@ -63,4 +63,4 @@ jobs:
           name: simulation-dataset-bundle
           path: .
         continue-on-error: true
-      - run: echo "Training self-hosted runner stub. Replace with local hardware execution when available."
+      - run: python src/larrak2/cli/train.py openfoam --data simulation_dataset_bundle.json --validation-regime chemistry --validation-config data/simulation_validation/chemistry_config.json
