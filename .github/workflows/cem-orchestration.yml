@@ -69,4 +69,4 @@ jobs:
           name: simulation-dataset-bundle
           path: .
         continue-on-error: true
-      - run: echo "CEM/orchestration self-hosted runner stub. Replace with local hardware execution when available."
+      - run: python src/larrak2/cli/run.py orchestrate --outdir outputs/orchestrate-cem --rpm 2200 --torque 120 --truth-dispatch-mode auto
