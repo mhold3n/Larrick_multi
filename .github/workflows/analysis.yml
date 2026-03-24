@@ -1,0 +1,52 @@
+name: Analysis CI
+
+on:
+  push:
+    branches:
+      - dev/analysis
+      - "codex/analysis/**"
+    paths:
+      - ".github/workflows/reusable-fast.yml"
+      - ".github/workflows/analysis.yml"
+      - "src/larrak2/architecture/**"
+      - "src/larrak2/analysis/**"
+      - "src/larrak2/cli/run.py"
+      - "tests/ci/test_telemetry_summary.py"
+      - "tests/ci/test_workflow_ci_layout.py"
+      - "tests/ci/test_workflow_contracts.py"
+  pull_request:
+    branches: [dev/analysis]
+    paths:
+      - ".github/workflows/reusable-fast.yml"
+      - ".github/workflows/analysis.yml"
+      - "src/larrak2/architecture/**"
+      - "src/larrak2/analysis/**"
+      - "src/larrak2/cli/run.py"
+      - "tests/ci/test_telemetry_summary.py"
+      - "tests/ci/test_workflow_ci_layout.py"
+      - "tests/ci/test_workflow_contracts.py"
+  workflow_dispatch:
+    inputs:
+      run_heavy:
+        description: "Run the self-hosted analysis stub"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    uses: ./.github/workflows/reusable-fast.yml
+    with:
+      workflow_name: analysis
+      pytest_args: "pytest -q"
+      mypy_paths: "src/larrak2/architecture/workflow_contracts.py src/larrak2/analysis/telemetry.py src/larrak2/cli/run.py"
+      ruff_paths: "src/larrak2/analysis src/larrak2/cli/run.py src/larrak2/architecture tests/ci/test_telemetry_summary.py tests/ci/test_workflow_ci_layout.py tests/ci/test_workflow_contracts.py tests/ci/test_agent_docs.py"
+
+  heavy-self-hosted:
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_heavy) || vars.LARRAK_ENABLE_SELF_HOSTED_ANALYSIS == 'true' }}
+    runs-on: [self-hosted, larrak-placeholder, analysis]
+    steps:
+      - run: echo "Analysis self-hosted runner stub. Replace with local hardware execution when available."

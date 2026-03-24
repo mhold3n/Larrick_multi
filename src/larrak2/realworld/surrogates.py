@@ -251,7 +251,7 @@ def evaluate_realworld_surrogates(
         scuff_method_used = "flash" if scuff_margin_flash <= scuff_margin_integral else "integral"
 
     micropitting_sf = compute_micropitting_safety(lambda_min, lambda_perm=trib_eval.lambda_perm)
-    regime = classify_regime(lambda_min)
+    regime = classify_regime(lambda_min)  # noqa: F841
 
     # --- Soft Material Selection & Safe Constraint Aggregation ---
     if params.material_state is not None:

@@ -11,7 +11,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 
-class SourceType(str, enum.Enum):
+class SourceType(str, enum.Enum):  # noqa: UP042
     """How a validation target was obtained."""
 
     MEASURED = "measured"
@@ -19,7 +19,7 @@ class SourceType(str, enum.Enum):
     DERIVED_CONSTRAINT = "derived_constraint"
 
 
-class ComparisonMode(str, enum.Enum):
+class ComparisonMode(str, enum.Enum):  # noqa: UP042
     """How a metric is compared against the target."""
 
     ABSOLUTE = "absolute"
@@ -27,7 +27,7 @@ class ComparisonMode(str, enum.Enum):
     BAND = "band"
 
 
-class RegimeStatus(str, enum.Enum):
+class RegimeStatus(str, enum.Enum):  # noqa: UP042
     """Outcome status for a regime within the suite."""
 
     PASSED = "passed"

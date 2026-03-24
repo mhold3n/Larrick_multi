@@ -12,12 +12,12 @@ from NASA, ISO 6336, and manufacturer datasheets.  Real experimental data
 slots in via the registry without code changes.
 """
 
-from larrak2.cem.lubrication import LubricationMode, LubricationParams
-from larrak2.cem.material_db import MaterialClass, MaterialProperties, get_material
-from larrak2.cem.post_processing import CoatingType, HeatTreatment
-from larrak2.cem.registry import DatasetRegistry, get_registry
-from larrak2.cem.surface_finish import SurfaceFinishTier, effective_composite_roughness
-from larrak2.cem.tribology import (
+from larrak2.cem.lubrication import LubricationMode, LubricationParams  # noqa: E402
+from larrak2.cem.material_db import MaterialClass, MaterialProperties, get_material  # noqa: E402
+from larrak2.cem.post_processing import CoatingType, HeatTreatment  # noqa: E402
+from larrak2.cem.registry import DatasetRegistry, get_registry  # noqa: E402
+from larrak2.cem.surface_finish import SurfaceFinishTier, effective_composite_roughness  # noqa: E402
+from larrak2.cem.tribology import (  # noqa: E402
     LubeRegime,
     TribologyParams,
     classify_regime,

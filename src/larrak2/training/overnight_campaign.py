@@ -823,7 +823,7 @@ def build_calculix_training_dataset(
         _stable_jsonl_append(jsonl_path, record)
         if ok:
             success_count += 1
-            X_rows.append([float(params[k]) for k in CCX_KEYS])
+            X_rows.append([float(params[k]) for k in CCX_KEYS])  # noqa: F821
             Y_rows.append([float(max_stress)])
         if i + 1 == fail_fast_after and success_count < fail_fast_min_success:
             raise CampaignError(
@@ -839,7 +839,7 @@ def build_calculix_training_dataset(
         train_path,
         X=np.asarray(X_rows, dtype=np.float64),
         Y=np.asarray(Y_rows, dtype=np.float64),
-        feature_names=np.asarray(CCX_KEYS, dtype=object),
+        feature_names=np.asarray(CCX_KEYS, dtype=object),  # noqa: F821
         target_names=np.asarray(["max_stress"], dtype=object),
     )
     meta = {

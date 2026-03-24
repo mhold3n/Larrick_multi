@@ -1118,7 +1118,7 @@ def train_residual_workflow(args: argparse.Namespace):
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)
-    mse = mean_squared_error(y_test, y_pred, multioutput="raw_values")
+    mse = mean_squared_error(y_test, y_pred, multioutput="raw_values")  # noqa: F841
     r2 = r2_score(y_test, y_pred, multioutput="raw_values")
 
     print(f"Efficiency Residual R2: {r2[0]:.4f}")

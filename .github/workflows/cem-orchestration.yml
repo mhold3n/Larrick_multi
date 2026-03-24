@@ -57,6 +57,7 @@ jobs:
       workflow_name: cem-orchestration
       pytest_args: "pytest -q"
       mypy_paths: "src/larrak2/architecture/workflow_contracts.py src/larrak2/orchestration/simulation_inputs.py src/larrak2/analysis/telemetry.py"
+      ruff_paths: "src/larrak2/cem src/larrak2/realworld src/larrak2/orchestration src/larrak2/architecture tests/ci/test_cem_modules.py tests/ci/test_orchestration_adapters_smoke.py tests/ci/test_realworld_analysis_reuse.py tests/ci/test_simulation_input_providers.py tests/ci/test_workflow_contracts.py tests/ci/test_workflow_ci_layout.py tests/ci/test_agent_docs.py"
 
   heavy-self-hosted:
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_heavy) || vars.LARRAK_ENABLE_SELF_HOSTED_CEM_ORCHESTRATION == 'true' }}

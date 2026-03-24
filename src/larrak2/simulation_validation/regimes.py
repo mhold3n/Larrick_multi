@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 
 
-class CanonicalRegime(str, enum.Enum):
+class CanonicalRegime(str, enum.Enum):  # noqa: UP042
     """Five canonical validation layers, ordered from simplest to most integrated."""
 
     CHEMISTRY = "chemistry"

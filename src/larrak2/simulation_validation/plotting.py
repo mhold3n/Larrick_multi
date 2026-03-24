@@ -34,7 +34,7 @@ def generate_metric_comparison_plot(
     metric_ids = [r.metric_id for r in results]
     measured = [r.measured_value for r in results]
     simulated = [r.simulated_value for r in results]
-    errors = [r.error for r in results]
+    errors = [r.error for r in results]  # noqa: F841
     colors = ["#2ecc71" if r.passed else "#e74c3c" for r in results]
 
     fig = go.Figure()
