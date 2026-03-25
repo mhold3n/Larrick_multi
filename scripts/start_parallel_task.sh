@@ -118,6 +118,8 @@ routing_workflow="${routing_workflow:-$workflow}"
 routing_source="${routing_source:-$routing_strategy}"
 pr_check_mode="gh"
 last_thread_seen_at=""
+current_branch="$(git branch --show-current 2>/dev/null || true)"
+adopt_existing_current="false"
 if [[ -n "$thread_id" ]]; then
   last_thread_seen_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 fi
@@ -151,14 +153,22 @@ if ! git show-ref --verify --quiet "refs/heads/$base_branch"; then
   exit 1
 fi
 
+if [[ "$mode" == "current" && "$current_branch" == "$branch" ]]; then
+  adopt_existing_current="true"
+fi
+
 if git show-ref --verify --quiet "refs/heads/$branch"; then
-  echo "Local branch '$branch' already exists. Reuse or finish that task before starting another one with the same slug." >&2
-  exit 1
+  if [[ "$adopt_existing_current" != "true" ]]; then
+    echo "Local branch '$branch' already exists. Reuse or finish that task before starting another one with the same slug." >&2
+    exit 1
+  fi
 fi
 
 if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-  echo "Remote branch '$branch' already exists. Pick a different topic slug or finish the existing task first." >&2
-  exit 1
+  if [[ "$adopt_existing_current" != "true" ]]; then
+    echo "Remote branch '$branch' already exists. Pick a different topic slug or finish the existing task first." >&2
+    exit 1
+  fi
 fi
 
 if [[ "$mode" == "worktree" && -e "$worktree_path" ]]; then
@@ -166,7 +176,7 @@ if [[ "$mode" == "worktree" && -e "$worktree_path" ]]; then
   exit 1
 fi
 
-if [[ "$pr_check_mode" == "gh" ]]; then
+if [[ "$pr_check_mode" == "gh" && "$adopt_existing_current" != "true" ]]; then
   existing_prs="$(gh pr list --state open --head "$branch" --json number,url --jq 'length')"
   if [[ "$existing_prs" != "0" ]]; then
     echo "An open pull request already exists for '$branch'. Refusing to create a duplicate task workspace." >&2
@@ -177,11 +187,15 @@ fi
 if [[ "$mode" == "worktree" ]]; then
   git worktree add "$worktree_path" -b "$branch" "$base_branch"
 else
-  if [[ -n "$(git status --short)" ]]; then
-    echo "Current workspace has uncommitted changes. Use a clean cloud workspace before routing into current mode." >&2
-    exit 1
+  if [[ "$adopt_existing_current" == "true" ]]; then
+    git checkout "$branch" >/dev/null 2>&1 || true
+  else
+    if [[ -n "$(git status --short)" ]]; then
+      echo "Current workspace has uncommitted changes. Use a clean cloud workspace before routing into current mode." >&2
+      exit 1
+    fi
+    git checkout -b "$branch" "$base_branch"
   fi
-  git checkout -b "$branch" "$base_branch"
 fi
 
 python3 -m venv "$workspace_root/.venv"
@@ -250,6 +264,7 @@ printf 'Workspace mode: %s\n' "$mode"
 printf 'Workspace root: %s\n' "$workspace_root"
 printf 'Branch: %s\n' "$branch"
 printf 'Base branch: %s\n' "$base_branch"
+printf 'Adopted existing current branch: %s\n' "$adopt_existing_current"
 printf 'PR duplicate check: %s\n' "$pr_check_mode"
 printf 'Runtime env: %s\n' "$workspace_root/.task-runtime/task.env"
 printf 'Task context: %s\n' "$workspace_root/.task-runtime/task.json"

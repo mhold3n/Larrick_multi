@@ -70,6 +70,11 @@ the prompt and then, when confidence is high, runs
 low or the request looks cross-workflow, ask the user which workflow branch
 should own the task instead of guessing.
 
+Do not synthesize workflow branches manually with raw `git checkout -b
+dev/<workflow>` or `git checkout -b codex/<workflow>/...` in cloud routing
+mode. Use the router/bootstrap scripts so `.task-runtime/task.json`, routing
+metadata, and lifecycle bookkeeping are created consistently.
+
 Explicit workflow markers override the classifier. Support both:
 - token: `workflow:simulation`
 - phrase: `working on simulation development`
