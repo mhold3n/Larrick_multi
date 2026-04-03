@@ -1,33 +1,22 @@
-# Shared governance and contract layer
+# Shared docs, CI, and architecture contracts
 /.gitignore @maxholden
 /AGENTS.md @maxholden
 /CLAUDE.md @maxholden
 /README.md @maxholden
 /repo_layout.yml @maxholden
-/workflow_ownership.yml @maxholden
 /.github/CODEOWNERS @maxholden
 /.github/copilot-instructions.md @maxholden
 /.github/workflows/ci.yml @maxholden
-/.github/workflows/layout.yml @maxholden
-/.github/workflows/reusable-fast.yml @maxholden
 /.github/workflows/ci-telemetry.yml @maxholden
-/.github/workflows/ownership.yml @maxholden
-/.github/concierge_templates/ @maxholden
+/.github/workflows/layout.yml @maxholden
 /Docs/github_admin_hardening_checklist.md @maxholden
-/scripts/check_branch_ownership.py @maxholden
-/scripts/plan_github_concierge.py @maxholden
 /scripts/check_repo_layout.py @maxholden
-/scripts/start_parallel_task.sh @maxholden
-/scripts/finish_parallel_task.sh @maxholden
 /src/larrak2/architecture/ @maxholden
 /tests/ci/test_agent_docs.py @maxholden
-/tests/ci/test_branch_ownership.py @maxholden
-/tests/ci/test_github_concierge_planner.py @maxholden
 /tests/ci/test_workflow_ci_layout.py @maxholden
 /tests/ci/test_workflow_contracts.py @maxholden
 
-# Simulation workflow
-/.github/workflows/simulation.yml @maxholden
+# Simulation domain
 /src/larrak2/simulation_validation/ @maxholden
 /src/larrak2/pipelines/openfoam.py @maxholden
 /src/larrak2/adapters/openfoam.py @maxholden
@@ -58,8 +47,7 @@
 /tests/ci/test_simulation_validation_tolerance.py @maxholden
 /tests/ci/test_validate_simulation_cli_cache.py @maxholden
 
-# Training workflow
-/.github/workflows/training.yml @maxholden
+# Training domain
 /src/larrak2/training/ @maxholden
 /src/larrak2/surrogate/ @maxholden
 /src/larrak2/cli/train.py @maxholden
@@ -72,8 +60,7 @@
 /tests/ci/test_train_thermo_symbolic_cli_smoke.py @maxholden
 /tests/ci/test_training_quality_report_emission.py @maxholden
 
-# Optimization workflow
-/.github/workflows/optimization.yml @maxholden
+# Optimization and orchestration domain
 /src/larrak2/optimization/ @maxholden
 /src/larrak2/promote/ @maxholden
 /src/larrak2/cli/run.py @maxholden
@@ -97,13 +84,11 @@
 /tests/ci/test_refine_pareto_scipy_explicit_mode.py @maxholden
 /tests/ci/test_slice_active_set.py @maxholden
 
-# Analysis workflow
-/.github/workflows/analysis.yml @maxholden
+# Analysis domain
 /src/larrak2/analysis/ @maxholden
 /tests/ci/test_telemetry_summary.py @maxholden
 
-# CEM and orchestration workflow
-/.github/workflows/cem-orchestration.yml @maxholden
+# CEM and real-world domain
 /src/larrak2/cem/ @maxholden
 /src/larrak2/realworld/ @maxholden
 /src/larrak2/orchestration/ @maxholden

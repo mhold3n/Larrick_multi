@@ -4,72 +4,49 @@ on:
   push:
     branches:
       - main
-      - "codex/main/**"
-    paths:
-      - ".github/CODEOWNERS"
-      - ".github/concierge_templates/**"
-      - ".github/copilot-instructions.md"
-      - ".github/workflows/ci.yml"
-      - ".github/workflows/ci-telemetry.yml"
-      - ".github/workflows/layout.yml"
-      - ".github/workflows/ownership.yml"
-      - ".github/workflows/reusable-fast.yml"
-      - ".gitignore"
-      - "AGENTS.md"
-      - "CLAUDE.md"
-      - "Docs/github_admin_hardening_checklist.md"
-      - "README.md"
-      - "repo_layout.yml"
-      - "workflow_ownership.yml"
-      - "scripts/check_branch_ownership.py"
-      - "scripts/plan_github_concierge.py"
-      - "scripts/check_repo_layout.py"
-      - "scripts/start_parallel_task.sh"
-      - "scripts/finish_parallel_task.sh"
-      - "src/larrak2/architecture/**"
-      - "tests/ci/test_agent_docs.py"
-      - "tests/ci/test_branch_ownership.py"
-      - "tests/ci/test_github_concierge_planner.py"
-      - "tests/ci/test_workflow_ci_layout.py"
-      - "tests/ci/test_workflow_contracts.py"
   pull_request:
-    branches: [main]
-    paths:
-      - ".github/CODEOWNERS"
-      - ".github/concierge_templates/**"
-      - ".github/copilot-instructions.md"
-      - ".github/workflows/ci.yml"
-      - ".github/workflows/ci-telemetry.yml"
-      - ".github/workflows/layout.yml"
-      - ".github/workflows/ownership.yml"
-      - ".github/workflows/reusable-fast.yml"
-      - ".gitignore"
-      - "AGENTS.md"
-      - "CLAUDE.md"
-      - "Docs/github_admin_hardening_checklist.md"
-      - "README.md"
-      - "repo_layout.yml"
-      - "workflow_ownership.yml"
-      - "scripts/check_branch_ownership.py"
-      - "scripts/plan_github_concierge.py"
-      - "scripts/check_repo_layout.py"
-      - "scripts/start_parallel_task.sh"
-      - "scripts/finish_parallel_task.sh"
-      - "src/larrak2/architecture/**"
-      - "tests/ci/test_agent_docs.py"
-      - "tests/ci/test_branch_ownership.py"
-      - "tests/ci/test_github_concierge_planner.py"
-      - "tests/ci/test_workflow_ci_layout.py"
-      - "tests/ci/test_workflow_contracts.py"
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
-  fast:
-    uses: ./.github/workflows/reusable-fast.yml
-    with:
-      workflow_name: main
-      pytest_args: "pytest -q tests/ci/test_agent_docs.py tests/ci/test_branch_ownership.py tests/ci/test_github_concierge_planner.py tests/ci/test_workflow_ci_layout.py tests/ci/test_workflow_contracts.py"
-      mypy_paths: "src/larrak2/architecture/github_concierge.py src/larrak2/architecture/workflow_contracts.py scripts/check_branch_ownership.py scripts/check_repo_layout.py scripts/plan_github_concierge.py"
-      ruff_paths: "src/larrak2/architecture scripts/check_branch_ownership.py scripts/check_repo_layout.py scripts/plan_github_concierge.py tests/ci/test_agent_docs.py tests/ci/test_branch_ownership.py tests/ci/test_github_concierge_planner.py tests/ci/test_workflow_ci_layout.py tests/ci/test_workflow_contracts.py"
+  fast-checks:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml', 'setup.cfg') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Ruff format check
+        run: ruff format --check src tests scripts
+      - name: Ruff lint
+        run: ruff check src tests scripts
+      - name: Mypy
+        env:
+          PYTHONPATH: src
+        run: >
+          mypy
+          src/larrak2/analysis/telemetry.py
+          src/larrak2/architecture/workflow_contracts.py
+          src/larrak2/cli/run.py
+          src/larrak2/cli/train.py
+          src/larrak2/orchestration/simulation_inputs.py
+          scripts/check_repo_layout.py
+      - name: Pytest
+        env:
+          PYTHONPATH: src
+        run: pytest -q

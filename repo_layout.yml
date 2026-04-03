@@ -35,7 +35,6 @@ allowed_top_level_files:
   - sensitivity_analysis.json
   - summary.json
   - verify_kinematics.py
-  - workflow_ownership.yml
 allowed_top_level_file_patterns: []
 ignore_top_level_dirs:
   - .git
