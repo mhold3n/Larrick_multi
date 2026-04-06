@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from ..core.encoding import ENCODING_VERSION, LEGACY_ENCODING_VERSION
+from ..core.encoding import ENCODING_VERSION, ENCODING_VERSION_V0_4
 from ..surrogate.quality_contract import (
     load_quality_report,
     regression_metrics,
@@ -441,7 +441,7 @@ def load_thermo_symbolic_artifact(
             objective_names=tuple(meta["objective_names"]),
             constraint_names=tuple(meta["constraint_names"]),
             fidelity=int(meta.get("fidelity", 1)),
-            encoding_version=str(meta.get("encoding_version", LEGACY_ENCODING_VERSION)),
+            encoding_version=str(meta.get("encoding_version", ENCODING_VERSION_V0_4)),
             x_mean=np.asarray(data["x_mean"], dtype=np.float64),
             x_std=np.asarray(data["x_std"], dtype=np.float64),
             y_mean=np.asarray(data["y_mean"], dtype=np.float64),

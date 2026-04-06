@@ -7,7 +7,7 @@ from larrak2.core.types import EvalContext
 
 def main():
     x = mid_bounds_candidate()
-    candidate = decode_candidate(x)
+    _candidate = decode_candidate(x)
 
     # Fidelity 0
     print("Evaluating Fidelity 0...")

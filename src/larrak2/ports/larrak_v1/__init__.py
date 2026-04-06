@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Larrak v1 forward-evaluation port.
 
 This package contains pure forward-evaluation logic ported from Larrak v1.
@@ -13,6 +11,8 @@ Ported with attribution from:
 Usage:
     from larrak2.ports.larrak_v1 import v1_eval_gear_forward, v1_eval_thermo_forward
 """
+
+from __future__ import annotations
 
 from .gear_forward import v1_eval_gear_forward
 from .thermo_forward import v1_eval_thermo_forward

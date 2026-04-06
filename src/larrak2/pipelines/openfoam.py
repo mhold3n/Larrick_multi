@@ -389,6 +389,8 @@ def _engine_case_placeholders(
     cycle_coordinate = float(handoff_bundle.get("cycle_coordinate_deg", -180.0))
     pressure = float(handoff_bundle.get("pressure_Pa", params.get("p_manifold_Pa", 101325.0)))
     temperature = float(handoff_bundle.get("temperature_K", params.get("T_intake_K", 300.0)))
+    # Engine-case templates assume a minimum stable initialization temperature.
+    temperature = max(450.0, temperature)
     residual_fraction = float(
         handoff_bundle.get("residual_fraction", params.get("residual_fraction_seed", 0.08))
     )

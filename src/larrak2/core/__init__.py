@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Core module — types, encoding, evaluator, utilities."""
+
+from __future__ import annotations
 
 from .encoding import (
     Candidate,

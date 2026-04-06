@@ -7,7 +7,7 @@ FoamFile
 }
 
 dimensions      [0 0 0 0 0 0 0];
-internalField   uniform 0;
+internalField   uniform {{handoff_residual_tracer}};
 boundaryField
 {
     inlet { type fixedValue; value uniform 0; }

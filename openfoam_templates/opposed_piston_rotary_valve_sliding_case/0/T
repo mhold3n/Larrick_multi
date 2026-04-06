@@ -10,7 +10,12 @@ dimensions      [0 0 0 1 0 0 0];
 internalField   uniform {{handoff_temperature_K}};
 boundaryField
 {
-    inlet { type fixedValue; value uniform {{handoff_temperature_K}}; }
+    inlet
+    {
+        type        inletOutlet;
+        inletValue  uniform {{handoff_temperature_K}};
+        value uniform {{handoff_temperature_K}};
+    }
     outlet { type zeroGradient; }
     walls { type zeroGradient; }
     cylinder { type zeroGradient; }

@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Thermo module — equation-first thermodynamic physics models."""
+
+from __future__ import annotations
 
 from .constants import ThermoConstants, load_anchor_manifest, load_thermo_constants
 from .validation import ThermoValidationReport

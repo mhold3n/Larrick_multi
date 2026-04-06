@@ -1,5 +1,4 @@
 import os
-import re
 import subprocess
 from pathlib import PurePosixPath
 
@@ -36,7 +35,6 @@ def test_repo_layout():
     """Verify repository layout against repo_layout.yml."""
     policy = load_policy()
     allowed = set(policy.get("allowed_top_level", []))
-    banned_patterns = [re.compile(p) for p in policy.get("banned_dir_name_patterns", [])]
     singletons = policy.get("singletons", {})
     output_dir = singletons.get("output_dir", "outputs")
 

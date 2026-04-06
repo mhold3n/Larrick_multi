@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Geometry generation utilities."""
+
+from __future__ import annotations
 
 from larrak2.geometry.generate_stl import (
     create_cylinder_stl,

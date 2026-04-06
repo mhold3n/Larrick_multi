@@ -49,7 +49,7 @@ def analyze_partial():
     print(f"Loaded {len(cache_data)} cached results.")
 
     # 2. Reconstruct Candidates
-    gear = GearParams(base_radius=15.0, pitch_coeffs=[0.0])
+    _gear = GearParams(base_radius=15.0, pitch_coeffs=[0.0])
     process = ManufacturingProcessParams(
         kerf_mm=0.2,
         overcut_mm=0.05,

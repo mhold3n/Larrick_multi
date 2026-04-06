@@ -15,6 +15,7 @@ Falls back to brute-force (Litvin on every point) if the surrogate is disabled.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -381,9 +382,7 @@ def _manufacturability_check(
 # ============================================================================
 
 # PicoGK oracle is opt-in via environment variable
-import os as _os
-
-_PICOGK_ENABLED = _os.environ.get("LARRAK_PICOGK_ORACLE", "0") == "1"
+_PICOGK_ENABLED = os.environ.get("LARRAK_PICOGK_ORACLE", "0") == "1"
 
 
 def _picogk_check(

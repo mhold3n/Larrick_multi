@@ -14,6 +14,9 @@ mergeTolerance  1e-6;
 geometry
 {
     cylinder.stl { type triSurfaceMesh; name cylinder; }
+    intakeManifold.stl { type triSurfaceMesh; name intakeManifold; }
+    exhaustManifoldLeft.stl { type triSurfaceMesh; name exhaustManifoldLeft; }
+    exhaustManifoldRight.stl { type triSurfaceMesh; name exhaustManifoldRight; }
     intakeValve.stl { type triSurfaceMesh; name intakeValve; }
     exhaustValveLeft.stl { type triSurfaceMesh; name exhaustValveLeft; }
     exhaustValveRight.stl { type triSurfaceMesh; name exhaustValveRight; }
@@ -64,7 +67,7 @@ castellatedMeshControls
     {
     }
     resolveFeatureAngle 30;
-    locationInMesh (0 0 0.09);
+    locationInMesh (0 0 0.0675);
     allowFreeStandingZoneFaces true;
 }
 

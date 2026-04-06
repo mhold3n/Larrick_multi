@@ -40,19 +40,19 @@ from ..thermo.timing_profile import (
     thermo_timing_bounds,
 )
 
-LEGACY_ENCODING_VERSION = "0.4"
+ENCODING_VERSION_V0_4 = "0.4"
 PRECHEM_ENCODING_VERSION = "0.5"
 ENCODING_VERSION = "0.6"
 
 # Decision variable count
-LEGACY_N_THERMO = 5
+N_THERMO_V0_4 = 5
 PRECHEM_N_THERMO = 9
 N_THERMO = 10
 N_GEAR = 9  # base_radius(1) + pitch_coeffs(7) + face_width(1)
 N_REALWORLD = (
     8  # surface_finish, lube_mode, material, coating, hunting, oil_flow, oil_temp, evacuation
 )
-LEGACY_N_TOTAL = LEGACY_N_THERMO + N_GEAR + N_REALWORLD  # 22
+N_TOTAL_V0_4 = N_THERMO_V0_4 + N_GEAR + N_REALWORLD  # 22
 PRECHEM_N_TOTAL = PRECHEM_N_THERMO + N_GEAR + N_REALWORLD  # 26
 N_TOTAL = N_THERMO + N_GEAR + N_REALWORLD  # 27
 
@@ -149,7 +149,7 @@ class ThermoParams:
     def from_array(cls, arr: np.ndarray) -> ThermoParams:
         """Create from flat array."""
         flat = np.asarray(arr, dtype=np.float64).reshape(-1)
-        if flat.size == LEGACY_N_THERMO:
+        if flat.size == N_THERMO_V0_4:
             defaults = legacy_timing_defaults()
             spark_default = np.array([legacy_spark_timing_default()], dtype=np.float64)
             flat = np.concatenate([flat, defaults, spark_default], dtype=np.float64)
@@ -186,7 +186,7 @@ class ThermoParams:
         if flat.size != N_THERMO:
             raise ValueError(
                 "ThermoParams expects "
-                f"{LEGACY_N_THERMO}, {PRECHEM_N_THERMO}, or {N_THERMO} values, got {flat.size}"
+                f"{N_THERMO_V0_4}, {PRECHEM_N_THERMO}, or {N_THERMO} values, got {flat.size}"
             )
         return cls(
             compression_duration=float(flat[0]),
@@ -342,11 +342,11 @@ class Candidate:
 def legacy_index_to_current(idx: int) -> int:
     """Translate a legacy 22D index into the current 27D layout."""
     i = int(idx)
-    if i < 0 or i >= LEGACY_N_TOTAL:
+    if i < 0 or i >= N_TOTAL_V0_4:
         raise IndexError(f"Legacy index out of range: {idx}")
-    if i < LEGACY_N_THERMO:
+    if i < N_THERMO_V0_4:
         return i
-    return i + (N_THERMO - LEGACY_N_THERMO)
+    return i + (N_THERMO - N_THERMO_V0_4)
 
 
 def prechem_index_to_current(idx: int) -> int:
@@ -361,12 +361,12 @@ def prechem_index_to_current(idx: int) -> int:
 
 def resolve_index_for_encoding(idx: int, encoding_version: str | None) -> int:
     """Resolve an artifact/archive index into the current canonical layout."""
-    version = str(encoding_version or "").strip() or LEGACY_ENCODING_VERSION
+    version = str(encoding_version or "").strip() or ENCODING_VERSION_V0_4
     if version == ENCODING_VERSION:
         return int(idx)
     if version == PRECHEM_ENCODING_VERSION:
         return prechem_index_to_current(idx)
-    if version == LEGACY_ENCODING_VERSION or version == "0.0":
+    if version == ENCODING_VERSION_V0_4 or version == "0.0":
         return legacy_index_to_current(idx)
     raise ValueError(
         f"Unsupported encoding_version '{encoding_version}' for feature index resolution"
@@ -376,11 +376,11 @@ def resolve_index_for_encoding(idx: int, encoding_version: str | None) -> int:
 def upgrade_legacy_candidate_vector(x_legacy: np.ndarray) -> np.ndarray:
     """Inject default thermo chemistry controls into a legacy 22D decision vector."""
     arr = np.asarray(x_legacy, dtype=np.float64).reshape(-1)
-    if arr.size != LEGACY_N_TOTAL:
-        raise ValueError(f"Expected legacy vector length {LEGACY_N_TOTAL}, got {arr.size}")
-    thermo = ThermoParams.from_array(arr[:LEGACY_N_THERMO])
-    gear = GearParams.from_array(arr[LEGACY_N_THERMO : LEGACY_N_THERMO + N_GEAR])
-    realworld = RealWorldParams.from_array(arr[LEGACY_N_THERMO + N_GEAR : LEGACY_N_TOTAL])
+    if arr.size != N_TOTAL_V0_4:
+        raise ValueError(f"Expected legacy vector length {N_TOTAL_V0_4}, got {arr.size}")
+    thermo = ThermoParams.from_array(arr[:N_THERMO_V0_4])
+    gear = GearParams.from_array(arr[N_THERMO_V0_4 : N_THERMO_V0_4 + N_GEAR])
+    realworld = RealWorldParams.from_array(arr[N_THERMO_V0_4 + N_GEAR : N_TOTAL_V0_4])
     return encode_candidate(Candidate(thermo=thermo, gear=gear, realworld=realworld))
 
 
@@ -389,8 +389,8 @@ def upgrade_legacy_candidate_matrix(X_legacy: np.ndarray) -> np.ndarray:
     arr = np.asarray(X_legacy, dtype=np.float64)
     if arr.ndim != 2:
         raise ValueError(f"Expected 2D legacy candidate matrix, got shape={arr.shape}")
-    if arr.shape[1] != LEGACY_N_TOTAL:
-        raise ValueError(f"Expected legacy candidate width {LEGACY_N_TOTAL}, got {arr.shape[1]}")
+    if arr.shape[1] != N_TOTAL_V0_4:
+        raise ValueError(f"Expected legacy candidate width {N_TOTAL_V0_4}, got {arr.shape[1]}")
     return np.vstack([upgrade_legacy_candidate_vector(row) for row in arr])
 
 
@@ -427,11 +427,11 @@ def decode_candidate(x: np.ndarray) -> Candidate:
         Candidate with ThermoParams, GearParams, and RealWorldParams.
     """
     arr = np.asarray(x, dtype=np.float64).reshape(-1)
-    if arr.size == LEGACY_N_TOTAL:
-        thermo = ThermoParams.from_array(arr[:LEGACY_N_THERMO])
-        gear_start = LEGACY_N_THERMO
+    if arr.size == N_TOTAL_V0_4:
+        thermo = ThermoParams.from_array(arr[:N_THERMO_V0_4])
+        gear_start = N_THERMO_V0_4
         gear = GearParams.from_array(arr[gear_start : gear_start + N_GEAR])
-        realworld = RealWorldParams.from_array(arr[gear_start + N_GEAR : LEGACY_N_TOTAL])
+        realworld = RealWorldParams.from_array(arr[gear_start + N_GEAR : N_TOTAL_V0_4])
         return Candidate(thermo=thermo, gear=gear, realworld=realworld)
     if arr.size == PRECHEM_N_TOTAL:
         thermo = ThermoParams.from_array(arr[:PRECHEM_N_THERMO])
@@ -441,7 +441,7 @@ def decode_candidate(x: np.ndarray) -> Candidate:
         return Candidate(thermo=thermo, gear=gear, realworld=realworld)
     if arr.size != N_TOTAL:
         raise ValueError(
-            f"Expected {LEGACY_N_TOTAL} (legacy), {PRECHEM_N_TOTAL} (pre-chemistry), "
+            f"Expected {N_TOTAL_V0_4} (legacy), {PRECHEM_N_TOTAL} (pre-chemistry), "
             f"or {N_TOTAL} (current) variables, got {arr.size}"
         )
 

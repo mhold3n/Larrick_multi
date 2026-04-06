@@ -4,11 +4,11 @@ import numpy as np
 import pytest
 
 from larrak2.core.encoding import (
-    LEGACY_N_TOTAL,
     N_GEAR,
     N_REALWORLD,
     N_THERMO,
     N_TOTAL,
+    N_TOTAL_V0_4,
     Candidate,
     GearParams,
     RealWorldParams,
@@ -230,7 +230,7 @@ def test_decision_vector_layout():
 
 
 def test_decode_legacy_vector_injects_default_timing() -> None:
-    legacy = np.zeros(LEGACY_N_TOTAL, dtype=np.float64)
+    legacy = np.zeros(N_TOTAL_V0_4, dtype=np.float64)
     legacy[:5] = np.array([60.0, 90.0, 15.0, 30.0, 1.0], dtype=np.float64)
     legacy[5:14] = np.array([40.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0], dtype=np.float64)
     legacy[-8:] = np.linspace(0.1, 0.8, 8, dtype=np.float64)

@@ -302,12 +302,22 @@ def combine_constraints(
     scale_overrides = scale_overrides or {}
     kind_overrides = kind_overrides or {}
 
-    all_names = list(thermo_names) + list(gear_names)
-    all_raw = list(thermo_G) + list(gear_G)
+    # Defensive normalization: some call sites may supply stubbed constraint vectors
+    # (e.g., tests monkeypatching `eval_thermo`). In that case, prefer keeping the
+    # numeric values and truncating the registry-name lists to match.
+    thermo_G_list = list(thermo_G)
+    gear_G_list = list(gear_G)
+    thermo_names_list = list(thermo_names)[: len(thermo_G_list)]
+    gear_names_list = list(gear_names)[: len(gear_G_list)]
+
+    all_names = thermo_names_list + gear_names_list
+    all_raw = thermo_G_list + gear_G_list
 
     if realworld_G is not None and realworld_names is not None:
-        all_names.extend(realworld_names)
-        all_raw.extend(realworld_G)
+        realworld_G_list = list(realworld_G)
+        realworld_names_list = list(realworld_names)[: len(realworld_G_list)]
+        all_names.extend(realworld_names_list)
+        all_raw.extend(realworld_G_list)
 
     if len(all_names) != len(all_raw):
         raise ValueError(

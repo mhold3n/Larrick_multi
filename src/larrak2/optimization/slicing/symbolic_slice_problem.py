@@ -241,7 +241,7 @@ def solve_symbolic_slice_with_ipopt(
             f"--fidelity {int(fidelity)}"
         )
 
-    ca = _import_casadi()
+    _import_casadi()
     ctx_eval = replace(ctx, fidelity=int(fidelity))
     base_eval = evaluate_candidate(x0, ctx_eval)
     base_violation = float(max(0.0, np.max(base_eval.G))) if base_eval.G.size else 0.0

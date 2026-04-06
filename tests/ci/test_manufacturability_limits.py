@@ -24,6 +24,10 @@ def _candidate() -> np.ndarray:
         heat_release_center=12.0,
         heat_release_width=25.0,
         lambda_af=1.0,
+        intake_open_offset_from_bdc=-4.0,
+        intake_duration_deg=80.0,
+        exhaust_open_offset_from_expansion_tdc=-4.0,
+        exhaust_duration_deg=90.0,
     )
     gear = GearParams(base_radius=40.0, pitch_coeffs=np.zeros(7), face_width_mm=10.0)
     rw = RealWorldParams(

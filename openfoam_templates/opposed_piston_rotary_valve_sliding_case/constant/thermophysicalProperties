@@ -14,7 +14,7 @@ thermoType
     thermo          janaf;
     equationOfState perfectGas;
     specie          specie;
-    energy          sensibleEnthalpy;
+    energy          sensibleInternalEnergy;
 }
 
 chemistryReader     foamChemistryReader;

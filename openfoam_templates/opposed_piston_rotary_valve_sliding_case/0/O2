@@ -14,7 +14,8 @@ boundaryField
 {
     inlet
     {
-        type            fixedValue;
+        type            inletOutlet;
+        inletValue      uniform {{handoff_species_O2}};
         value           uniform {{handoff_species_O2}};
     }
     outlet

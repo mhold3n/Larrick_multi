@@ -98,58 +98,6 @@ def evaluate_manufacturability_batch(
     slab_thickness_mm: float = 14.0,
     timeout_s: float | None = None,
 ) -> list[dict[str, Any]]:
-    # ... (existing code, ensure it passes holes correctly)
-    # The batch function iterates candidates.
-    # candidates is a list of dicts.
-    # If candidates have 'holes', we must pass it to _build_profile_data.
-
-    # We need to verify lines 189-191 in existing file.
-    # It calls _build_profile_data.
-    # We need to check context to see where to patch.
-    # I'll update the whole batch function part that calls _build_profile_data.
-    pass  # Replaced below
-
-
-def evaluate_manufacturability(
-    theta: np.ndarray,
-    r_planet: np.ndarray,
-    wire_d_mm: float = 0.2,
-    overcut_mm: float = 0.05,
-    corner_margin_mm: float = 0.0,
-    min_ligament_mm: float = 0.35,
-    voxel_size_mm: float = 0.01,
-    slab_thickness_mm: float = 14.0,
-    timeout_s: float | None = None,
-    *,
-    R_psi: np.ndarray | None = None,
-    psi: np.ndarray | None = None,
-    holes: list[list[list[float]]] | None = None,
-) -> dict[str, Any]:
-    """Evaluate manufacturability of a gear profile via PicoGK oracle (Single Mode)."""
-
-    # Check cache first
-    # Hash key should include holes?
-    # If holes affect result, yes.
-    # Current _cache_key does NOT include holes.
-    # I should update _cache_key too?
-    # Or just append holes to key if present.
-
-    # Implementation Note: I will update _cache_key in a separate chunk or include it here if contiguous.
-    # The file structure is:
-    # 59: _build_profile_data
-    # 90: evaluate_manufacturability_batch
-    # 351: evaluate_manufacturability
-
-    # I'll utilize MultiReplaceFileContent to hit these spots.
-    pass
-
-
-def evaluate_manufacturability_batch(
-    candidates: list[dict[str, Any]],
-    voxel_size_mm: float = 0.1,
-    slab_thickness_mm: float = 14.0,
-    timeout_s: float | None = None,
-) -> list[dict[str, Any]]:
     """Batch evaluate manufacturability for multiple candidates."""
     if not candidates:
         return []
