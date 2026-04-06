@@ -8,6 +8,10 @@ import numpy as np
 from larrak2.simulation_validation.engine_restart_benchmark import (
     benchmark_engine_restart_profiles,
 )
+from larrak2.simulation_validation.tuning_characterization_study import (
+    TUNING_MANIFEST_BASENAME,
+    load_experiments_jsonl,
+)
 
 
 def _write_package(package_dir: Path, *, package_id: str, package_hash: str) -> None:
@@ -311,6 +315,287 @@ def test_benchmark_engine_restart_profiles_clones_checkpoint_and_scores_profiles
     assert summary["recommendation"]["fastest_profile"] in {"fast_runtime", "low_clamp", None}
     assert summary["runtime_package_id"] == "chem323_reduced_v2512"
     assert (tmp_path / "benchmark_out" / "engine_restart_benchmark_summary.json").exists()
+
+
+def test_benchmark_engine_restart_profiles_tuning_characterization_logging(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    knob_schema_path = (
+        repo_root / "data/simulation_validation/tuning_knob_schema_chem323_ignition_entry_v1.json"
+    )
+    assert knob_schema_path.is_file()
+
+    table_wrap = tmp_path / "tuning_table_wrap.json"
+    expected_knobs = {
+        "rbf_envelope_scale": 1.11,
+        "rbf_neighbor_count": 10,
+        "rbf_epsilon": 1.25,
+        "rbf_diag_envelope_scale_ho2": 1.33,
+        "max_samples": 450,
+    }
+    table_wrap.write_text(
+        json.dumps(
+            {
+                "runtime_chemistry_table": {
+                    "adaptive_sampling": {
+                        "rbf_envelope_scale": expected_knobs["rbf_envelope_scale"],
+                        "rbf_neighbor_count": expected_knobs["rbf_neighbor_count"],
+                        "rbf_epsilon": expected_knobs["rbf_epsilon"],
+                        "max_samples": expected_knobs["max_samples"],
+                    },
+                    "rbf_diag_envelope_scale_ho2": expected_knobs["rbf_diag_envelope_scale_ho2"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    runtime_package = tmp_path / "chem323_reduced"
+    _write_package(runtime_package, package_id="chem323_reduced_v2512", package_hash="runtime-hash")
+
+    strategy_path = tmp_path / "strategy.json"
+    strategy_path.write_text(
+        json.dumps(
+            {
+                "strategy_id": "engine_runtime_mechanism_ladder_v1",
+                "runtime_package": {
+                    "label": "chem323_runtime",
+                    "package_dir": str(runtime_package),
+                },
+                "checkpoint_packages": [
+                    {
+                        "label": "chem323_checkpoint_reference",
+                        "package_dir": str(runtime_package),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    tuned_params_path = tmp_path / "tuned_params.json"
+    tuned_params_path.write_text(
+        json.dumps({"rpm": 1800.0, "torque": 80.0}),
+        encoding="utf-8",
+    )
+    handoff_path = tmp_path / "handoff.json"
+    handoff_path.write_text(
+        json.dumps({"handoff_bundle": {"cycle_coordinate_deg": -10.0}}),
+        encoding="utf-8",
+    )
+
+    run_dir = tmp_path / "engine_run"
+    for name in ("0", "constant", "system", "chemistry"):
+        (run_dir / name).mkdir(parents=True, exist_ok=True)
+    (run_dir / "constant" / "engineGeometry").write_text(
+        "\n".join(
+            [
+                "cycleEndAngleDeg 0;",
+                "minTemperatureK 300;",
+                "maxTemperatureK 1700;",
+                "maxThermoDeltaTK 8;",
+                "minPressurePa 25000;",
+                "minDensityKgM3 0.08;",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "system" / "controlDict").write_text(
+        "\n".join(
+            [
+                "startFrom latestTime;",
+                "endTime 0.0003;",
+                "deltaT 1e-6;",
+                "maxCo 0.02;",
+                "maxDeltaT 1e-6;",
+                "writeInterval 1;",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "constant" / "chemistryProperties").write_text(
+        "\n".join(
+            [
+                "chemistry on;",
+                "initialChemicalTimeStep 1e-8;",
+                "odeCoeffs",
+                "{",
+                "    absTol 1e-14;",
+                "    relTol 1e-9;",
+                "}",
+                "reduction",
+                "{",
+                "    active on;",
+                "}",
+                "tabulation",
+                "{",
+                "    active off;",
+                "}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "constant" / "combustionProperties").write_text(
+        "\n".join(
+            [
+                "active yes;",
+                "PaSRCoeffs",
+                "{",
+                "    Cmix 0.01;",
+                "}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "engine_stage_manifest.json").write_text(
+        json.dumps(
+            {
+                "profile": "closed_valve_ignition_v1",
+                "stages": [
+                    {"name": "settle_flow", "ok": True, "end_angle_deg": -9.25},
+                    {"name": "chemistry_seed", "ok": True, "end_angle_deg": -8.5},
+                    {"name": "chemistry_spinup", "ok": True, "end_angle_deg": -7.0},
+                    {"name": "ignition_release", "ok": False, "end_angle_deg": -4.5},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "engine_stage_resume_summary.json").write_text(
+        json.dumps(
+            {
+                "remaining_stages": ["ignition_release", "early_burn"],
+                "current_stage": "ignition_release",
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "0.1000").mkdir()
+    _write_log_summary(
+        run_dir,
+        time_s=0.1,
+        crank_angle_deg=-6.98,
+        mean_pressure_Pa=9.30e5,
+        mean_temperature_K=1015.0,
+        mean_velocity_magnitude_m_s=1120.0,
+    )
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.engine_restart_benchmark.OpenFoamPipeline._ensure_custom_solver",
+        lambda self, log_file=None: {},
+    )
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.engine_restart_benchmark.OpenFoamPipeline.docker_preflight",
+        lambda self, log_file=None: {
+            "ok": True,
+            "docker_bin": "/usr/local/bin/docker",
+            "failure_class": "",
+            "message": "",
+            "candidate_paths": ["/usr/local/bin/docker"],
+            "docker_autostart_attempted": False,
+            "docker_autostart_succeeded": False,
+        },
+    )
+
+    def _fake_run(self, run_dir: Path, *, custom_solver_dirs, log_name: str):
+        time_s = 0.10006
+        angle = -6.968
+        pressure = 9.34e5
+        temp = 1017.0
+        vel = 1123.0
+        _write_log_summary(
+            run_dir,
+            time_s=time_s,
+            crank_angle_deg=angle,
+            mean_pressure_Pa=pressure,
+            mean_temperature_K=temp,
+            mean_velocity_magnitude_m_s=vel,
+        )
+        (run_dir / f"{self.solver_cmd}.benchmark.log").write_text(
+            "Clipped pressure floor: 10 values\n"
+            "Clipped density floor: 2 values\n"
+            "Clipped thermo energy state before correction: 5 values\n"
+            "Limited thermo correction window with maxThermoDeltaTK=8 on 20 values\n",
+            encoding="utf-8",
+        )
+        (run_dir / "runtimeChemistryCoverageCorpus.json").write_text(
+            json.dumps(
+                {
+                    "state_variables": ["Temperature", "Pressure"],
+                    "rows": [
+                        {
+                            "coverage_bucket_key": [12, 34],
+                            "raw_state": {"Temperature": 1016.0, "Pressure": 9.33e5},
+                            "transformed_state": {"Temperature": 1016.0, "Pressure": 5.97},
+                            "query_count": 2,
+                            "table_hit_count": 2,
+                            "coverage_reject_count": 0,
+                            "trust_reject_count": 0,
+                            "worst_reject_variable": None,
+                            "worst_reject_excess": 0.0,
+                            "nearest_sample_distance_min": 0.0,
+                            "nearest_sample_distance_max": 1.0e-8,
+                            "stage_names": ["ignition_entry"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (run_dir / f"runtimeChemistrySummary.{time_s}.dat").write_text(
+            "# tableQueryCells tableHitCells fallbackTimesteps interpolationCacheHits coverageRejectCells trustRegionRejectCells\n"
+            "4\t4\t0\t0\t0\t0\n",
+            encoding="utf-8",
+        )
+        return True, ""
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.engine_restart_benchmark.OpenFoamPipeline._run_solver_with_custom_dirs_log",
+        _fake_run,
+    )
+
+    outdir = tmp_path / "benchmark_out_tuning"
+    experiments_jsonl = tmp_path / "experiments.jsonl"
+    summary = benchmark_engine_restart_profiles(
+        run_dir=run_dir,
+        tuned_params_path=tuned_params_path,
+        handoff_artifact_path=handoff_path,
+        outdir=outdir,
+        profiles=["fast_runtime"],
+        runtime_strategy_config=str(strategy_path),
+        tuning_characterization={
+            "enabled": True,
+            "experiments_jsonl": str(experiments_jsonl),
+            "knob_schema_path": str(knob_schema_path),
+            "table_config_path": str(table_wrap),
+            "strategy_config_path": str(strategy_path),
+            "repo_root": str(repo_root),
+        },
+    )
+
+    tc = summary.get("tuning_characterization") or {}
+    assert tc.get("logged") is True
+    assert tc.get("error") == ""
+    assert Path(tc["experiments_jsonl"]) == experiments_jsonl.resolve()
+
+    manifest_path = outdir / TUNING_MANIFEST_BASENAME
+    assert manifest_path.is_file()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["knobs"] == expected_knobs
+
+    rows = load_experiments_jsonl(experiments_jsonl)
+    assert len(rows) == 1
+    assert rows[0]["knobs_trusted"] is True
+    assert rows[0]["knobs"] == expected_knobs
+    assert rows[0]["knob_schema_id"] == "chem323_ignition_entry_rbf_v1"
+
+    summary_disk = json.loads(
+        (outdir / "engine_restart_benchmark_summary.json").read_text(encoding="utf-8")
+    )
+    assert summary_disk.get("tuning_characterization", {}).get("logged") is True
 
 
 def test_benchmark_engine_restart_profiles_continues_across_stages_and_records_stage_tables(

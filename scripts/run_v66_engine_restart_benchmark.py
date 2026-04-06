@@ -94,6 +94,35 @@ def main() -> int:
     docker_image = recipe.get("docker_image")
     docker_bin = recipe.get("docker_bin")
 
+    tuning_block = dict(recipe.get("tuning_characterization") or {})
+    tuning_characterization = None
+    if bool(tuning_block.get("enabled")):
+        knob_schema = str(
+            tuning_block.get("knob_schema_path", "")
+            or "data/simulation_validation/tuning_knob_schema_chem323_ignition_entry_v1.json"
+        ).strip()
+        table_cfg = str(tuning_block.get("table_config_path", "") or "").strip()
+        experiments_jsonl = str(tuning_block.get("experiments_jsonl", "") or "").strip()
+        if not table_cfg or not experiments_jsonl:
+            print(
+                "error: tuning_characterization.enabled requires table_config_path and experiments_jsonl",
+                file=sys.stderr,
+            )
+            return 2
+        strat_override = str(tuning_block.get("strategy_config_path", "") or "").strip()
+        strategy_for_hashes = strat_override or strategy
+        profile_tc = str(tuning_block.get("profile_name", "") or "").strip()
+        tuning_characterization = {
+            "enabled": True,
+            "experiments_jsonl": experiments_jsonl,
+            "knob_schema_path": knob_schema,
+            "table_config_path": table_cfg,
+            "strategy_config_path": strategy_for_hashes,
+            "repo_root": str(root),
+        }
+        if profile_tc:
+            tuning_characterization["profile_name"] = profile_tc
+
     from larrak2.simulation_validation.engine_restart_benchmark import (
         benchmark_engine_restart_profiles,
     )
@@ -114,6 +143,7 @@ def main() -> int:
         refresh_runtime_tables=refresh_runtime_tables,
         continue_across_remaining_stages=continue_across,
         refresh_custom_solver=refresh_custom_solver,
+        tuning_characterization=tuning_characterization,
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0

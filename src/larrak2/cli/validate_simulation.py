@@ -424,6 +424,31 @@ def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
         benchmark_engine_restart_profiles,
     )
 
+    tuning_characterization = None
+    log_jsonl = str(getattr(args, "tuning_log_jsonl", "") or "").strip()
+    if log_jsonl:
+        table_cfg = str(getattr(args, "tuning_table_config", "") or "").strip()
+        if not table_cfg:
+            logger.error("--tuning-table-config is required when --tuning-log-jsonl is set")
+            return 2
+        knob_schema = str(getattr(args, "tuning_knob_schema", "") or "").strip()
+        if not knob_schema:
+            knob_schema = (
+                "data/simulation_validation/tuning_knob_schema_chem323_ignition_entry_v1.json"
+            )
+        strat = str(getattr(args, "tuning_strategy_config", "") or "").strip()
+        profile_tc = str(getattr(args, "tuning_profile_name", "") or "").strip()
+        tuning_characterization = {
+            "enabled": True,
+            "experiments_jsonl": log_jsonl,
+            "knob_schema_path": knob_schema,
+            "table_config_path": table_cfg,
+            "strategy_config_path": strat or None,
+            "repo_root": str(Path.cwd()),
+        }
+        if profile_tc:
+            tuning_characterization["profile_name"] = profile_tc
+
     summary = benchmark_engine_restart_profiles(
         run_dir=args.run_dir,
         tuned_params_path=args.tuned_params,
@@ -440,6 +465,7 @@ def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
         refresh_runtime_tables=bool(args.refresh_runtime_tables),
         continue_across_remaining_stages=bool(args.continue_across_stages),
         refresh_custom_solver=bool(args.refresh_custom_solver),
+        tuning_characterization=tuning_characterization,
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
@@ -744,6 +770,31 @@ def main(argv: list[str] | None = None) -> int:
         "--refresh-custom-solver",
         action="store_true",
         help="Force Docker rebuild of larrakEngineFoam even when the cached binary matches source_hash",
+    )
+    benchmark_sub.add_argument(
+        "--tuning-log-jsonl",
+        default="",
+        help="Append one tuning experiment row to this JSONL path after the benchmark (opt-in; requires --tuning-table-config)",
+    )
+    benchmark_sub.add_argument(
+        "--tuning-knob-schema",
+        default="",
+        help="Knob schema JSON for tuning log (default: chem323 ignition_entry v1 schema)",
+    )
+    benchmark_sub.add_argument(
+        "--tuning-table-config",
+        default="",
+        help="Runtime chemistry table wrapper JSON whose knob values are logged (required with --tuning-log-jsonl)",
+    )
+    benchmark_sub.add_argument(
+        "--tuning-strategy-config",
+        default="",
+        help="Optional multitable strategy JSON for manifest input hashes (defaults omitted if not set)",
+    )
+    benchmark_sub.add_argument(
+        "--tuning-profile-name",
+        default="",
+        help="Profile name for ingest when benchmarking multiple --profiles (required in that case)",
     )
 
     coverage_sub = subparsers.add_parser(

@@ -16,5 +16,12 @@
   "continue_across_remaining_stages": false,
   "refresh_custom_solver": false,
   "docker_image": null,
-  "docker_bin": null
+  "docker_bin": null,
+  "tuning_characterization": {
+    "enabled": false,
+    "experiments_jsonl": "data/simulation_validation/tuning_experiments.jsonl",
+    "knob_schema_path": "data/simulation_validation/tuning_knob_schema_chem323_ignition_entry_v1.json",
+    "table_config_path": "data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_entry.json",
+    "strategy_config_path": ""
+  }
 }

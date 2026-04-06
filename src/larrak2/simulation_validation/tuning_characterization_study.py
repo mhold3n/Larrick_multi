@@ -9,6 +9,7 @@ import copy
 import glob
 import hashlib
 import json
+import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -38,6 +39,18 @@ def sha256_file(path: str | Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _get_nested_value(container: dict[str, Any], dotted: str) -> Any:
+    parts = dotted.split(".")
+    node: Any = container
+    for part in parts:
+        if not isinstance(node, dict):
+            raise KeyError(f"Cannot traverse '{dotted}': not a dict at '{part}'")
+        if part not in node:
+            raise KeyError(f"Missing path segment '{part}' in {dotted}")
+        node = node[part]
+    return node
 
 
 def _set_nested(container: dict[str, Any], dotted: str, value: Any) -> None:
@@ -83,6 +96,31 @@ def apply_knobs_to_table_config(
         _set_nested(inner, path, v)
     out = copy.deepcopy(payload)
     out[root_key] = inner
+    return out
+
+
+def extract_knobs_from_table_config(
+    *,
+    table_config_path: str | Path,
+    knob_schema_path: str | Path,
+) -> dict[str, Any]:
+    """Read knob values from a full table wrapper JSON using the same paths as apply_knobs_to_table_config."""
+    knob_schema = load_knob_schema(knob_schema_path)
+    root_key = str(knob_schema.get("config_root_key", "runtime_chemistry_table")).strip()
+    payload = _load_json(table_config_path)
+    if root_key not in payload:
+        raise KeyError(f"Config root '{root_key}' not in {table_config_path}")
+    inner = payload[root_key]
+    if not isinstance(inner, dict):
+        raise TypeError(f"Config root '{root_key}' must be an object in {table_config_path}")
+    out: dict[str, Any] = {}
+    for spec in list(knob_schema.get("knobs", []) or []):
+        name = str(spec.get("name", "")).strip()
+        if not name:
+            continue
+        path = str(spec["path"])
+        raw = _get_nested_value(inner, path)
+        out[name] = _coerce_knob_value(raw, spec)
     return out
 
 
@@ -238,6 +276,88 @@ def ingest_benchmark_run_directory(
         "runtime_table_hash": str(profile.get("runtime_table_hash", "") or ""),
         "ingested_utc": datetime.now(UTC).isoformat(),
     }
+
+
+def maybe_log_tuning_observation(
+    *,
+    benchmark_outdir: str | Path,
+    experiments_jsonl: str | Path,
+    knob_schema_path: str | Path,
+    table_config_path: str | Path,
+    strategy_config_path: str | Path | None = None,
+    profile_name: str | None = None,
+    profile_names_in_benchmark: list[str] | None = None,
+    repo_root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Write tuning_experiment_manifest.json, append one trusted row to experiments.jsonl. Never raises."""
+    log = logging.getLogger(__name__)
+    root = Path(repo_root).resolve() if repo_root else Path.cwd()
+
+    def _resolve(p: str | Path) -> Path:
+        pp = Path(p)
+        return pp.resolve() if pp.is_absolute() else (root / pp).resolve()
+
+    jsonl_target = str(experiments_jsonl)
+    try:
+        if (
+            not str(experiments_jsonl).strip()
+            or not str(knob_schema_path).strip()
+            or not str(table_config_path).strip()
+        ):
+            raise ValueError(
+                "experiments_jsonl, knob_schema_path, and table_config_path must be non-empty when tuning logging is enabled"
+            )
+        jsonl_resolved = _resolve(experiments_jsonl)
+        knob_path = _resolve(knob_schema_path)
+        table_path = _resolve(table_config_path)
+        strat_resolved: Path | None = None
+        if strategy_config_path is not None and str(strategy_config_path).strip():
+            strat_resolved = _resolve(strategy_config_path)
+
+        names = [str(n).strip() for n in (profile_names_in_benchmark or []) if str(n).strip()]
+        selected = str(profile_name).strip() if profile_name else ""
+        if len(names) > 1 and not selected:
+            raise ValueError(
+                "tuning_characterization.profile_name is required when benchmarking multiple profiles"
+            )
+
+        knobs = extract_knobs_from_table_config(
+            table_config_path=table_path,
+            knob_schema_path=knob_path,
+        )
+        schema = load_knob_schema(knob_path)
+        hashes = build_input_artifact_hashes(
+            table_config_path=table_path,
+            strategy_config_path=strat_resolved if strat_resolved is not None else None,
+        )
+        experiment_id = uuid.uuid4().hex
+        manifest = build_tuning_manifest(
+            knob_schema_id=str(schema["schema_id"]),
+            knobs=knobs,
+            input_artifact_hashes=hashes,
+            experiment_id=experiment_id,
+        )
+        out_dir = Path(benchmark_outdir).resolve()
+        write_tuning_manifest(out_dir / TUNING_MANIFEST_BASENAME, manifest)
+        ingest_profile = selected if selected else None
+        rec = ingest_benchmark_run_directory(out_dir, profile_name=ingest_profile)
+        append_experiments_jsonl(jsonl_resolved, [rec])
+        return {
+            "logged": True,
+            "experiments_jsonl": str(jsonl_resolved),
+            "error": "",
+        }
+    except Exception as exc:
+        log.warning("Tuning observation log skipped: %s", exc)
+        try:
+            jsonl_display = str(_resolve(experiments_jsonl))
+        except Exception:
+            jsonl_display = jsonl_target
+        return {
+            "logged": False,
+            "experiments_jsonl": jsonl_display,
+            "error": str(exc),
+        }
 
 
 def resolve_run_directories(
@@ -750,10 +870,12 @@ __all__ = [
     "build_tuning_manifest",
     "compute_objective_vector",
     "ExpectedImprovementGPSearchStrategy",
+    "extract_knobs_from_table_config",
     "ingest_benchmark_run_directory",
     "load_experiments_jsonl",
     "load_knob_schema",
     "load_tuning_manifest",
+    "maybe_log_tuning_observation",
     "NSGAIISurrogateSearchStrategy",
     "RandomSearchStrategy",
     "resolve_run_directories",

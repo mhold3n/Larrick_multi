@@ -15,6 +15,7 @@ from larrak2.pipelines.openfoam import OpenFoamPipeline
 from .engine_results import build_engine_progress_summary, emit_engine_progress_artifacts
 from .engine_runtime_mechanism import resolve_engine_runtime_package
 from .runtime_chemistry_table import build_runtime_chemistry_table
+from .tuning_characterization_study import maybe_log_tuning_observation
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -296,6 +297,7 @@ def benchmark_engine_restart_profiles(
     refresh_runtime_tables: bool = False,
     continue_across_remaining_stages: bool = False,
     refresh_custom_solver: bool = False,
+    tuning_characterization: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     base_run_dir = Path(run_dir)
     tuned_params = _load_json(tuned_params_path)
@@ -769,6 +771,23 @@ def benchmark_engine_restart_profiles(
     }
     output_path = output_root / "engine_restart_benchmark_summary.json"
     output_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+
+    tc = tuning_characterization
+    if tc and bool(tc.get("enabled")):
+        profile_names = [str(r.get("profile_name", "")) for r in runs]
+        tuning_payload = maybe_log_tuning_observation(
+            benchmark_outdir=output_root,
+            experiments_jsonl=tc.get("experiments_jsonl", ""),
+            knob_schema_path=tc.get("knob_schema_path", ""),
+            table_config_path=tc.get("table_config_path", ""),
+            strategy_config_path=tc.get("strategy_config_path"),
+            profile_name=tc.get("profile_name"),
+            profile_names_in_benchmark=profile_names,
+            repo_root=tc.get("repo_root"),
+        )
+        summary["tuning_characterization"] = tuning_payload
+        output_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+
     return summary
 
 
