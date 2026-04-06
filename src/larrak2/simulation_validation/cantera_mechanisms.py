@@ -87,6 +87,38 @@ def _sanitize_llnl_thermo_lines(lines: list[str]) -> list[str]:
     return sanitized
 
 
+def sanitize_chemkin_file_text(
+    *,
+    source_file: Path,
+    file_kind: str,
+    profile: str = "",
+) -> str:
+    """Return sanitized CHEMKIN text for a single file.
+
+    This is the text-level helper used by staged OpenFOAM inputs. It mirrors the
+    bundle sanitizer so callers can sanitize one file at a time without first
+    materializing the full CHEMKIN bundle in a scratch directory.
+    """
+
+    normalized_profile = profile.strip().lower()
+    if not normalized_profile:
+        return source_file.read_text(encoding="utf-8")
+    if normalized_profile != LLNL_DETAILED_GASOLINE_SURROGATE:
+        raise ValueError(f"Unsupported CHEMKIN sanitizer profile '{profile}'")
+
+    normalized_kind = file_kind.strip().lower()
+    lines = source_file.read_text(encoding="utf-8").splitlines(True)
+    if normalized_kind == "input":
+        return "".join(_sanitize_llnl_mechanism_lines(lines))
+    if normalized_kind == "thermo":
+        return "".join(_sanitize_llnl_thermo_lines(lines))
+    if normalized_kind == "transport":
+        return "".join(
+            line for line in lines if not any(species in line for species in EXCLUDED_SPECIES)
+        )
+    raise ValueError(f"Unsupported CHEMKIN sanitizer file_kind '{file_kind}'")
+
+
 def sanitize_chemkin_bundle(
     *,
     input_file: Path,

@@ -16,6 +16,13 @@ REGIME_CONFIGS = (
     "closed_cylinder_config.json",
     "full_handoff_config.json",
 )
+MULTITABLE_STAGE_CONFIGS = (
+    "openfoam_runtime_chemistry_table_chem323_ignition_entry.json",
+    "openfoam_runtime_chemistry_table_chem323_ignition_ramp.json",
+    "openfoam_runtime_chemistry_table_chem323_ignition_branch.json",
+    "openfoam_runtime_chemistry_table_chem323_ignition_hot_core.json",
+    "openfoam_runtime_chemistry_table_chem323_ignition_tail.json",
+)
 
 
 def _load_config(filename: str) -> dict:
@@ -131,3 +138,56 @@ class TestSimulationValidationConfigFiles:
             "chem679_reduced_gasoline_surrogate",
             "chem323_reduced_gasoline_surrogate",
         ]
+
+    def test_multitable_strategy_surface_is_restored_and_mirrored(self):
+        canonical = _load_config("engine_runtime_mechanism_strategy.json")
+        explicit = _load_config("engine_runtime_mechanism_strategy_multitable_v1.json")
+
+        assert canonical["strategy_id"] == "engine_runtime_mechanism_multitable_v1"
+        assert explicit["strategy_id"] == canonical["strategy_id"]
+        assert explicit["runtime_package"] == canonical["runtime_package"]
+        assert explicit["checkpoint_packages"] == canonical["checkpoint_packages"]
+        assert set(canonical["runtime_package"]["stage_runtime_tables"]) == {
+            "ignition_entry",
+            "ignition_ramp",
+            "ignition_branch",
+            "ignition_hot_core",
+            "ignition_tail",
+        }
+
+    def test_multitable_stage_local_configs_exist(self):
+        for filename in MULTITABLE_STAGE_CONFIGS:
+            payload = _load_config(filename)
+            table_cfg = dict(payload.get("runtime_chemistry_table", {}) or {})
+            assert table_cfg["package_dir"] == "mechanisms/openfoam/v2512/chem323_reduced"
+            assert table_cfg["table_id"].startswith("chem323_engine_ignition_")
+
+    def test_ignition_entry_config_uses_current_species_and_qdot_frontiers(self):
+        payload = _load_config("openfoam_runtime_chemistry_table_chem323_ignition_entry.json")
+        table_cfg = dict(payload["runtime_chemistry_table"])
+
+        assert table_cfg["seed_species_miss_artifacts"] == [
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66h_chem323_ignition_entry_seeded_h2o2_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66i_chem323_ignition_entry_seeded_c5h82ooh45_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66k_chem323_ignition_entry_frontier_rebalanced_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66p_chem323_ignition_entry_qdot_quad_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+        ]
+        assert not any("v65" in str(path) for path in table_cfg["seed_species_miss_artifacts"])
+        assert table_cfg["seed_qdot_miss_artifacts"] == [
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66c_chem323_ignition_entry_seedable_qdot_capture/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66j_chem323_ignition_entry_seeded_cy3c5h8o_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66l_chem323_ignition_entry_seeded_ch2oh_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+        ]
+        assert table_cfg["coverage_corpora"] == [
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v62_chem323_multitable_handoff_gate/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v63_chem323_multitable_entry_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v64_chem323_multitable_entry_qdot_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+            "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66s_chem323_ignition_entry_corpus_capture/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+        ]
+        assert table_cfg["current_window_qdot_target_limit"] == 3
+        assert table_cfg["current_window_qdot_support_per_target"] == 12
+        assert table_cfg["current_window_diag_target_limit"] == 4
+        assert "state_axes" not in table_cfg
+        assert not any("v65" in str(path) for path in table_cfg["coverage_corpora"])
+        assert not any("v66a" in str(path) for path in table_cfg["coverage_corpora"])
+        assert not any("v66c" in str(path) for path in table_cfg["coverage_corpora"])

@@ -1,0 +1,29 @@
+[project]
+name = "larrak-optimization"
+version = "0.1.0"
+description = "Standalone optimization package for Larrak search and refinement"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "larrak-runtime>=0.1.0",
+    "numpy>=1.24",
+    "pymoo>=0.6",
+]
+
+[project.optional-dependencies]
+casadi = ["casadi>=3.6"]
+
+[project.scripts]
+larrak-opt = "larrak_optimization.cli.run:main"
+larrak-opt-pareto = "larrak_optimization.cli.run_pareto:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-dir]
+"" = "../../src"
+
+[tool.setuptools.packages.find]
+where = ["../../src"]
+include = ["larrak_optimization*"]

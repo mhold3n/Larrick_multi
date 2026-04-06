@@ -13,6 +13,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -23,7 +24,6 @@ from larrak2.architecture.contracts import (
     active_contract_tracer,
     get_active_contract_tracer,
 )
-from larrak2.cli.run_pareto import main as run_pareto_main
 from larrak2.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,
     DEFAULT_GEAR_LOSS_NN_DIR,
@@ -46,6 +46,7 @@ from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import BreathingConfig, EvalContext
 from larrak2.pipelines.openfoam import OpenFoamPipeline
 from larrak2.promote.staged import StagedWorkflow
+from larrak_optimization.cli.run_pareto import main as run_pareto_main
 
 DEFAULT_READINESS_ROOT = Path("outputs/readiness")
 DEFAULT_PIPELINE_READINESS_SUMMARY = DEFAULT_READINESS_ROOT / "pipeline_readiness_summary.md"
@@ -214,7 +215,7 @@ def run_pareto_grid_workflow(args: argparse.Namespace) -> int:
 
 def run_pareto_staged_workflow(args: argparse.Namespace) -> int:
     """Run multi-fidelity staged Pareto optimization."""
-    from larrak2.promote.staged import StagedWorkflow
+    from larrak_optimization.promote.staged import StagedWorkflow
 
     output_dir = Path(args.outdir)
     workflow = StagedWorkflow(outdir=output_dir, rpm=args.rpm, torque=args.torque, seed=args.seed)

@@ -7,7 +7,9 @@ from pathlib import Path
 import numpy as np
 
 from larrak2.simulation_validation.runtime_chemistry_table import (
+    _load_coverage_corpus_rows,
     _local_rbf_interpolate,
+    _support_points_for_targets,
     build_runtime_chemistry_table_from_spec,
 )
 
@@ -387,3 +389,647 @@ def test_seed_corridor_axes_infer_mass_fraction_envelope_from_handoff_and_fields
     assert manifest["authority_pass"] is True
     assert manifest["strict_runtime_certified"] is True
     assert manifest["authority_windows"][0]["sampled_time_dir_count"] == 1
+
+
+def test_runtime_table_build_uses_seedable_qdot_miss_artifacts_and_coverage_support(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package_dir = tmp_path / "chem323_reduced"
+    package_dir.mkdir(parents=True)
+    yaml_path = tmp_path / "chem323_reduced.yaml"
+    yaml_path.write_text("phases:\n- name: gas\n", encoding="utf-8")
+    (package_dir / "package_manifest.json").write_text(
+        json.dumps(
+            {
+                "package_id": "chem323_reduced_v2512",
+                "package_hash": "chem323-hash",
+                "generated_yaml_path": str(yaml_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    qdot_miss_path = tmp_path / "misses" / "qdot_miss.json"
+    qdot_miss_path.parent.mkdir(parents=True, exist_ok=True)
+    qdot_miss_path.write_text(
+        json.dumps(
+            {
+                "stage_name": "ignition_entry",
+                "failure_class": "qdot",
+                "reject_variable": "Qdot",
+                "reject_excess": 0.0435,
+                "reject_state": {
+                    "Temperature": 1325.0,
+                    "Pressure": 1.42e6,
+                    "IC8H18": 0.018,
+                    "O2": 0.066,
+                    "CO2": 0.020,
+                    "H2O": 0.019,
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    coverage_path = tmp_path / "coverage" / "runtimeChemistryCoverageCorpus.json"
+    coverage_path.parent.mkdir(parents=True, exist_ok=True)
+    coverage_path.write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "raw_state": {
+                            "Temperature": 1310.0,
+                            "Pressure": 1.36e6,
+                            "IC8H18": 0.017,
+                            "O2": 0.063,
+                            "CO2": 0.018,
+                            "H2O": 0.017,
+                        },
+                        "query_count": 4,
+                        "table_hit_count": 1,
+                        "coverage_reject_count": 0,
+                        "trust_reject_count": 2,
+                        "worst_reject_variable": "Qdot",
+                        "worst_reject_excess": 0.02,
+                        "nearest_sample_distance_min": 0.012,
+                        "stage_names": ["ignition_entry"],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeCanteraModule:
+        def Solution(self, path: str, transport_model=None):
+            assert path.endswith(".yaml")
+            assert transport_model is None
+            return _FakeGas()
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.runtime_chemistry_table._load_cantera",
+        lambda: _FakeCanteraModule(),
+    )
+
+    base_cfg = {
+        "table_id": "chem323_engine_ignition_entry_v1",
+        "package_dir": str(package_dir),
+        "state_axis_strategy": "seed_corridor",
+        "state_species": ["IC8H18", "O2", "CO2", "H2O"],
+        "balance_species": "N2",
+        "seed_points": [
+            {
+                "Temperature": 1000.0,
+                "Pressure": 1.0e6,
+                "IC8H18": 0.010,
+                "O2": 0.050,
+                "CO2": 0.010,
+                "H2O": 0.010,
+            }
+        ],
+        "adaptive_sampling": {
+            "sparse_level": 1,
+            "candidate_sparse_level": 2,
+            "refinement_rounds": 1,
+            "batch_size": 4,
+            "max_samples": 16,
+            "source_tolerance": 0.0,
+            "jacobian_tolerance": 0.0,
+            "rbf_neighbor_count": 4,
+            "rbf_epsilon": 1.0,
+            "lookup_cache_quantization": 0.01,
+        },
+        "current_window_qdot_target_limit": 2,
+        "current_window_qdot_stage_names": ["ignition_entry"],
+        "current_window_qdot_support_per_target": 4,
+    }
+
+    baseline_manifest = build_runtime_chemistry_table_from_spec(
+        {
+            **base_cfg,
+            "output_dir": str(tmp_path / "runtime_table_baseline"),
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+    enriched_manifest = build_runtime_chemistry_table_from_spec(
+        {
+            **base_cfg,
+            "output_dir": str(tmp_path / "runtime_table_enriched"),
+            "seed_qdot_miss_artifacts": [str(qdot_miss_path.relative_to(tmp_path))],
+            "coverage_corpora": [str(coverage_path.relative_to(tmp_path))],
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+
+    assert baseline_manifest["seed_qdot_target_count"] == 0
+    assert baseline_manifest["coverage_qdot_support_seed_count"] == 0
+    assert enriched_manifest["seed_qdot_target_count"] == 1
+    assert enriched_manifest["coverage_qdot_support_seed_count"] > 0
+    assert enriched_manifest["coverage_corpus_path_count"] == 1
+    assert enriched_manifest["coverage_corpus_row_count"] == 1
+    assert enriched_manifest["current_window_qdot_target_limit"] == 2
+    assert (
+        baseline_manifest["generated_file_hashes"]["runtimeChemistryTable"]
+        != enriched_manifest["generated_file_hashes"]["runtimeChemistryTable"]
+    )
+
+
+def test_runtime_table_build_uses_current_window_field_support_case_dirs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package_dir = tmp_path / "chem323_reduced"
+    package_dir.mkdir(parents=True)
+    yaml_path = tmp_path / "chem323_reduced.yaml"
+    yaml_path.write_text("phases:\n- name: gas\n", encoding="utf-8")
+    (package_dir / "package_manifest.json").write_text(
+        json.dumps(
+            {
+                "package_id": "chem323_reduced_v2512",
+                "package_hash": "chem323-hash",
+                "generated_yaml_path": str(yaml_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    species_miss_path = tmp_path / "misses" / "species_miss.json"
+    species_miss_path.parent.mkdir(parents=True, exist_ok=True)
+    species_miss_path.write_text(
+        json.dumps(
+            {
+                "stage_name": "ignition_entry",
+                "failure_class": "same_sign_overshoot",
+                "reject_variable": "CO2",
+                "reject_excess": 0.015,
+                "reject_state": {
+                    "Temperature": 965.0,
+                    "Pressure": 9.1e5,
+                    "IC8H18": 0.010,
+                    "O2": 0.045,
+                    "CO2": 0.012,
+                    "H2O": 0.008,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    case_dir = tmp_path / "benchmark_case"
+    time_dir = case_dir / "0.1"
+    time_dir.mkdir(parents=True)
+    _write_scalar_field(time_dir / "T", [955.0, 965.0, 975.0])
+    _write_scalar_field(time_dir / "p", [9.0e5, 9.1e5, 9.2e5])
+    _write_scalar_field(time_dir / "IC8H18", [0.009, 0.010, 0.011])
+    _write_scalar_field(time_dir / "O2", [0.044, 0.045, 0.046])
+    _write_scalar_field(time_dir / "CO2", [0.011, 0.012, 0.013])
+    _write_scalar_field(time_dir / "H2O", [0.007, 0.008, 0.009])
+
+    class _FakeCanteraModule:
+        def Solution(self, path: str, transport_model=None):
+            assert path.endswith(".yaml")
+            assert transport_model is None
+            return _FakeGas()
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.runtime_chemistry_table._load_cantera",
+        lambda: _FakeCanteraModule(),
+    )
+
+    base_cfg = {
+        "table_id": "chem323_engine_ignition_entry_v1",
+        "package_dir": str(package_dir),
+        "state_axis_strategy": "seed_corridor",
+        "state_species": ["IC8H18", "O2", "CO2", "H2O"],
+        "balance_species": "N2",
+        "seed_points": [
+            {
+                "Temperature": 1000.0,
+                "Pressure": 1.0e6,
+                "IC8H18": 0.010,
+                "O2": 0.050,
+                "CO2": 0.010,
+                "H2O": 0.010,
+            }
+        ],
+        "adaptive_sampling": {
+            "sparse_level": 1,
+            "candidate_sparse_level": 2,
+            "refinement_rounds": 1,
+            "batch_size": 4,
+            "max_samples": 16,
+            "source_tolerance": 0.0,
+            "jacobian_tolerance": 0.0,
+            "rbf_neighbor_count": 4,
+            "rbf_epsilon": 1.0,
+            "lookup_cache_quantization": 0.01,
+        },
+        "current_window_diag_target_limit": 4,
+        "current_window_field_support_per_target": 2,
+    }
+
+    baseline_manifest = build_runtime_chemistry_table_from_spec(
+        {
+            **base_cfg,
+            "output_dir": str(tmp_path / "runtime_table_baseline"),
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+    enriched_manifest = build_runtime_chemistry_table_from_spec(
+        {
+            **base_cfg,
+            "output_dir": str(tmp_path / "runtime_table_enriched"),
+            "seed_species_miss_artifacts": [str(species_miss_path.relative_to(tmp_path))],
+            "current_window_support_case_dirs": [str(case_dir.relative_to(tmp_path))],
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+
+    assert baseline_manifest["field_support_case_dir_count"] == 0
+    assert baseline_manifest["field_species_support_seed_count"] == 0
+    assert enriched_manifest["seed_species_target_count"] == 1
+    assert enriched_manifest["field_support_case_dir_count"] == 1
+    assert enriched_manifest["field_support_candidate_count"] > 0
+    assert enriched_manifest["field_species_support_seed_count"] > 0
+    assert enriched_manifest["field_qdot_support_seed_count"] == 0
+    assert (
+        baseline_manifest["generated_file_hashes"]["runtimeChemistryTable"]
+        != enriched_manifest["generated_file_hashes"]["runtimeChemistryTable"]
+    )
+
+
+def test_runtime_table_build_accepts_tracked_species_seed_artifacts_without_diag_suffix(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package_dir = tmp_path / "chem323_reduced"
+    package_dir.mkdir(parents=True)
+    yaml_path = tmp_path / "chem323_reduced.yaml"
+    yaml_path.write_text("phases:\n- name: gas\n", encoding="utf-8")
+    (package_dir / "package_manifest.json").write_text(
+        json.dumps(
+            {
+                "package_id": "chem323_reduced_v2512",
+                "package_hash": "chem323-hash",
+                "generated_yaml_path": str(yaml_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    species_miss_path = tmp_path / "misses" / "species_miss.json"
+    species_miss_path.parent.mkdir(parents=True, exist_ok=True)
+    species_miss_path.write_text(
+        json.dumps(
+            {
+                "stage_name": "ignition_entry",
+                "failure_class": "same_sign_overshoot",
+                "reject_variable": "H2O",
+                "reject_excess": 0.25,
+                "reject_state": {
+                    "Temperature": 1120.0,
+                    "Pressure": 8.0e5,
+                    "IC8H18": 0.010,
+                    "O2": 0.050,
+                    "CO2": 0.010,
+                    "H2O": 0.010,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeCanteraModule:
+        def Solution(self, path: str, transport_model=None):
+            assert path.endswith(".yaml")
+            assert transport_model is None
+            return _FakeGas()
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.runtime_chemistry_table._load_cantera",
+        lambda: _FakeCanteraModule(),
+    )
+
+    base_cfg = {
+        "table_id": "chem323_engine_ignition_entry_v1",
+        "package_dir": str(package_dir),
+        "state_axis_strategy": "seed_corridor",
+        "state_species": ["IC8H18", "O2", "CO2", "H2O"],
+        "balance_species": "N2",
+        "seed_points": [
+            {
+                "Temperature": 1000.0,
+                "Pressure": 1.0e6,
+                "IC8H18": 0.010,
+                "O2": 0.050,
+                "CO2": 0.010,
+                "H2O": 0.010,
+            }
+        ],
+        "adaptive_sampling": {
+            "sparse_level": 1,
+            "candidate_sparse_level": 2,
+            "refinement_rounds": 1,
+            "batch_size": 4,
+            "max_samples": 16,
+            "source_tolerance": 0.0,
+            "jacobian_tolerance": 0.0,
+            "rbf_neighbor_count": 4,
+            "rbf_epsilon": 1.0,
+            "lookup_cache_quantization": 0.01,
+        },
+        "current_window_diag_target_limit": 4,
+        "current_window_diag_stage_names": ["ignition_entry"],
+    }
+
+    baseline_manifest = build_runtime_chemistry_table_from_spec(
+        {
+            **base_cfg,
+            "output_dir": str(tmp_path / "runtime_table_species_baseline"),
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+    enriched_manifest = build_runtime_chemistry_table_from_spec(
+        {
+            **base_cfg,
+            "output_dir": str(tmp_path / "runtime_table_species_enriched"),
+            "seed_species_miss_artifacts": [str(species_miss_path.relative_to(tmp_path))],
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+
+    assert baseline_manifest["seed_species_target_count"] == 0
+    assert enriched_manifest["seed_species_target_count"] == 1
+    assert enriched_manifest["seed_species_target_variables"] == ["H2O"]
+    assert (
+        baseline_manifest["generated_file_hashes"]["runtimeChemistryTable"]
+        != enriched_manifest["generated_file_hashes"]["runtimeChemistryTable"]
+    )
+
+
+def test_runtime_table_build_accepts_solver_species_seed_artifacts_without_diag_suffix(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package_dir = tmp_path / "chem323_reduced"
+    package_dir.mkdir(parents=True)
+    yaml_path = tmp_path / "chem323_reduced.yaml"
+    yaml_path.write_text("phases:\n- name: gas\n", encoding="utf-8")
+    (package_dir / "package_manifest.json").write_text(
+        json.dumps(
+            {
+                "package_id": "chem323_reduced_v2512",
+                "package_hash": "chem323-hash",
+                "generated_yaml_path": str(yaml_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    species_miss_path = tmp_path / "misses" / "species_output_miss.json"
+    species_miss_path.parent.mkdir(parents=True, exist_ok=True)
+    species_miss_path.write_text(
+        json.dumps(
+            {
+                "stage_name": "ignition_entry",
+                "failure_class": "same_sign_overshoot",
+                "reject_variable": "CH2OH",
+                "reject_excess": 1.4e-8,
+                "reject_state": {
+                    "Temperature": 1348.98,
+                    "Pressure": 1.38142e6,
+                    "IC8H18": 0.010,
+                    "O2": 0.050,
+                    "CO2": 0.010,
+                    "H2O": 0.010,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeCanteraModule:
+        def Solution(self, path: str, transport_model=None):
+            assert path.endswith(".yaml")
+            assert transport_model is None
+            return _FakeGas()
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.runtime_chemistry_table._load_cantera",
+        lambda: _FakeCanteraModule(),
+    )
+
+    base_cfg = {
+        "table_id": "chem323_engine_ignition_entry_v1",
+        "package_dir": str(package_dir),
+        "state_axis_strategy": "seed_corridor",
+        "state_species": ["IC8H18", "O2", "CO2", "H2O"],
+        "balance_species": "N2",
+        "seed_points": [
+            {
+                "Temperature": 1000.0,
+                "Pressure": 1.0e6,
+                "IC8H18": 0.010,
+                "O2": 0.050,
+                "CO2": 0.010,
+                "H2O": 0.010,
+            }
+        ],
+        "adaptive_sampling": {
+            "sparse_level": 1,
+            "candidate_sparse_level": 2,
+            "refinement_rounds": 1,
+            "batch_size": 4,
+            "max_samples": 16,
+            "source_tolerance": 0.0,
+            "jacobian_tolerance": 0.0,
+            "rbf_neighbor_count": 4,
+            "rbf_epsilon": 1.0,
+            "lookup_cache_quantization": 0.01,
+        },
+        "current_window_diag_target_limit": 4,
+        "current_window_diag_stage_names": ["ignition_entry"],
+    }
+
+    enriched_manifest = build_runtime_chemistry_table_from_spec(
+        {
+            **base_cfg,
+            "output_dir": str(tmp_path / "runtime_table_species_output_enriched"),
+            "seed_species_miss_artifacts": [str(species_miss_path.relative_to(tmp_path))],
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+
+    assert enriched_manifest["seed_species_target_count"] == 1
+    assert enriched_manifest["seed_species_target_variables"] == ["CH2OH"]
+
+
+def test_load_coverage_corpus_rows_merges_rows_and_high_fidelity_rows(tmp_path: Path) -> None:
+    axis_order = ["Temperature", "Pressure", "IC8H18", "O2", "CO2", "H2O"]
+    base_row = {
+        "raw_state": {
+            "Temperature": 1310.0,
+            "Pressure": 1.36e6,
+            "IC8H18": 0.017,
+            "O2": 0.063,
+            "CO2": 0.018,
+            "H2O": 0.017,
+        },
+        "query_count": 4,
+        "table_hit_count": 1,
+        "coverage_reject_count": 0,
+        "trust_reject_count": 2,
+        "worst_reject_variable": "Qdot",
+        "worst_reject_excess": 0.02,
+        "nearest_sample_distance_min": 0.012,
+        "stage_names": ["ignition_entry"],
+    }
+    hf_row = {
+        **base_row,
+        "high_fidelity_trust_reject": True,
+        "raw_state": {
+            "Temperature": 1400.0,
+            "Pressure": 1.40e6,
+            "IC8H18": 0.019,
+            "O2": 0.064,
+            "CO2": 0.019,
+            "H2O": 0.018,
+        },
+        "trust_reject_count": 1,
+    }
+    coverage_path = tmp_path / "runtimeChemistryCoverageCorpus.json"
+    coverage_path.write_text(
+        json.dumps({"rows": [base_row], "high_fidelity_rows": [hf_row]}),
+        encoding="utf-8",
+    )
+    rows, meta = _load_coverage_corpus_rows(
+        {"coverage_corpora": [str(coverage_path)]},
+        axis_order=axis_order,
+        repo_root=tmp_path,
+    )
+    assert meta["coverage_corpus_path_count"] == 1
+    assert meta["coverage_corpus_row_count"] == 2
+    assert len(rows) == 2
+    assert rows[0]["high_fidelity_trust_reject"] is False
+    assert rows[1]["high_fidelity_trust_reject"] is True
+    assert rows[1]["point_state"]["Temperature"] == 1400.0
+
+
+def test_support_points_for_targets_prefers_high_fidelity_at_equal_distance() -> None:
+    axis_order = ["Temperature", "Pressure", "IC8H18", "O2", "CO2", "H2O"]
+    transformed_state_variables = ["Pressure", "CO2", "H2O"]
+    state_transform_floors = {name: 1.0e-300 for name in transformed_state_variables}
+    target = {
+        "stage_name": "ignition_entry",
+        "point_state": {
+            "Temperature": 1000.0,
+            "Pressure": 1.0e6,
+            "IC8H18": 0.01,
+            "O2": 0.05,
+            "CO2": 0.01,
+            "H2O": 0.01,
+        },
+    }
+    same_state = dict(target["point_state"])
+    row_mean = {
+        "point_state": same_state,
+        "stage_names": ["ignition_entry"],
+        "trust_reject_count": 2,
+        "query_count": 10,
+        "worst_reject_excess": 0.05,
+        "high_fidelity_trust_reject": False,
+    }
+    row_hf = {
+        "point_state": same_state,
+        "stage_names": ["ignition_entry"],
+        "trust_reject_count": 1,
+        "query_count": 1,
+        "worst_reject_excess": 0.05,
+        "high_fidelity_trust_reject": True,
+    }
+    out = _support_points_for_targets(
+        [target],
+        [row_mean, row_hf],
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+        per_target_limit=1,
+    )
+    assert len(out) == 1
+    assert out[0] == same_state
+
+
+def test_manifest_includes_corpus_support_min_transformed_distance_default(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_dir = tmp_path / "chem323_reduced"
+    package_dir.mkdir(parents=True)
+    yaml_path = tmp_path / "chem323_reduced.yaml"
+    yaml_path.write_text("phases:\n- name: gas\n", encoding="utf-8")
+    (package_dir / "package_manifest.json").write_text(
+        json.dumps(
+            {
+                "package_id": "chem323_reduced_v2512",
+                "package_hash": "chem323-hash",
+                "generated_yaml_path": str(yaml_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeCanteraModule:
+        def Solution(self, path: str, transport_model=None):
+            assert path.endswith(".yaml")
+            assert transport_model is None
+            return _FakeGas()
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.runtime_chemistry_table._load_cantera",
+        lambda: _FakeCanteraModule(),
+    )
+
+    manifest = build_runtime_chemistry_table_from_spec(
+        {
+            "table_id": "chem323_engine_ignition_entry_v1",
+            "package_dir": str(package_dir),
+            "state_axis_strategy": "seed_corridor",
+            "state_species": ["IC8H18", "O2", "CO2", "H2O"],
+            "balance_species": "N2",
+            "seed_points": [
+                {
+                    "Temperature": 1000.0,
+                    "Pressure": 1.0e6,
+                    "IC8H18": 0.010,
+                    "O2": 0.050,
+                    "CO2": 0.010,
+                    "H2O": 0.010,
+                }
+            ],
+            "adaptive_sampling": {
+                "sparse_level": 1,
+                "candidate_sparse_level": 2,
+                "refinement_rounds": 1,
+                "batch_size": 4,
+                "max_samples": 16,
+                "source_tolerance": 0.0,
+                "jacobian_tolerance": 0.0,
+                "rbf_neighbor_count": 4,
+                "rbf_epsilon": 1.0,
+                "lookup_cache_quantization": 0.01,
+            },
+            "output_dir": str(tmp_path / "out"),
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+    assert manifest["corpus_support_min_transformed_distance"] == 0.0

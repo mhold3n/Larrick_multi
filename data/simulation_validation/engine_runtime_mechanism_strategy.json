@@ -1,0 +1,55 @@
+{
+  "_comment": "Canonical/default engine runtime chemistry strategy. This mirrors engine_runtime_mechanism_strategy_multitable_v1.json so generic defaults and explicit multitable runs resolve to the same runtime behavior.",
+  "strategy_id": "engine_runtime_mechanism_multitable_v1",
+  "runtime_package": {
+    "label": "chem323_runtime",
+    "description": "Default Chem323 runtime package with stage-local lookup tables for the closed-valve ignition ladder.",
+    "package_dir": "mechanisms/openfoam/v2512/chem323_reduced",
+    "runtime_table_dir": "mechanisms/openfoam/v2512/runtime_tables/chem323_engine_ignition_v2",
+    "runtime_table_config_path": "data/simulation_validation/openfoam_runtime_chemistry_table_chem323.json",
+    "stage_runtime_tables": {
+      "ignition_entry": {
+        "runtime_table_dir": "mechanisms/openfoam/v2512/runtime_tables/chem323_engine_ignition_entry_v1",
+        "runtime_table_config_path": "data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_entry.json"
+      },
+      "ignition_ramp": {
+        "runtime_table_dir": "mechanisms/openfoam/v2512/runtime_tables/chem323_engine_ignition_ramp_v1",
+        "runtime_table_config_path": "data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_ramp.json"
+      },
+      "ignition_branch": {
+        "runtime_table_dir": "mechanisms/openfoam/v2512/runtime_tables/chem323_engine_ignition_branch_v1",
+        "runtime_table_config_path": "data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_branch.json"
+      },
+      "ignition_hot_core": {
+        "runtime_table_dir": "mechanisms/openfoam/v2512/runtime_tables/chem323_engine_ignition_hot_core_v1",
+        "runtime_table_config_path": "data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_hot_core.json"
+      },
+      "ignition_tail": {
+        "runtime_table_dir": "mechanisms/openfoam/v2512/runtime_tables/chem323_engine_ignition_tail_v1",
+        "runtime_table_config_path": "data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_tail.json"
+      }
+    }
+  },
+  "checkpoint_packages": [
+    {
+      "label": "chem679_checkpoint_reference",
+      "description": "Heavier reduced package used for explicit discrete checkpoint windows when lookup authority is not acceptable.",
+      "package_dir": "mechanisms/openfoam/v2512/chem679_reduced"
+    }
+  ],
+  "checkpoint_window": {
+    "angle_width_deg": 0.05,
+    "write_interval": 1
+  },
+  "comparison_metrics": {
+    "mean_pressure_Pa": {
+      "relative_tolerance": 0.03
+    },
+    "mean_temperature_K": {
+      "relative_tolerance": 0.02
+    },
+    "mean_velocity_magnitude_m_s": {
+      "relative_tolerance": 0.08
+    }
+  }
+}

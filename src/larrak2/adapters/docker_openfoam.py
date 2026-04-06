@@ -8,12 +8,27 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shlex
 import shutil
 import subprocess
+import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+DOCKER_TIMEOUT_EXIT = -1
+DOCKER_CLI_MISSING_EXIT = -2
+DOCKER_LAUNCH_FAILED_EXIT = -3
+
+
+class DockerCliResolutionError(RuntimeError):
+    def __init__(self, candidates: list[str]):
+        self.candidates = list(candidates)
+        joined = ", ".join(self.candidates) if self.candidates else "docker"
+        super().__init__(f"Docker CLI not found. Tried: {joined}")
 
 
 @dataclass(frozen=True)
@@ -22,11 +37,13 @@ class DockerOpenFoamConfig:
     platform: str = "linux/amd64"
     bashrc_path: str | None = None
     custom_solver_cache_root: str = "outputs/validation_runtime/openfoam_custom_solvers"
+    docker_bin: str | None = None
 
 
 class DockerOpenFoam:
     def __init__(self, cfg: DockerOpenFoamConfig | None = None):
         self.cfg = cfg or DockerOpenFoamConfig()
+        self._resolved_docker_bin: str | None = None
 
     @staticmethod
     def _sha_tree(root: Path) -> str:
@@ -41,19 +58,176 @@ class DockerOpenFoam:
         return digest.hexdigest()
 
     @staticmethod
-    def _write_log(log_file: str | Path | None, cmd: list[str], stdout: str, stderr: str) -> None:
+    def _write_log(
+        log_file: str | Path | None,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         if log_file is None:
             return
         path = Path(log_file)
         path.parent.mkdir(parents=True, exist_ok=True)
+        meta_text = ""
+        if metadata:
+            meta_text = "=== Metadata ===\n" + json.dumps(metadata, indent=2, sort_keys=True) + "\n\n"
         path.write_text(
-            "=== Command ===\n"
+            meta_text
+            + "=== Command ===\n"
             + " ".join(cmd)
             + "\n\n=== stdout ===\n"
             + stdout
             + "\n\n=== stderr ===\n"
             + stderr
         )
+
+    def _docker_cli_candidates(self) -> list[str]:
+        candidates: list[str] = []
+        explicit = str(self.cfg.docker_bin or "").strip()
+        if explicit:
+            candidates.append(explicit)
+        env_override = str(os.environ.get("LARRAK_DOCKER_BIN", "") or "").strip()
+        if env_override:
+            candidates.append(env_override)
+        candidates.append("docker")
+        candidates.extend(
+            [
+                "/usr/local/bin/docker",
+                "/Applications/Docker.app/Contents/Resources/bin/docker",
+            ]
+        )
+        ordered: list[str] = []
+        for candidate in candidates:
+            if candidate and candidate not in ordered:
+                ordered.append(candidate)
+        return ordered
+
+    @staticmethod
+    def _resolve_docker_candidate(candidate: str) -> str | None:
+        raw = str(candidate or "").strip()
+        if not raw:
+            return None
+        if "/" not in raw:
+            resolved = shutil.which(raw)
+            return str(Path(resolved).resolve()) if resolved else None
+        path = Path(raw).expanduser()
+        return str(path.resolve()) if path.exists() else None
+
+    def resolve_docker_bin(self) -> str:
+        if self._resolved_docker_bin:
+            return self._resolved_docker_bin
+        candidates = self._docker_cli_candidates()
+        for candidate in candidates:
+            resolved = self._resolve_docker_candidate(candidate)
+            if resolved:
+                self._resolved_docker_bin = resolved
+                return resolved
+        raise DockerCliResolutionError(candidates)
+
+    @staticmethod
+    def _docker_daemon_unavailable(stdout: str, stderr: str) -> bool:
+        text = "\n".join([str(stdout or ""), str(stderr or "")]).lower()
+        return any(
+            token in text
+            for token in (
+                "cannot connect to the docker daemon",
+                "is the docker daemon running",
+                "error during connect",
+            )
+        )
+
+    @staticmethod
+    def _docker_desktop_installed() -> bool:
+        return Path("/Applications/Docker.app").exists()
+
+    def _can_autostart_docker_desktop(self) -> bool:
+        return sys.platform == "darwin" and self._docker_desktop_installed()
+
+    @staticmethod
+    def _run_process(cmd: list[str], *, timeout_s: int) -> tuple[int, str, str]:
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=max(int(timeout_s), 1),
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = str(exc.stdout) if exc.stdout is not None else ""
+            stderr = str(exc.stderr) if exc.stderr is not None else "Timeout expired"
+            return DOCKER_TIMEOUT_EXIT, stdout, stderr
+        except OSError as exc:
+            return DOCKER_LAUNCH_FAILED_EXIT, "", str(exc)
+        return int(result.returncode), str(result.stdout or ""), str(result.stderr or "")
+
+    def _run_docker_info_command(
+        self,
+        *,
+        docker_bin: str,
+        timeout_s: int,
+    ) -> tuple[int, str, str]:
+        code, stdout, stderr = self._run_process([docker_bin, "info"], timeout_s=timeout_s)
+        if code == DOCKER_LAUNCH_FAILED_EXIT:
+            return code, stdout, f"Docker launch failed via {docker_bin}: {stderr}"
+        return code, stdout, stderr
+
+    def _open_docker_desktop(self, *, timeout_s: int) -> tuple[int, str, str]:
+        return self._run_process(["open", "-a", "Docker"], timeout_s=min(max(int(timeout_s), 1), 15))
+
+    def _autostart_docker_desktop(
+        self,
+        *,
+        docker_bin: str,
+        timeout_s: int,
+    ) -> dict[str, Any]:
+        open_code, open_stdout, open_stderr = self._open_docker_desktop(timeout_s=timeout_s)
+        if open_code != 0:
+            return {
+                "attempted": True,
+                "succeeded": False,
+                "code": open_code,
+                "stdout": open_stdout,
+                "stderr": open_stderr,
+                "open_stdout": open_stdout,
+                "open_stderr": open_stderr,
+            }
+
+        deadline = time.monotonic() + max(float(timeout_s), 1.0)
+        last_code = DOCKER_LAUNCH_FAILED_EXIT
+        last_stdout = ""
+        last_stderr = ""
+        while True:
+            remaining = max(1, min(10, int(deadline - time.monotonic()) or 1))
+            last_code, last_stdout, last_stderr = self._run_docker_info_command(
+                docker_bin=docker_bin,
+                timeout_s=remaining,
+            )
+            if last_code == 0:
+                return {
+                    "attempted": True,
+                    "succeeded": True,
+                    "code": last_code,
+                    "stdout": last_stdout,
+                    "stderr": last_stderr,
+                    "open_stdout": open_stdout,
+                    "open_stderr": open_stderr,
+                }
+            if time.monotonic() >= deadline or not self._docker_daemon_unavailable(
+                last_stdout,
+                last_stderr,
+            ):
+                return {
+                    "attempted": True,
+                    "succeeded": False,
+                    "code": last_code,
+                    "stdout": last_stdout,
+                    "stderr": last_stderr,
+                    "open_stdout": open_stdout,
+                    "open_stderr": open_stderr,
+                }
+            time.sleep(2.0)
 
     def _image_token(self) -> str:
         return re.sub(r"[^A-Za-z0-9._-]+", "_", str(self.cfg.image)).strip("_") or "openfoam"
@@ -122,8 +296,23 @@ class DockerOpenFoam:
         log_file: str | Path | None = None,
         extra_env: dict[str, str] | None = None,
     ) -> tuple[int, str, str]:
+        try:
+            docker_bin = self.resolve_docker_bin()
+        except DockerCliResolutionError as exc:
+            self._write_log(
+                log_file,
+                ["docker", "run"],
+                "",
+                str(exc),
+                metadata={
+                    "docker_failure_class": "docker_cli_missing",
+                    "docker_candidates": exc.candidates,
+                },
+            )
+            return DOCKER_CLI_MISSING_EXIT, "", str(exc)
+
         cmd = [
-            "docker",
+            docker_bin,
             "run",
             "--rm",
             "--platform",
@@ -151,6 +340,7 @@ class DockerOpenFoam:
                 script,
             ]
         )
+        metadata = {"resolved_docker_bin": docker_bin}
 
         try:
             result = subprocess.run(
@@ -162,19 +352,124 @@ class DockerOpenFoam:
         except subprocess.TimeoutExpired as e:
             stdout = str(e.stdout) if e.stdout is not None else ""
             stderr = str(e.stderr) if e.stderr is not None else "Timeout expired"
-            self._write_log(log_file, cmd, stdout, stderr)
-            return -1, stdout, stderr
-        except FileNotFoundError:
-            self._write_log(log_file, cmd, "", "Docker not found")
-            return -2, "", "Docker not found"
+            self._write_log(log_file, cmd, stdout, stderr, metadata=metadata)
+            return DOCKER_TIMEOUT_EXIT, stdout, stderr
+        except OSError as exc:
+            message = f"Docker launch failed via {docker_bin}: {exc}"
+            self._write_log(
+                log_file,
+                cmd,
+                "",
+                message,
+                metadata={
+                    **metadata,
+                    "docker_failure_class": "docker_launch_failed",
+                },
+            )
+            return DOCKER_LAUNCH_FAILED_EXIT, "", message
 
         self._write_log(
             log_file,
             cmd,
             str(result.stdout) if result.stdout is not None else "",
             str(result.stderr) if result.stderr is not None else "",
+            metadata=metadata,
         )
         return result.returncode, result.stdout, result.stderr
+
+    def docker_preflight(
+        self,
+        *,
+        timeout_s: int = 60,
+        log_file: str | Path | None = None,
+    ) -> dict[str, Any]:
+        candidates = self._docker_cli_candidates()
+        try:
+            docker_bin = self.resolve_docker_bin()
+        except DockerCliResolutionError as exc:
+            self._write_log(
+                log_file,
+                ["docker", "run"],
+                "",
+                str(exc),
+                metadata={
+                    "docker_failure_class": "docker_cli_missing",
+                    "docker_candidates": exc.candidates,
+                },
+            )
+            return {
+                "ok": False,
+                "docker_bin": "",
+                "failure_class": "docker_cli_missing",
+                "message": str(exc),
+                "candidate_paths": exc.candidates,
+            }
+
+        autostart_attempted = False
+        autostart_succeeded = False
+        code, stdout, stderr = self._run_docker_info_command(
+            docker_bin=docker_bin,
+            timeout_s=timeout_s,
+        )
+        autostart_meta: dict[str, Any] = {}
+        if code != 0 and self._docker_daemon_unavailable(stdout, stderr) and self._can_autostart_docker_desktop():
+            autostart = self._autostart_docker_desktop(docker_bin=docker_bin, timeout_s=timeout_s)
+            autostart_attempted = bool(autostart.get("attempted", False))
+            autostart_succeeded = bool(autostart.get("succeeded", False))
+            code = int(autostart.get("code", code))
+            stdout = str(autostart.get("stdout", stdout) or "")
+            stderr = str(autostart.get("stderr", stderr) or "")
+            autostart_meta = {
+                "docker_autostart_open_stdout": str(autostart.get("open_stdout", "") or ""),
+                "docker_autostart_open_stderr": str(autostart.get("open_stderr", "") or ""),
+            }
+        metadata = {
+            "resolved_docker_bin": docker_bin,
+            "docker_candidates": candidates,
+            "docker_autostart_attempted": autostart_attempted,
+            "docker_autostart_succeeded": autostart_succeeded,
+            **autostart_meta,
+        }
+        if code == 0:
+            self._write_log(
+                log_file,
+                [docker_bin, "info"],
+                stdout,
+                stderr,
+                metadata=metadata,
+            )
+            return {
+                "ok": True,
+                "docker_bin": docker_bin,
+                "failure_class": "",
+                "message": "",
+                "candidate_paths": candidates,
+                "docker_autostart_attempted": autostart_attempted,
+                "docker_autostart_succeeded": autostart_succeeded,
+            }
+        failure_class = "docker_launch_failed"
+        if code == DOCKER_CLI_MISSING_EXIT:
+            failure_class = "docker_cli_missing"
+        message = str(stderr or stdout or f"Docker preflight failed with code {code}")
+        self._write_log(
+            log_file,
+            [docker_bin, "info"],
+            stdout,
+            message,
+            metadata={
+                **metadata,
+                "docker_failure_class": failure_class,
+            },
+        )
+        return {
+            "ok": False,
+            "docker_bin": docker_bin,
+            "failure_class": failure_class,
+            "message": message,
+            "candidate_paths": candidates,
+            "docker_autostart_attempted": autostart_attempted,
+            "docker_autostart_succeeded": autostart_succeeded,
+        }
 
     def ensure_custom_solver(
         self,
@@ -303,12 +598,6 @@ class DockerOpenFoam:
 
     def check_availability(self) -> bool:
         try:
-            code, _, _ = self._run_docker_script(
-                script=f"{self._foam_env_setup_cmd()} && command -v blockMesh >/dev/null && echo ready",
-                mounts=[],
-                workdir="/",
-                timeout_s=60,
-            )
-            return code == 0
+            return bool(self.docker_preflight(timeout_s=60).get("ok", False))
         except Exception:
             return False

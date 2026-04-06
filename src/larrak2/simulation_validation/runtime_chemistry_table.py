@@ -8,6 +8,7 @@ import importlib.util
 import json
 import math
 import re
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,16 @@ def _load_json(path: str | Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"Expected JSON object at '{path}'")
     return payload
+
+
+def _resolve_repo_relative_path(raw_path: str | Path, *, repo_root: Path) -> Path:
+    path = Path(str(raw_path).strip())
+    if path.is_absolute():
+        return path.resolve()
+    cwd_candidate = (Path.cwd() / path).resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return (repo_root / path).resolve()
 
 
 def _load_config(config_path: str | Path) -> dict[str, Any]:
@@ -314,11 +325,26 @@ def _parse_openfoam_internal_scalar_field(path: Path) -> np.ndarray:
     return np.asarray(values, dtype=float)
 
 
-def _seed_field_time_dirs(table_cfg: dict[str, Any]) -> list[Path]:
+def _seed_field_time_dirs(table_cfg: dict[str, Any], *, repo_root: Path) -> list[Path]:
+    return _selected_field_time_dirs(
+        list(table_cfg.get("seed_field_case_dirs", []) or []),
+        repo_root=repo_root,
+        max_time_dirs=max(int(table_cfg.get("seed_field_max_time_dirs", 3)), 1),
+    )
+
+
+def _selected_field_time_dirs(
+    raw_paths: list[Any],
+    *,
+    repo_root: Path,
+    max_time_dirs: int,
+) -> list[Path]:
     selected_dirs: list[Path] = []
-    max_time_dirs = max(int(table_cfg.get("seed_field_max_time_dirs", 3)), 1)
-    for raw_path in list(table_cfg.get("seed_field_case_dirs", []) or []):
-        candidate = Path(str(raw_path))
+    max_time_dirs = max(int(max_time_dirs), 1)
+    for raw_path in list(raw_paths or []):
+        if not str(raw_path).strip():
+            continue
+        candidate = _resolve_repo_relative_path(raw_path, repo_root=repo_root)
         if not candidate.exists():
             continue
         if (candidate / "T").exists() and (candidate / "p").exists():
@@ -429,6 +455,7 @@ def _collect_authority_window_points(
     table_cfg: dict[str, Any],
     *,
     axis_order: list[str],
+    repo_root: Path,
 ) -> tuple[list[dict[str, float]], list[dict[str, Any]]]:
     points: list[dict[str, float]] = []
     windows_meta: list[dict[str, Any]] = []
@@ -436,7 +463,11 @@ def _collect_authority_window_points(
     for raw_window in authority_windows:
         if not isinstance(raw_window, dict):
             continue
-        case_dir = Path(str(raw_window.get("case_dir", "")).strip())
+        raw_case_dir = str(raw_window.get("case_dir", "")).strip()
+        if not raw_case_dir:
+            windows_meta.append({"case_dir": "", "status": "missing_case_dir"})
+            continue
+        case_dir = _resolve_repo_relative_path(raw_case_dir, repo_root=repo_root)
         if not case_dir.exists():
             windows_meta.append(
                 {
@@ -642,12 +673,342 @@ def _center_axis_defaults(axis_order: list[str], axes: list[list[float]]) -> dic
     }
 
 
+def _artifact_state_point(
+    payload: dict[str, Any],
+    *,
+    axis_order: list[str],
+    state_key: str,
+) -> dict[str, float] | None:
+    state = dict(payload.get(state_key, {}) or {})
+    if not state:
+        return None
+    point: dict[str, float] = {}
+    for axis_name in axis_order:
+        if axis_name not in state:
+            return None
+        point[axis_name] = float(state[axis_name])
+    return point
+
+
+def _rounded_transformed_state_signature(
+    point: dict[str, float],
+    *,
+    axis_order: list[str],
+    transformed_state_variables: list[str],
+    state_transform_floors: dict[str, float],
+) -> tuple[float, ...]:
+    transformed = _transform_state_vector(
+        point,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+    )
+    signature: list[float] = []
+    for axis_name, value in zip(axis_order, transformed.tolist(), strict=True):
+        if axis_name == "Temperature":
+            signature.append(round(float(value), 1))
+        elif axis_name == "Pressure":
+            signature.append(round(float(value), 3))
+        else:
+            signature.append(round(float(value), 3))
+    return tuple(signature)
+
+
+def _load_current_window_qdot_targets(
+    table_cfg: dict[str, Any],
+    *,
+    axis_order: list[str],
+    transformed_state_variables: list[str],
+    state_transform_floors: dict[str, float],
+    repo_root: Path,
+) -> list[dict[str, Any]]:
+    target_limit = max(int(table_cfg.get("current_window_qdot_target_limit", 1)), 1)
+    stage_filter = {
+        str(item).strip()
+        for item in list(table_cfg.get("current_window_qdot_stage_names", []) or [])
+        if str(item).strip()
+    }
+    deduped: OrderedDict[tuple[str, tuple[float, ...]], dict[str, Any]] = OrderedDict()
+    for raw_path in list(table_cfg.get("seed_qdot_miss_artifacts", []) or []):
+        if not str(raw_path).strip():
+            continue
+        path = _resolve_repo_relative_path(raw_path, repo_root=repo_root)
+        if not path.exists():
+            continue
+        payload = _load_json(path)
+        if str(payload.get("reject_variable", "")).strip() != "Qdot":
+            continue
+        point = _artifact_state_point(payload, axis_order=axis_order, state_key="reject_state")
+        if point is None:
+            continue
+        stage_name = str(payload.get("stage_name", "")).strip()
+        if stage_filter and stage_name not in stage_filter:
+            continue
+        signature = _rounded_transformed_state_signature(
+            point,
+            axis_order=axis_order,
+            transformed_state_variables=transformed_state_variables,
+            state_transform_floors=state_transform_floors,
+        )
+        key = (stage_name, signature)
+        if key in deduped:
+            deduped.pop(key)
+        deduped[key] = {
+            "stage_name": stage_name,
+            "point_state": point,
+            "reject_excess": float(payload.get("reject_excess", 0.0) or 0.0),
+            "source_path": str(path),
+        }
+    if not deduped:
+        return []
+    return list(deduped.values())[-target_limit:]
+
+
+def _load_species_miss_targets(
+    table_cfg: dict[str, Any],
+    *,
+    axis_order: list[str],
+    transformed_state_variables: list[str],
+    state_transform_floors: dict[str, float],
+    repo_root: Path,
+) -> list[dict[str, Any]]:
+    target_limit = max(int(table_cfg.get("current_window_diag_target_limit", 4)), 1)
+    tracked_species = {
+        str(item).strip()
+        for item in list(table_cfg.get("state_species", []) or [])
+        if str(item).strip()
+    }
+    stage_filter = {
+        str(item).strip()
+        for item in list(table_cfg.get("current_window_diag_stage_names", []) or [])
+        if str(item).strip()
+    }
+    deduped: OrderedDict[tuple[str, str, tuple[float, ...]], dict[str, Any]] = OrderedDict()
+    for raw_path in list(table_cfg.get("seed_species_miss_artifacts", []) or []):
+        if not str(raw_path).strip():
+            continue
+        path = _resolve_repo_relative_path(raw_path, repo_root=repo_root)
+        if not path.exists():
+            continue
+        payload = _load_json(path)
+        reject_variable = str(payload.get("reject_variable", "")).strip()
+        failure_class = str(payload.get("failure_class", "")).strip()
+        if (
+            not reject_variable.endswith("_diag")
+            and reject_variable not in tracked_species
+            and not (
+                failure_class == "same_sign_overshoot"
+                and reject_variable
+                and reject_variable != "Qdot"
+            )
+        ):
+            continue
+        point = _artifact_state_point(payload, axis_order=axis_order, state_key="reject_state")
+        if point is None:
+            continue
+        stage_name = str(payload.get("stage_name", "")).strip()
+        if stage_filter and stage_name not in stage_filter:
+            continue
+        signature = _rounded_transformed_state_signature(
+            point,
+            axis_order=axis_order,
+            transformed_state_variables=transformed_state_variables,
+            state_transform_floors=state_transform_floors,
+        )
+        key = (stage_name, reject_variable, signature)
+        if key in deduped:
+            deduped.pop(key)
+        deduped[key] = {
+            "stage_name": stage_name,
+            "reject_variable": reject_variable,
+            "point_state": point,
+            "reject_excess": float(payload.get("reject_excess", 0.0) or 0.0),
+            "source_path": str(path),
+        }
+    if not deduped:
+        return []
+    return list(deduped.values())[-target_limit:]
+
+
+def _coverage_corpus_row_from_item(
+    item: dict[str, Any],
+    *,
+    axis_order: list[str],
+    source_path: Path,
+) -> dict[str, Any] | None:
+    point = _artifact_state_point(item, axis_order=axis_order, state_key="raw_state")
+    if point is None:
+        return None
+    return {
+        "point_state": point,
+        "query_count": int(item.get("query_count", 0) or 0),
+        "table_hit_count": int(item.get("table_hit_count", 0) or 0),
+        "coverage_reject_count": int(item.get("coverage_reject_count", 0) or 0),
+        "trust_reject_count": int(item.get("trust_reject_count", 0) or 0),
+        "worst_reject_variable": str(item.get("worst_reject_variable", "")).strip(),
+        "worst_reject_excess": float(item.get("worst_reject_excess", 0.0) or 0.0),
+        "nearest_sample_distance_min": float(item.get("nearest_sample_distance_min", 0.0) or 0.0),
+        "stage_names": [
+            str(stage_name).strip()
+            for stage_name in list(item.get("stage_names", []) or [])
+            if str(stage_name).strip()
+        ],
+        "source_path": str(source_path),
+        "high_fidelity_trust_reject": bool(item.get("high_fidelity_trust_reject", False)),
+    }
+
+
+def _load_coverage_corpus_rows(
+    table_cfg: dict[str, Any],
+    *,
+    axis_order: list[str],
+    repo_root: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    path_count = 0
+    row_count = 0
+    for raw_path in list(table_cfg.get("coverage_corpora", []) or []):
+        if not str(raw_path).strip():
+            continue
+        path = _resolve_repo_relative_path(raw_path, repo_root=repo_root)
+        if not path.exists():
+            continue
+        payload = _load_json(path)
+        bundled: list[Any] = []
+        bundled.extend(list(payload.get("rows", []) or []))
+        bundled.extend(list(payload.get("high_fidelity_rows", []) or []))
+        path_count += 1
+        row_count += len(bundled)
+        for item in bundled:
+            if not isinstance(item, dict):
+                continue
+            row = _coverage_corpus_row_from_item(item, axis_order=axis_order, source_path=path)
+            if row is None:
+                continue
+            rows.append(row)
+    return rows, {
+        "coverage_corpus_path_count": int(path_count),
+        "coverage_corpus_row_count": int(row_count),
+    }
+
+
+def _load_field_support_rows(
+    table_cfg: dict[str, Any],
+    *,
+    axis_order: list[str],
+    repo_root: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    raw_case_dirs = list(table_cfg.get("current_window_support_case_dirs", []) or [])
+    if not raw_case_dirs:
+        return [], {
+            "field_support_case_dir_count": 0,
+            "field_support_candidate_count": 0,
+        }
+
+    max_time_dirs = max(int(table_cfg.get("seed_field_max_time_dirs", 3)), 1)
+    max_cells_per_time_dir = max(int(table_cfg.get("seed_field_max_cells_per_time_dir", 24)), 1)
+    rows_by_key: OrderedDict[tuple[float, ...], dict[str, Any]] = OrderedDict()
+    case_dir_count = 0
+
+    for raw_case_dir in raw_case_dirs:
+        if not str(raw_case_dir).strip():
+            continue
+        case_dir = _resolve_repo_relative_path(raw_case_dir, repo_root=repo_root)
+        if not case_dir.exists():
+            continue
+        case_dir_count += 1
+        for time_dir in _selected_field_time_dirs(
+            [raw_case_dir],
+            repo_root=repo_root,
+            max_time_dirs=max_time_dirs,
+        ):
+            try:
+                points = _sample_field_points_from_time_dir(
+                    time_dir,
+                    axis_order=axis_order,
+                    max_cells_per_time_dir=max_cells_per_time_dir,
+                )
+            except (FileNotFoundError, ValueError):
+                continue
+            for point in points:
+                rows_by_key[_point_key(point, axis_order)] = {
+                    "point_state": point,
+                    "stage_names": [],
+                    "source_path": str(case_dir),
+                    "time_dir": str(time_dir),
+                }
+
+    return list(rows_by_key.values()), {
+        "field_support_case_dir_count": int(case_dir_count),
+        "field_support_candidate_count": int(len(rows_by_key)),
+    }
+
+
+def _support_points_for_targets(
+    targets: list[dict[str, Any]],
+    coverage_rows: list[dict[str, Any]],
+    *,
+    axis_order: list[str],
+    transformed_state_variables: list[str],
+    state_transform_floors: dict[str, float],
+    per_target_limit: int,
+    min_transformed_distance: float = 0.0,
+) -> list[dict[str, float]]:
+    if not targets or not coverage_rows or per_target_limit <= 0:
+        return []
+    floor_distance = max(float(min_transformed_distance), 0.0)
+    selected: OrderedDict[tuple[float, ...], dict[str, float]] = OrderedDict()
+    transformed_rows = [
+        (
+            row,
+            _transform_state_vector(
+                row["point_state"],
+                axis_order=axis_order,
+                transformed_state_variables=transformed_state_variables,
+                state_transform_floors=state_transform_floors,
+            ),
+        )
+        for row in coverage_rows
+    ]
+    for target in targets:
+        target_stage = str(target.get("stage_name", "")).strip()
+        target_state = _transform_state_vector(
+            dict(target["point_state"]),
+            axis_order=axis_order,
+            transformed_state_variables=transformed_state_variables,
+            state_transform_floors=state_transform_floors,
+        )
+        ranked: list[tuple[float, int, int, int, float, dict[str, Any]]] = []
+        for row, transformed_row in transformed_rows:
+            row_stages = set(row.get("stage_names", []) or [])
+            if target_stage and row_stages and target_stage not in row_stages:
+                continue
+            distance = float(np.linalg.norm(transformed_row - target_state))
+            if floor_distance > 0.0 and distance < floor_distance:
+                continue
+            ranked.append(
+                (
+                    distance,
+                    -int(row.get("high_fidelity_trust_reject", False)),
+                    -int(row.get("trust_reject_count", 0)),
+                    -int(row.get("query_count", 0)),
+                    -float(row.get("worst_reject_excess", 0.0)),
+                    row,
+                )
+            )
+        ranked.sort(key=lambda item: item[:5])
+        for _, _, _, _, _, row in ranked[:per_target_limit]:
+            selected[_point_key(row["point_state"], axis_order)] = dict(row["point_state"])
+    return list(selected.values())
+
+
 def _extract_seed_points(
     table_cfg: dict[str, Any],
     *,
     axis_order: list[str],
     gas: Any,
-) -> list[dict[str, float]]:
+    repo_root: Path,
+) -> tuple[list[dict[str, float]], dict[str, Any]]:
     seeds: list[dict[str, float]] = []
     axes_cfg = dict(table_cfg.get("state_axes", {}) or {})
     seed_defaults = dict(table_cfg.get("seed_defaults", {}) or {})
@@ -680,7 +1041,9 @@ def _extract_seed_points(
     handoff_defaults = dict(center_defaults)
 
     for handoff_path in list(table_cfg.get("seed_handoff_artifacts", []) or []):
-        path = Path(str(handoff_path))
+        if not str(handoff_path).strip():
+            continue
+        path = _resolve_repo_relative_path(handoff_path, repo_root=repo_root)
         if not path.exists():
             continue
         payload = _load_json(path)
@@ -709,7 +1072,9 @@ def _extract_seed_points(
     seed_trace_defaults.update(dict(table_cfg.get("seed_trace_species_defaults", {}) or {}))
     seed_trace_max_points = max(int(table_cfg.get("seed_trace_max_points", 12)), 1)
     for trace_path in list(table_cfg.get("seed_trace_artifacts", []) or []):
-        path = Path(str(trace_path))
+        if not str(trace_path).strip():
+            continue
+        path = _resolve_repo_relative_path(trace_path, repo_root=repo_root)
         if not path.exists():
             continue
         payload = _load_json(path)
@@ -734,7 +1099,7 @@ def _extract_seed_points(
             seeds.append(point)
 
     max_cells_per_dir = max(int(table_cfg.get("seed_field_max_cells_per_time_dir", 24)), 1)
-    for time_dir in _seed_field_time_dirs(table_cfg):
+    for time_dir in _seed_field_time_dirs(table_cfg, repo_root=repo_root):
         field_names = ["T", "p", *axis_order[2:]]
         field_arrays: dict[str, np.ndarray] = {}
         try:
@@ -775,10 +1140,115 @@ def _extract_seed_points(
                 point[species_name] = float(values[0 if len(values) == 1 else cell_index])
             seeds.append(point)
 
+    transformed_state_variables = _resolve_transformed_state_variables(
+        table_cfg,
+        axis_order=axis_order,
+    )
+    state_transform_floors = _state_transform_floor_map(
+        table_cfg,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+    )
+    species_targets = _load_species_miss_targets(
+        table_cfg,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+        repo_root=repo_root,
+    )
+    qdot_targets = _load_current_window_qdot_targets(
+        table_cfg,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+        repo_root=repo_root,
+    )
+    seeds.extend(dict(target["point_state"]) for target in species_targets)
+    seeds.extend(dict(target["point_state"]) for target in qdot_targets)
+
+    coverage_rows, coverage_meta = _load_coverage_corpus_rows(
+        table_cfg,
+        axis_order=axis_order,
+        repo_root=repo_root,
+    )
+    field_support_rows, field_support_meta = _load_field_support_rows(
+        table_cfg,
+        axis_order=axis_order,
+        repo_root=repo_root,
+    )
+    corpus_support_min_td = max(
+        float(table_cfg.get("corpus_support_min_transformed_distance", 0.0) or 0.0),
+        0.0,
+    )
+    species_support = _support_points_for_targets(
+        species_targets,
+        coverage_rows,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+        per_target_limit=max(int(table_cfg.get("current_window_diag_support_per_target", 12)), 0),
+        min_transformed_distance=corpus_support_min_td,
+    )
+    qdot_support = _support_points_for_targets(
+        qdot_targets,
+        coverage_rows,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+        per_target_limit=max(int(table_cfg.get("current_window_qdot_support_per_target", 12)), 0),
+        min_transformed_distance=corpus_support_min_td,
+    )
+    field_support_per_target = max(
+        int(table_cfg.get("current_window_field_support_per_target", 8)),
+        0,
+    )
+    field_species_support = _support_points_for_targets(
+        species_targets,
+        field_support_rows,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+        per_target_limit=field_support_per_target,
+    )
+    field_qdot_support = _support_points_for_targets(
+        qdot_targets,
+        field_support_rows,
+        axis_order=axis_order,
+        transformed_state_variables=transformed_state_variables,
+        state_transform_floors=state_transform_floors,
+        per_target_limit=field_support_per_target,
+    )
+    seeds.extend(species_support)
+    seeds.extend(qdot_support)
+    seeds.extend(field_species_support)
+    seeds.extend(field_qdot_support)
+
     unique: dict[tuple[float, ...], dict[str, float]] = {}
     for point in seeds:
         unique[_point_key(point, axis_order)] = point
-    return list(unique.values())
+    return list(unique.values()), {
+        "seed_species_target_count": int(len(species_targets)),
+        "seed_species_target_variables": [
+            str(target.get("reject_variable", "")) for target in species_targets
+        ],
+        "seed_qdot_target_count": int(len(qdot_targets)),
+        "seed_qdot_target_stage_names": [
+            str(target.get("stage_name", "")) for target in qdot_targets
+        ],
+        "coverage_species_support_seed_count": int(len(species_support)),
+        "coverage_qdot_support_seed_count": int(len(qdot_support)),
+        "corpus_support_min_transformed_distance": float(corpus_support_min_td),
+        "field_species_support_seed_count": int(len(field_species_support)),
+        "field_qdot_support_seed_count": int(len(field_qdot_support)),
+        **coverage_meta,
+        **field_support_meta,
+        "current_window_diag_target_limit": max(
+            int(table_cfg.get("current_window_diag_target_limit", 4)), 1
+        ),
+        "current_window_qdot_target_limit": max(
+            int(table_cfg.get("current_window_qdot_target_limit", 1)), 1
+        ),
+    }
 
 
 def _normalize_samples(sample_states: np.ndarray, state_scales: np.ndarray) -> np.ndarray:
@@ -1382,14 +1852,16 @@ def build_runtime_chemistry_table_from_spec(
             raise ValueError(f"State species '{species_name}' is not present in the mechanism")
 
     axis_order = ["Temperature", "Pressure", *state_species]
-    raw_seed_points = _extract_seed_points(
+    raw_seed_points, seed_meta = _extract_seed_points(
         table_cfg,
         axis_order=axis_order,
         gas=gas,
+        repo_root=repo_root_path,
     )
     authority_points, authority_windows_meta = _collect_authority_window_points(
         table_cfg,
         axis_order=axis_order,
+        repo_root=repo_root_path,
     )
     axis_seed_points: dict[tuple[float, ...], dict[str, float]] = {}
     for point in [*raw_seed_points, *authority_points]:
@@ -1694,6 +2166,7 @@ def build_runtime_chemistry_table_from_spec(
             "seed_point_count": int(len(initial_points)),
             "candidate_point_count": int(len(candidate_points)),
         },
+        **seed_meta,
         "authority_windows": authority_windows_meta,
         "authority_pass": bool(authority_status.get("authority_pass", False)),
         "authority_miss_counts_by_variable": dict(

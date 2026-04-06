@@ -1,0 +1,141 @@
+{
+  "_comment": "Stage-local Chem323 runtime table for the ignition_entry bin. This keeps the stable v66o-style Qdot baseline and active species/Qdot frontiers fixed while shifting fresh-support generation to solver-emitted coverage corpora instead of ad hoc field-support case dirs.",
+  "runtime_chemistry_table": {
+    "table_id": "chem323_engine_ignition_entry_v1",
+    "package_dir": "mechanisms/openfoam/v2512/chem323_reduced",
+    "output_dir": "mechanisms/openfoam/v2512/runtime_tables/chem323_engine_ignition_entry_v1",
+    "state_species": [
+      "IC8H18",
+      "O2",
+      "CO2",
+      "H2O",
+      "OH",
+      "H",
+      "CO",
+      "HO2",
+      "H2",
+      "H2O2",
+      "CH2O"
+    ],
+    "balance_species": "N2",
+    "state_axis_strategy": "seed_corridor",
+    "state_axis_quantiles": [
+      0.0,
+      0.5,
+      1.0
+    ],
+    "state_axis_margin_fraction": {
+      "Temperature": 0.12,
+      "Pressure": 0.25,
+      "IC8H18": 0.15,
+      "O2": 0.12,
+      "CO2": 0.2,
+      "H2O": 0.2,
+      "OH": 0.5,
+      "H": 0.5,
+      "CO": 0.5,
+      "HO2": 0.5,
+      "H2": 0.5,
+      "H2O2": 0.5,
+      "CH2O": 0.5
+    },
+    "state_axis_min_span": {
+      "Temperature": 300.0,
+      "Pressure": 1000000.0,
+      "IC8H18": 0.01,
+      "O2": 0.04,
+      "CO2": 0.01,
+      "H2O": 0.01,
+      "OH": 2e-07,
+      "H": 2e-07,
+      "CO": 1e-08,
+      "HO2": 1e-06,
+      "H2": 1e-07,
+      "H2O2": 1e-07,
+      "CH2O": 1e-07
+    },
+    "transformed_state_variables": [
+      "Pressure",
+      "OH",
+      "H",
+      "CO",
+      "HO2",
+      "H2",
+      "H2O2",
+      "CH2O"
+    ],
+    "seed_handoff_artifacts": [
+      "outputs/diagnostics/engine_calibration/two_zone_cantera_preignition_handoff_staged_v2.json"
+    ],
+    "seed_trace_artifacts": [
+      "outputs/openfoam_engine_reacting_closed_valve_handoff_two_zone_staged_v2/engine_results_partial.json"
+    ],
+    "seed_field_case_dirs": [
+      "outputs/openfoam_engine_reacting_closed_valve_handoff_two_zone_staged_v2"
+    ],
+    "seed_species_miss_artifacts": [
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66h_chem323_ignition_entry_seeded_h2o2_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66i_chem323_ignition_entry_seeded_c5h82ooh45_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66k_chem323_ignition_entry_frontier_rebalanced_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66p_chem323_ignition_entry_qdot_quad_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json"
+    ],
+    "seed_qdot_miss_artifacts": [
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66c_chem323_ignition_entry_seedable_qdot_capture/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66j_chem323_ignition_entry_seeded_cy3c5h8o_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66l_chem323_ignition_entry_seeded_ch2oh_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json"
+    ],
+    "coverage_corpora": [
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v62_chem323_multitable_handoff_gate/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v63_chem323_multitable_entry_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v64_chem323_multitable_entry_qdot_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66s_chem323_ignition_entry_corpus_capture/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json"
+    ],
+    "current_window_diag_stage_names": [
+      "ignition_entry"
+    ],
+    "current_window_qdot_stage_names": [
+      "ignition_entry"
+    ],
+    "current_window_diag_target_limit": 4,
+    "current_window_qdot_target_limit": 3,
+    "current_window_diag_support_per_target": 12,
+    "current_window_qdot_support_per_target": 12,
+    "authority_windows": [
+      {
+        "case_dir": "outputs/openfoam_engine_reacting_closed_valve_handoff_two_zone_staged_v2",
+        "angle_min_deg": -7.05,
+        "angle_max_deg": -6.85,
+        "max_time_dirs": 8,
+        "max_cells_per_time_dir": 0
+      }
+    ],
+    "seed_trace_max_points": 12,
+    "seed_field_max_time_dirs": 4,
+    "seed_field_max_cells_per_time_dir": 32,
+    "authority_enrichment_rounds": 2,
+    "authority_scan_max_points_per_round": 256,
+    "adaptive_sampling": {
+      "sparse_level": 2,
+      "candidate_sparse_level": 3,
+      "refinement_rounds": 2,
+      "batch_size": 16,
+      "max_samples": 768,
+      "source_tolerance": 0.15,
+      "jacobian_tolerance": 0.2,
+      "rbf_neighbor_count": 12,
+      "rbf_epsilon": 1.0,
+      "lookup_cache_quantization": 0.0025
+    },
+    "interpolation_method": "local_rbf",
+    "fallback_policy": "fullReducedKinetics",
+    "jacobian_mode": "full_species",
+    "jacobian_storage": "csr",
+    "jacobian_sparsity_tolerance": 1e-16,
+    "max_untracked_mass_fraction": 0.015,
+    "trust_region": {
+      "max_abs_source": 1000000000000.0,
+      "max_abs_jacobian": 1000000000000.0,
+      "max_abs_qdot": 1000000000000000.0
+    }
+  }
+}

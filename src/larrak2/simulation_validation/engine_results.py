@@ -177,6 +177,235 @@ def _find_fraction_angle(
     return None
 
 
+def _load_runtime_chemistry_summary(engine_case_dir: str | Path) -> dict[str, Any]:
+    root = Path(engine_case_dir)
+    summary_files = sorted(
+        root.glob("runtimeChemistrySummary.*.dat"),
+        key=lambda path: float(path.name[len("runtimeChemistrySummary.") : -len(".dat")]),
+    )
+    if not summary_files:
+        return {
+            "runtime_summary_count": 0.0,
+            "table_query_cells": 0.0,
+            "table_hit_cells": 0.0,
+            "table_hit_fraction": None,
+            "fallback_timesteps": 0.0,
+            "fallback_hit_fraction": None,
+            "interpolation_cache_hits": 0.0,
+            "interpolation_cache_hit_fraction": None,
+            "coverage_reject_cells": 0.0,
+            "coverage_reject_cell_fraction": 0.0,
+            "trust_region_reject_cells": 0.0,
+            "runtime_coverage_corpus_path": "",
+            "runtime_coverage_corpus_npz_path": "",
+        }
+
+    header: list[str] = []
+    latest_row: list[float] | None = None
+    for path in summary_files:
+        rows = [
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        header_line = next((line for line in rows if line.startswith("#")), "")
+        if header_line:
+            header = header_line.lstrip("#").split()
+        numeric_rows = [
+            [float(token) for token in line.split()]
+            for line in rows
+            if not line.startswith("#")
+        ]
+        if numeric_rows:
+            latest_row = numeric_rows[-1]
+    if latest_row is None:
+        return {
+            "runtime_summary_count": float(len(summary_files)),
+            "table_query_cells": 0.0,
+            "table_hit_cells": 0.0,
+            "table_hit_fraction": None,
+            "fallback_timesteps": 0.0,
+            "fallback_hit_fraction": None,
+            "interpolation_cache_hits": 0.0,
+            "interpolation_cache_hit_fraction": None,
+            "coverage_reject_cells": 0.0,
+            "coverage_reject_cell_fraction": 0.0,
+            "trust_region_reject_cells": 0.0,
+            "runtime_coverage_corpus_path": "",
+            "runtime_coverage_corpus_npz_path": "",
+        }
+
+    values = dict(zip(header, latest_row, strict=False))
+    table_query_cells = float(values.get("tableQueryCells", 0.0))
+    table_hit_cells = float(values.get("tableHitCells", 0.0))
+    fallback_timesteps = float(values.get("fallbackTimesteps", 0.0))
+    interpolation_cache_hits = float(values.get("interpolationCacheHits", 0.0))
+    coverage_reject_cells = float(values.get("coverageRejectCells", 0.0))
+    trust_region_reject_cells = float(values.get("trustRegionRejectCells", 0.0))
+    runtime_coverage_corpus_path = ""
+    runtime_coverage_corpus_npz_path = ""
+    json_candidate = root / "runtimeChemistryCoverageCorpus.json"
+    npz_candidate = root / "runtimeChemistryCoverageCorpus.npz"
+    if json_candidate.exists():
+        runtime_coverage_corpus_path = str(json_candidate.resolve())
+    if npz_candidate.exists():
+        runtime_coverage_corpus_npz_path = str(npz_candidate.resolve())
+
+    return {
+        "runtime_summary_count": float(len(summary_files)),
+        "table_query_cells": table_query_cells,
+        "table_hit_cells": table_hit_cells,
+        "table_hit_fraction": (
+            None if table_query_cells <= 0.0 else float(table_hit_cells / table_query_cells)
+        ),
+        "fallback_timesteps": fallback_timesteps,
+        "fallback_hit_fraction": (
+            None if table_query_cells <= 0.0 else float(fallback_timesteps / table_query_cells)
+        ),
+        "interpolation_cache_hits": interpolation_cache_hits,
+        "interpolation_cache_hit_fraction": (
+            None
+            if table_query_cells <= 0.0
+            else float(interpolation_cache_hits / table_query_cells)
+        ),
+        "coverage_reject_cells": coverage_reject_cells,
+        "coverage_reject_cell_fraction": (
+            0.0 if table_query_cells <= 0.0 else float(coverage_reject_cells / table_query_cells)
+        ),
+        "trust_region_reject_cells": trust_region_reject_cells,
+        "runtime_coverage_corpus_path": runtime_coverage_corpus_path,
+        "runtime_coverage_corpus_npz_path": runtime_coverage_corpus_npz_path,
+    }
+
+
+def _current_engine_stage_name(engine_case_dir: str | Path) -> str:
+    run_dir = Path(engine_case_dir)
+    resume_summary_path = run_dir / "engine_stage_resume_summary.json"
+    if resume_summary_path.exists():
+        payload = _load_json(resume_summary_path)
+        current_stage = str(payload.get("current_stage", "")).strip()
+        if current_stage:
+            return current_stage
+        remaining = list(payload.get("remaining_stages", []) or [])
+        if remaining:
+            return str(remaining[0])
+    for stage in _load_stage_boundaries(run_dir):
+        if not bool(stage.get("ok", False)):
+            return str(stage.get("name", ""))
+    return ""
+
+
+def build_engine_progress_summary(
+    *,
+    engine_case_dir: str | Path,
+    params: dict[str, Any] | None = None,
+    engine_metrics: dict[str, Any] | None = None,
+    solver_name: str = "",
+    handoff_bundle_id: str = "",
+    mechanism_id: str = "",
+    openfoam_chemistry_package_id: str = "",
+    openfoam_chemistry_package_hash: str = "",
+    custom_solver_source_hash: str = "",
+    run_ok: bool | None = None,
+    stage: str = "",
+    gamma: float = DEFAULT_APPARENT_HEAT_RELEASE_GAMMA,
+) -> dict[str, Any]:
+    results = build_engine_results(
+        engine_case_dir=engine_case_dir,
+        params=params,
+        engine_metrics=engine_metrics,
+        solver_name=solver_name,
+        handoff_bundle_id=handoff_bundle_id,
+        mechanism_id=mechanism_id,
+        openfoam_chemistry_package_id=openfoam_chemistry_package_id,
+        openfoam_chemistry_package_hash=openfoam_chemistry_package_hash,
+        custom_solver_source_hash=custom_solver_source_hash,
+        run_ok=run_ok,
+        stage=stage,
+        gamma=gamma,
+    )
+    trace = list(results.get("trace", []) or [])
+    stage_boundaries = list(results.get("stage_boundaries", []) or [])
+    current_stage = _current_engine_stage_name(engine_case_dir)
+    next_stage = next(
+        (
+            float(boundary["end_angle_deg"])
+            for boundary in stage_boundaries
+            if str(boundary.get("name", "")) == current_stage
+        ),
+        None,
+    )
+    progress = {
+        "artifact_kind": "progress_summary",
+        "engine_case_dir": str(Path(engine_case_dir).resolve()),
+        "current_stage": current_stage,
+        "next_stage_end_angle_deg": next_stage,
+        "latest_checkpoint": {} if not trace else dict(trace[-1]),
+        "metrics_so_far": dict(results.get("metrics", {}) or {}),
+        "numeric_stability": dict(results.get("numeric_stability", {}) or {}),
+        "runtime_chemistry": _load_runtime_chemistry_summary(engine_case_dir),
+        "stage_boundaries": stage_boundaries,
+        "trace_point_count": int(results.get("trace_point_count", 0) or 0),
+        "trace_angle_span_deg": results.get("trace_angle_span_deg"),
+        "sources": dict(results.get("sources", {}) or {}),
+    }
+    return progress
+
+
+def emit_engine_progress_artifacts(
+    *,
+    engine_case_dir: str | Path,
+    params: dict[str, Any] | None = None,
+    engine_metrics: dict[str, Any] | None = None,
+    solver_name: str = "",
+    handoff_bundle_id: str = "",
+    mechanism_id: str = "",
+    openfoam_chemistry_package_id: str = "",
+    openfoam_chemistry_package_hash: str = "",
+    custom_solver_source_hash: str = "",
+    run_ok: bool | None = None,
+    stage: str = "",
+    gamma: float = DEFAULT_APPARENT_HEAT_RELEASE_GAMMA,
+) -> dict[str, Any]:
+    partial_results = emit_engine_results_artifact(
+        engine_case_dir=engine_case_dir,
+        params=params,
+        engine_metrics=engine_metrics,
+        solver_name=solver_name,
+        handoff_bundle_id=handoff_bundle_id,
+        mechanism_id=mechanism_id,
+        openfoam_chemistry_package_id=openfoam_chemistry_package_id,
+        openfoam_chemistry_package_hash=openfoam_chemistry_package_hash,
+        custom_solver_source_hash=custom_solver_source_hash,
+        run_ok=run_ok,
+        stage=stage,
+        artifact_name="engine_results_partial.json",
+        gamma=gamma,
+    )
+    progress = build_engine_progress_summary(
+        engine_case_dir=engine_case_dir,
+        params=params,
+        engine_metrics=engine_metrics,
+        solver_name=solver_name,
+        handoff_bundle_id=handoff_bundle_id,
+        mechanism_id=mechanism_id,
+        openfoam_chemistry_package_id=openfoam_chemistry_package_id,
+        openfoam_chemistry_package_hash=openfoam_chemistry_package_hash,
+        custom_solver_source_hash=custom_solver_source_hash,
+        run_ok=run_ok,
+        stage=stage,
+        gamma=gamma,
+    )
+    progress_path = Path(engine_case_dir) / "engine_progress_summary.json"
+    progress_path.write_text(json.dumps(progress, indent=2, sort_keys=True), encoding="utf-8")
+    return {
+        "engine_results_partial_path": str((Path(engine_case_dir) / "engine_results_partial.json").resolve()),
+        "engine_progress_summary_path": str(progress_path.resolve()),
+        "partial_results": partial_results,
+        "progress_summary": progress,
+    }
+
+
 def build_engine_results(
     *,
     engine_case_dir: str | Path,
@@ -390,3 +619,11 @@ def emit_engine_results_artifact(
     artifact_path = Path(engine_case_dir) / artifact_name
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return payload
+
+
+__all__ = [
+    "build_engine_progress_summary",
+    "build_engine_results",
+    "emit_engine_progress_artifacts",
+    "emit_engine_results_artifact",
+]

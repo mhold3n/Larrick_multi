@@ -14,7 +14,13 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from larrak2.adapters.docker_openfoam import DockerOpenFoam, DockerOpenFoamConfig
+from larrak2.adapters.docker_openfoam import (
+    DOCKER_CLI_MISSING_EXIT,
+    DOCKER_LAUNCH_FAILED_EXIT,
+    DOCKER_TIMEOUT_EXIT,
+    DockerOpenFoam,
+    DockerOpenFoamConfig,
+)
 from larrak2.adapters.openfoam import OpenFoamRunner
 from larrak2.simulation_validation.engine_results import emit_engine_results_artifact
 
@@ -134,6 +140,21 @@ def _resolve_engine_runtime_chemistry_table_dir(
     override = str(params.get("openfoam_runtime_chemistry_table_dir", "") or "").strip()
     candidate = Path(override) if override else default_table_dir
     return candidate if (candidate / "runtime_chemistry_table_manifest.json").exists() else None
+
+
+def _resolve_engine_stage_runtime_chemistry_table_dirs(
+    params: dict[str, Any],
+) -> dict[str, Path]:
+    mapping = dict(params.get("engine_stage_runtime_chemistry_table_dirs", {}) or {})
+    resolved: dict[str, Path] = {}
+    for stage_name, raw_path in mapping.items():
+        name = str(stage_name).strip()
+        candidate = Path(str(raw_path).strip())
+        if not name or not str(raw_path).strip():
+            continue
+        if (candidate / "runtime_chemistry_table_manifest.json").exists():
+            resolved[name] = candidate
+    return resolved
 
 
 def _engine_stage_profile_completion_defaults(profile_id: str) -> tuple[float, float]:
@@ -533,6 +554,7 @@ class OpenFoamPipeline:
         solver_cmd: str = "pisoFoam",
         docker_timeout_s: int = 1800,
         docker_image: str | None = None,
+        docker_bin: str | None = None,
         custom_solver_source_dir: str | Path | None = None,
         custom_solver_cache_root: str | Path | None = None,
         chemistry_package_dir: str | Path | None = None,
@@ -561,24 +583,32 @@ class OpenFoamPipeline:
             if runtime_chemistry_table_dir is not None
             else DEFAULT_ENGINE_RUNTIME_CHEMISTRY_TABLE_DIR
         )
+        docker_cfg = DockerOpenFoamConfig(
+            image=docker_image or DockerOpenFoamConfig().image,
+            custom_solver_cache_root=str(self.custom_solver_cache_root),
+            docker_bin=docker_bin,
+        )
         self.docker = (
-            DockerOpenFoam(
-                DockerOpenFoamConfig(
-                    image=docker_image or DockerOpenFoamConfig().image,
-                    custom_solver_cache_root=str(self.custom_solver_cache_root),
-                )
-            )
+            DockerOpenFoam(docker_cfg)
             if docker_image is not None
-            else DockerOpenFoam(
-                DockerOpenFoamConfig(custom_solver_cache_root=str(self.custom_solver_cache_root))
-            )
+            else DockerOpenFoam(docker_cfg)
         )
         self.runner = OpenFoamRunner(
             template_dir=template_dir,
             solver_cmd=solver_cmd,
             backend="docker",
             docker_image=docker_image,
+            docker_bin=docker_bin,
         )
+
+    def docker_preflight(self, *, log_file: str | Path | None = None) -> dict[str, Any]:
+        return self.docker.docker_preflight(
+            timeout_s=max(1, min(int(self.docker_timeout_s), 60)),
+            log_file=log_file,
+        )
+
+    def resolve_docker_bin(self) -> str:
+        return self.docker.resolve_docker_bin()
 
     def _is_default_engine_template(self) -> bool:
         return self.template_dir.name == DEFAULT_ENGINE_TEMPLATE_DIR.name
@@ -675,6 +705,9 @@ class OpenFoamPipeline:
     ) -> None:
         """Clone template and substitute parameters."""
         self.runner.setup_case_with_assets(run_dir, params, staged_inputs=staged_inputs)
+
+    def _stage_inputs(self, run_dir: Path, *, staged_inputs: list[dict[str, str]]) -> None:
+        self.runner._stage_inputs(run_dir, staged_inputs)
 
     def generate_geometry(
         self,
@@ -792,6 +825,7 @@ class OpenFoamPipeline:
             "closed_valve_ignition_v1",
             "closed_valve_ignition_fast_runtime_v1",
             "closed_valve_ignition_low_clamp_v1",
+            "closed_valve_ignition_multitable_v1",
         }:
             return []
         start_angle = float(params.get("engine_start_angle_deg", -10.0))
@@ -915,6 +949,49 @@ class OpenFoamPipeline:
         ]
         if profile_id == "closed_valve_ignition_v1":
             return base_stages
+        if profile_id == "closed_valve_ignition_multitable_v1":
+            stage_specs = [
+                ("ignition_entry", min(end_angle, -6.9), 1.5e-7, 0.015, 1550.0, 8.0),
+                ("ignition_ramp", min(end_angle, -6.7), 1.5e-7, 0.015, 1600.0, 8.0),
+                ("ignition_branch", min(end_angle, -6.3), 1.5e-7, 0.0175, 1675.0, 8.0),
+                ("ignition_hot_core", min(end_angle, -5.6), 1.5e-7, 0.02, 1750.0, 10.0),
+                ("ignition_tail", end_angle, 2.5e-7, 0.02, 1750.0, 10.0),
+            ]
+            multitable_stages: list[dict[str, Any]] = []
+            current_start = start_angle
+            for name, stage_end, delta_t, max_co, max_temp, max_thermo_delta in stage_specs:
+                if stage_end <= current_start + 1.0e-9:
+                    continue
+                multitable_stages.append(
+                    {
+                        "name": name,
+                        "end_angle_deg": float(stage_end),
+                        "chemistry_enabled": True,
+                        "combustion_enabled": True,
+                        "runtime_chemistry_mode": "lookupTableStrict",
+                        "runtime_chemistry_strict": True,
+                        "runtime_chemistry_abort_on_authority_miss": True,
+                        "deltaT": float(delta_t),
+                        "maxDeltaT": float(delta_t),
+                        "maxCo": float(max_co),
+                        "engine_max_temperature_K": min(
+                            float(params.get("engine_max_temperature_K", 1700.0)),
+                            float(max_temp),
+                        ),
+                        "engine_max_thermo_delta_K": float(max_thermo_delta),
+                        "engine_min_pressure_Pa": 3.0e4,
+                        "engine_min_density_kg_m3": 0.10,
+                        "chemistry_initial_timestep_s": 1.5e-8,
+                        "chemistry_abs_tol": 1.0e-14,
+                        "chemistry_rel_tol": 2.0e-9,
+                        "chemistry_tabulation_enabled": True,
+                        "chemistry_reduction_enabled": True,
+                        "combustion_cmix": 0.007,
+                        "writeInterval": 1,
+                    }
+                )
+                current_start = float(stage_end)
+            return multitable_stages
 
         profile_overrides: dict[str, dict[str, dict[str, Any]]] = {
             "closed_valve_ignition_fast_runtime_v1": {
@@ -1265,6 +1342,10 @@ class OpenFoamPipeline:
         if code != 0:
             if self._solver_completed_successfully(solver_log_file):
                 return True, ""
+            if code == DOCKER_CLI_MISSING_EXIT:
+                return False, "docker_cli_missing"
+            if code in {DOCKER_TIMEOUT_EXIT, DOCKER_LAUNCH_FAILED_EXIT}:
+                return False, "docker_launch_failed"
             return False, "solver"
         return True, ""
 
@@ -1418,9 +1499,77 @@ class OpenFoamPipeline:
                 custom_solver_dirs=custom_solver_dirs,
                 log_name=f"{self.solver_cmd}.log",
             )
+        ok, stage_result, _ = self._run_selected_engine_stages(
+            run_dir,
+            base_params=base_params,
+            stages=stages,
+            custom_solver_dirs=custom_solver_dirs,
+        )
+        return ok, stage_result
+
+    def _selected_runtime_table_for_stage(
+        self,
+        *,
+        base_params: dict[str, Any],
+        stage_name: str,
+    ) -> tuple[Path | None, dict[str, Any]]:
+        stage_dirs = _resolve_engine_stage_runtime_chemistry_table_dirs(base_params)
+        table_dir = stage_dirs.get(str(stage_name).strip())
+        if table_dir is None:
+            table_dir = _resolve_engine_runtime_chemistry_table_dir(
+                base_params,
+                self.runtime_chemistry_table_dir,
+            )
+        if table_dir is None:
+            return None, {}
+        return table_dir, _runtime_chemistry_table_manifest(table_dir)
+
+    def _restage_runtime_table_for_stage(
+        self,
+        run_dir: Path,
+        *,
+        base_params: dict[str, Any],
+        stage_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        table_dir, manifest = self._selected_runtime_table_for_stage(
+            base_params=base_params,
+            stage_name=str(stage_payload.get("name", "")),
+        )
+        if table_dir is None:
+            return {}
+        self._stage_inputs(
+            run_dir,
+            staged_inputs=_runtime_chemistry_table_staged_inputs(table_dir),
+        )
+        stage_payload["openfoam_runtime_chemistry_table_dir"] = str(table_dir)
+        stage_payload["runtime_chemistry_table_hash"] = str(
+            manifest.get("generated_file_hashes", {}).get("runtimeChemistryTable", "")
+        )
+        stage_payload["runtime_chemistry_table_id"] = str(manifest.get("table_id", ""))
+        return {
+            "runtime_table_dir": str(table_dir),
+            "runtime_table_hash": str(
+                manifest.get("generated_file_hashes", {}).get("runtimeChemistryTable", "")
+            ),
+            "runtime_table_id": str(manifest.get("table_id", "")),
+        }
+
+    def _run_selected_engine_stages(
+        self,
+        run_dir: Path,
+        *,
+        base_params: dict[str, Any],
+        stages: list[dict[str, Any]],
+        custom_solver_dirs: list[str | Path] | None,
+    ) -> tuple[bool, str, list[dict[str, Any]]]:
         manifest_entries: list[dict[str, Any]] = []
         for index, stage in enumerate(stages, start=1):
             stage_payload = dict(stage)
+            runtime_table_info = self._restage_runtime_table_for_stage(
+                run_dir,
+                base_params=base_params,
+                stage_payload=stage_payload,
+            )
             self._apply_engine_stage_settings(run_dir, base_params=base_params, stage=stage_payload)
             ok, stage_result = self._run_solver_with_custom_dirs_log(
                 run_dir,
@@ -1440,6 +1589,7 @@ class OpenFoamPipeline:
             manifest_entries.append(
                 {
                     **stage_payload,
+                    **runtime_table_info,
                     "ok": bool(ok),
                     "stage_result": str(stage_result),
                     "completion_mode": completion_mode,
@@ -1457,13 +1607,13 @@ class OpenFoamPipeline:
                 encoding="utf-8",
             )
             if not ok:
-                return False, str(stage_payload["name"])
+                return False, str(stage_payload["name"]), manifest_entries
         latest_stage_log = (
             run_dir / f"{self.solver_cmd}.stage_{len(stages):02d}_{stages[-1]['name']}.log"
         )
         if latest_stage_log.exists():
             shutil.copy2(latest_stage_log, run_dir / f"{self.solver_cmd}.log")
-        return True, ""
+        return True, "", manifest_entries
 
     def run_meshing(self, run_dir: Path) -> tuple[bool, str]:
         """Execute the meshing sequence (BlockMesh -> Snappy -> ...)."""

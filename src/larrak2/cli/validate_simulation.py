@@ -6,6 +6,9 @@ Commands:
     larrak-validate-sim reacting-flow
     larrak-validate-sim closed-cylinder
     larrak-validate-sim full-handoff
+    larrak-validate-sim runtime-chemistry-table
+    larrak-validate-sim engine-restart-benchmark
+    larrak-validate-sim restart-regression-analysis
     larrak-validate-sim chemistry-cache
     larrak-validate-sim flame-speed-compare
     larrak-validate-sim suite
@@ -385,6 +388,66 @@ def _run_flame_speed_compare_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_runtime_chemistry_table_cmd(args: argparse.Namespace) -> int:
+    from larrak2.simulation_validation.runtime_chemistry_table import build_runtime_chemistry_table
+
+    manifest = build_runtime_chemistry_table(
+        config_path=args.config,
+        refresh=bool(args.refresh),
+        repo_root=Path.cwd(),
+    )
+    print(json.dumps(manifest, indent=2, sort_keys=True))
+    return 0
+
+
+def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
+    from larrak2.simulation_validation.engine_restart_benchmark import (
+        benchmark_engine_restart_profiles,
+    )
+
+    summary = benchmark_engine_restart_profiles(
+        run_dir=args.run_dir,
+        tuned_params_path=args.tuned_params,
+        handoff_artifact_path=args.handoff_artifact,
+        outdir=args.outdir,
+        profiles=list(args.profiles),
+        window_angle_deg=float(args.window_angle_deg),
+        solver_name=str(args.solver_name),
+        docker_timeout_s=int(args.docker_timeout_s),
+        runtime_strategy_config=args.runtime_strategy_config,
+        package_label=str(args.package_label),
+        docker_image=args.docker_image,
+        docker_bin=args.docker_bin,
+        refresh_runtime_tables=bool(args.refresh_runtime_tables),
+        continue_across_remaining_stages=bool(args.continue_across_stages),
+    )
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
+def _run_restart_regression_analysis_cmd(args: argparse.Namespace) -> int:
+    """Analyze ordered restart benchmark runs without depending on solver internals."""
+    from larrak2.simulation_validation.restart_regression_suite import (
+        analyze_restart_regression_runs,
+        write_restart_regression_artifacts,
+    )
+
+    analysis = analyze_restart_regression_runs(
+        run_dirs=list(getattr(args, "runs", []) or []),
+        glob_pattern=str(getattr(args, "glob", "") or ""),
+        latest=getattr(args, "latest", None),
+        profile_name=str(getattr(args, "profile_name", "") or "").strip() or None,
+        history_window=int(getattr(args, "history_window", 5)),
+    )
+    written = write_restart_regression_artifacts(
+        analysis=analysis,
+        outdir=args.outdir,
+        suite=str(getattr(args, "suite", "all")),
+    )
+    print(json.dumps({"general": analysis["general"], "artifacts": written}, indent=2))
+    return 0
+
+
 def run_validation_preflight(
     regime_or_suite: str,
     *,
@@ -488,6 +551,135 @@ def main(argv: list[str] | None = None) -> int:
         help="Ignore any precomputed diagnostic artifacts and rerun all candidates live",
     )
 
+    table_sub = subparsers.add_parser(
+        "runtime-chemistry-table",
+        help="Build or refresh an offline runtime chemistry table from a JSON config",
+    )
+    table_sub.add_argument("--config", required=True, help="Path to table config JSON")
+    table_sub.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Ignore any existing generated table files and rebuild them",
+    )
+
+    benchmark_sub = subparsers.add_parser(
+        "engine-restart-benchmark",
+        help="Replay the staged engine restart window under runtime chemistry variants",
+    )
+    benchmark_sub.add_argument("--run-dir", required=True, help="Base staged engine run directory")
+    benchmark_sub.add_argument(
+        "--tuned-params",
+        required=True,
+        help="Path to tuned-params JSON used for the original staged run",
+    )
+    benchmark_sub.add_argument(
+        "--handoff-artifact",
+        required=True,
+        help="Path to the handoff artifact JSON that seeds the staged run",
+    )
+    benchmark_sub.add_argument(
+        "--outdir",
+        required=True,
+        help="Output directory for the benchmark replay artifacts",
+    )
+    benchmark_sub.add_argument(
+        "--profiles",
+        nargs="+",
+        required=True,
+        help="One or more benchmark profiles or runtime modes to replay",
+    )
+    benchmark_sub.add_argument(
+        "--window-angle-deg",
+        type=float,
+        default=0.01,
+        help="Crank-angle replay window from the checkpoint start",
+    )
+    benchmark_sub.add_argument(
+        "--solver-name",
+        default="larrakEngineFoam",
+        help="OpenFOAM solver binary to run",
+    )
+    benchmark_sub.add_argument(
+        "--docker-timeout-s",
+        type=int,
+        default=1800,
+        help="Solver timeout for each replay stage",
+    )
+    benchmark_sub.add_argument(
+        "--runtime-strategy-config",
+        default="data/simulation_validation/engine_runtime_mechanism_strategy.json",
+        help="Runtime chemistry strategy JSON; defaults to the canonical multitable ladder",
+    )
+    benchmark_sub.add_argument(
+        "--package-label",
+        default="",
+        help="Optional checkpoint package label override from the runtime strategy",
+    )
+    benchmark_sub.add_argument(
+        "--docker-image",
+        default=None,
+        help="Optional Docker image override for OpenFOAM execution",
+    )
+    benchmark_sub.add_argument(
+        "--docker-bin",
+        default=None,
+        help="Optional Docker CLI override; otherwise use LARRAK_DOCKER_BIN, PATH, or known macOS Docker Desktop locations",
+    )
+    benchmark_sub.add_argument(
+        "--refresh-runtime-tables",
+        action="store_true",
+        help="Refresh runtime tables referenced by the strategy before replaying",
+    )
+    benchmark_sub.add_argument(
+        "--continue-across-stages",
+        action="store_true",
+        help="Continue across the remaining staged ignition bins instead of replaying only the first remaining stage",
+    )
+
+    regression_sub = subparsers.add_parser(
+        "restart-regression-analysis",
+        help="Analyze ordered restart benchmark outputs for regression/improvement signals",
+    )
+    regression_sub.add_argument(
+        "--runs",
+        action="append",
+        default=[],
+        help="Explicit restart benchmark run directory to analyze; preserve the provided order",
+    )
+    regression_sub.add_argument(
+        "--glob",
+        default="",
+        help="Glob pattern for restart benchmark run directories when --runs is not used",
+    )
+    regression_sub.add_argument(
+        "--latest",
+        type=int,
+        default=None,
+        help="Optional cap on the latest N runs after glob expansion",
+    )
+    regression_sub.add_argument(
+        "--suite",
+        choices=["general", "scalars", "dense", "all"],
+        default="all",
+        help="Which analysis outputs to emit",
+    )
+    regression_sub.add_argument(
+        "--profile-name",
+        default="",
+        help="Optional profile name when a run summary contains multiple profiles",
+    )
+    regression_sub.add_argument(
+        "--history-window",
+        type=int,
+        default=5,
+        help="Rolling history window for slope and stability calculations",
+    )
+    regression_sub.add_argument(
+        "--outdir",
+        default="outputs/diagnostics/restart_regression_analysis",
+        help="Output directory for regression-analysis artifacts",
+    )
+
     truth_sub = subparsers.add_parser(
         "combustion-truth",
         help="Run the gas-combustion truth workflow over the DOE core corridor",
@@ -531,6 +723,12 @@ def main(argv: list[str] | None = None) -> int:
         return _run_chemistry_cache_cmd(args)
     if args.command == "flame-speed-compare":
         return _run_flame_speed_compare_cmd(args)
+    if args.command == "runtime-chemistry-table":
+        return _run_runtime_chemistry_table_cmd(args)
+    if args.command == "engine-restart-benchmark":
+        return _run_engine_restart_benchmark_cmd(args)
+    if args.command == "restart-regression-analysis":
+        return _run_restart_regression_analysis_cmd(args)
     if args.command == "combustion-truth":
         return _run_combustion_truth_cmd(args)
 

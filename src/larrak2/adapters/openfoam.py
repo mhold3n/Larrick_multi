@@ -30,14 +30,15 @@ class OpenFoamRunner:
         *,
         backend: str = "docker",
         docker_image: str | None = None,
+        docker_bin: str | None = None,
     ):
         self.template_dir = Path(template_dir)
         self.solver_cmd = solver_cmd
         self.backend = backend
         self._docker = (
-            DockerOpenFoam(DockerOpenFoamConfig(image=docker_image))
+            DockerOpenFoam(DockerOpenFoamConfig(image=docker_image, docker_bin=docker_bin))
             if docker_image is not None
-            else DockerOpenFoam()
+            else DockerOpenFoam(DockerOpenFoamConfig(docker_bin=docker_bin))
         )
 
     def setup_case(self, run_dir: Path, params: dict[str, float]):

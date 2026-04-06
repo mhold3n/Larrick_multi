@@ -373,6 +373,13 @@ public:
         label uncoveredCells;
         label trustRejectCells;
         scalar maxObservedUntrackedMassFraction;
+        bool hasFirstTrustReject;
+        word rejectVariable;
+        word failureClass;
+        word failureBranchId;
+        scalar rejectExcess;
+        scalar rejectNearestSampleDistance;
+        scalarList rejectState;
         DynamicList<word> offendingVariables;
         DynamicList<label> offendingCounts;
         DynamicList<scalar> maxOutOfBoundByVariable;
@@ -382,7 +389,13 @@ public:
             totalQueriedCells(0),
             uncoveredCells(0),
             trustRejectCells(0),
-            maxObservedUntrackedMassFraction(0.0)
+            maxObservedUntrackedMassFraction(0.0),
+            hasFirstTrustReject(false),
+            rejectVariable(word::null),
+            failureClass(word::null),
+            failureBranchId(word::null),
+            rejectExcess(0.0),
+            rejectNearestSampleDistance(0.0)
         {}
 
         void note(const word& variable, const scalar excess)
@@ -401,6 +414,67 @@ public:
             offendingCounts.append(1);
             maxOutOfBoundByVariable.append(max(excess, scalar(0.0)));
         }
+
+        void noteFirstTrustReject
+        (
+            const word& variable,
+            const word& failureClassValue,
+            const word& failureBranchIdValue,
+            const scalar excess,
+            const scalar nearestSampleDistance,
+            const scalarList& state
+        )
+        {
+            if (hasFirstTrustReject)
+            {
+                return;
+            }
+            hasFirstTrustReject = true;
+            rejectVariable = variable;
+            failureClass = failureClassValue;
+            failureBranchId = failureBranchIdValue;
+            rejectExcess = excess;
+            rejectNearestSampleDistance = nearestSampleDistance;
+            rejectState = state;
+        }
+    };
+
+    struct CoverageCorpusRow
+    {
+        labelList coverageBucketKey;
+        scalarList rawStateSum;
+        scalarList transformedStateSum;
+        wordList stageNames;
+        label queryCount;
+        label tableHitCount;
+        label coverageRejectCount;
+        label trustRejectCount;
+        word worstRejectVariable;
+        scalar worstRejectExcess;
+        bool hasNearestSampleDistance;
+        scalar nearestSampleDistanceMin;
+        scalar nearestSampleDistanceMax;
+        bool hasBestTrustRejectSnapshot;
+        scalar bestTrustRejectSnapshotExcess;
+        scalarList bestTrustRejectRawState;
+        scalarList bestTrustRejectTransformedState;
+
+        CoverageCorpusRow()
+        :
+            queryCount(0),
+            tableHitCount(0),
+            coverageRejectCount(0),
+            trustRejectCount(0),
+            worstRejectVariable(word::null),
+            worstRejectExcess(0.0),
+            hasNearestSampleDistance(false),
+            nearestSampleDistanceMin(0.0),
+            nearestSampleDistanceMax(0.0),
+            hasBestTrustRejectSnapshot(false),
+            bestTrustRejectSnapshotExcess(-1.0),
+            bestTrustRejectRawState(),
+            bestTrustRejectTransformedState()
+        {}
     };
 
 private:
@@ -430,6 +504,12 @@ private:
     scalar rbfEpsilon_;
     scalar rbfEnvelopeScale_;
     scalar lookupCacheQuantization_;
+    scalar coverageCorpusQuantization_;
+    Switch coverageCorpusHighFidelityTrustSnapshots_;
+    wordList coverageCorpusHighFidelityStageNames_;
+    bool coverageCorpusHighFidelityUseAngleGate_;
+    scalar coverageCorpusHighFidelityAngleMinDeg_;
+    scalar coverageCorpusHighFidelityAngleMaxDeg_;
     scalar trustRegionMaxAbsSource_;
     scalar trustRegionMaxAbsJacobian_;
     scalar trustRegionMaxAbsQdot_;
@@ -441,6 +521,8 @@ private:
     mutable label trustRegionRejectCells_;
     mutable HashTable<label, word> cacheIndexByKey_;
     mutable DynamicList<InterpolatedState> cacheEntries_;
+    mutable HashTable<label, word> coverageRowIndexByKey_;
+    mutable DynamicList<CoverageCorpusRow> coverageRows_;
 
     static label findFieldIndex(const PtrList<volScalarField>& Y, const word& speciesName)
     {
@@ -597,6 +679,132 @@ private:
         return key;
     }
 
+    labelList coverageBucketKey(const scalarList& transformedState) const
+    {
+        labelList bucket(transformedState.size(), 0);
+        forAll(transformedState, dimi)
+        {
+            const scalar quant =
+                max(coverageCorpusQuantization_, 1.0e-9)
+               *max(stateScales_[dimi], scalar(1.0));
+            bucket[dimi] = label(std::llround(transformedState[dimi]/quant));
+        }
+        return bucket;
+    }
+
+    word coverageBucketWord(const scalarList& transformedState) const
+    {
+        const labelList bucket = coverageBucketKey(transformedState);
+        word key;
+        forAll(bucket, dimi)
+        {
+            key += Foam::name(bucket[dimi]);
+            key += "_";
+        }
+        return key;
+    }
+
+    void noteCoverageObservation
+    (
+        const word& stageName,
+        const scalarList& rawState,
+        const scalarList& transformedState,
+        const bool tableHit,
+        const bool coverageReject,
+        const bool trustReject,
+        const word& rejectVariable,
+        const scalar rejectExcess,
+        const scalar nearestSampleDistance,
+        const bool allowHighFidelityTrustSnapshot
+    ) const
+    {
+        const word key = coverageBucketWord(transformedState);
+        label rowIndex = -1;
+        if (coverageRowIndexByKey_.found(key))
+        {
+            rowIndex = coverageRowIndexByKey_[key];
+        }
+        else
+        {
+            CoverageCorpusRow row;
+            row.coverageBucketKey = coverageBucketKey(transformedState);
+            row.rawStateSum.setSize(rawState.size(), 0.0);
+            row.transformedStateSum.setSize(transformedState.size(), 0.0);
+            rowIndex = coverageRows_.size();
+            coverageRows_.append(row);
+            coverageRowIndexByKey_.insert(key, rowIndex);
+        }
+
+        CoverageCorpusRow& row = coverageRows_[rowIndex];
+        row.queryCount += 1;
+        if (tableHit)
+        {
+            row.tableHitCount += 1;
+        }
+        if (coverageReject)
+        {
+            row.coverageRejectCount += 1;
+        }
+        if (trustReject)
+        {
+            row.trustRejectCount += 1;
+        }
+        forAll(rawState, dimi)
+        {
+            row.rawStateSum[dimi] += rawState[dimi];
+            row.transformedStateSum[dimi] += transformedState[dimi];
+        }
+        if (stageName.size())
+        {
+            bool knownStage = false;
+            forAll(row.stageNames, stagei)
+            {
+                if (row.stageNames[stagei] == stageName)
+                {
+                    knownStage = true;
+                    break;
+                }
+            }
+            if (!knownStage)
+            {
+                row.stageNames.append(stageName);
+            }
+        }
+        if (rejectVariable.size() && rejectExcess >= row.worstRejectExcess)
+        {
+            row.worstRejectVariable = rejectVariable;
+            row.worstRejectExcess = rejectExcess;
+        }
+        if (nearestSampleDistance >= 0.0 && std::isfinite(nearestSampleDistance))
+        {
+            if (!row.hasNearestSampleDistance)
+            {
+                row.hasNearestSampleDistance = true;
+                row.nearestSampleDistanceMin = nearestSampleDistance;
+                row.nearestSampleDistanceMax = nearestSampleDistance;
+            }
+            else
+            {
+                row.nearestSampleDistanceMin =
+                    min(row.nearestSampleDistanceMin, nearestSampleDistance);
+                row.nearestSampleDistanceMax =
+                    max(row.nearestSampleDistanceMax, nearestSampleDistance);
+            }
+        }
+        if
+        (
+            allowHighFidelityTrustSnapshot
+         && trustReject
+         && rejectExcess > row.bestTrustRejectSnapshotExcess
+        )
+        {
+            row.hasBestTrustRejectSnapshot = true;
+            row.bestTrustRejectSnapshotExcess = rejectExcess;
+            row.bestTrustRejectRawState = rawState;
+            row.bestTrustRejectTransformedState = transformedState;
+        }
+    }
+
     static bool isLookupMode(const word& mode)
     {
         return mode == "lookupTable"
@@ -614,11 +822,17 @@ private:
         const scalarList& queryState,
         InterpolatedState& interpolated,
         word& rejectVariable,
-        scalar& rejectExcess
+        scalar& rejectExcess,
+        word& failureClass,
+        word& failureBranchId,
+        scalar& rejectNearestSampleDistance
     ) const
     {
         rejectVariable = word("");
         rejectExcess = 0.0;
+        failureClass = word("");
+        failureBranchId = word("");
+        rejectNearestSampleDistance = 0.0;
         const word key = cacheKey(queryState);
         if (cacheIndexByKey_.found(key))
         {
@@ -666,6 +880,10 @@ private:
                 return left.first() < right.first();
             }
         );
+        if (sampleCount_ > 0)
+        {
+            rejectNearestSampleDistance = distanceIndex[0].first();
+        }
 
         const label stencil = max(label(2), min(rbfNeighborCount_, sampleCount_));
         List<scalarList> kernel(stencil);
@@ -730,6 +948,8 @@ private:
         {
             trustRegionRejectCells_ += 1;
             rejectVariable = "Qdot";
+            failureClass = "qdot";
+            failureBranchId = "default";
             rejectExcess =
                 max(qdotMin - interpolated.qdot - qdotMargin, interpolated.qdot - qdotMax - qdotMargin);
             return false;
@@ -744,6 +964,8 @@ private:
         {
             trustRegionRejectCells_ += 1;
             rejectVariable = "QdotTemperatureSensitivity";
+            failureClass = "qdot";
+            failureBranchId = "default";
             rejectExcess =
                 max
                 (
@@ -763,6 +985,8 @@ private:
         {
             trustRegionRejectCells_ += 1;
             rejectVariable = "Qdot";
+            failureClass = "qdot";
+            failureBranchId = "default";
             rejectExcess = max(mag(interpolated.qdot) - trustRegionMaxAbsQdot_, scalar(0.0));
             return false;
         }
@@ -792,6 +1016,8 @@ private:
             {
                 trustRegionRejectCells_ += 1;
                 rejectVariable = speciesNames_[speciesi];
+                failureClass = "same_sign_overshoot";
+                failureBranchId = "default";
                 rejectExcess =
                     max
                     (
@@ -808,6 +1034,8 @@ private:
             {
                 trustRegionRejectCells_ += 1;
                 rejectVariable = speciesNames_[speciesi] + "_diag";
+                failureClass = "same_sign_overshoot";
+                failureBranchId = "default";
                 rejectExcess =
                     max
                     (
@@ -826,6 +1054,8 @@ private:
             {
                 trustRegionRejectCells_ += 1;
                 rejectVariable = speciesNames_[speciesi];
+                failureClass = "same_sign_overshoot";
+                failureBranchId = "default";
                 rejectExcess =
                     max
                     (
@@ -863,6 +1093,12 @@ public:
         rbfEpsilon_(1.0),
         rbfEnvelopeScale_(0.1),
         lookupCacheQuantization_(0.0025),
+        coverageCorpusQuantization_(0.0025),
+        coverageCorpusHighFidelityTrustSnapshots_(false),
+        coverageCorpusHighFidelityStageNames_(),
+        coverageCorpusHighFidelityUseAngleGate_(false),
+        coverageCorpusHighFidelityAngleMinDeg_(-GREAT),
+        coverageCorpusHighFidelityAngleMaxDeg_(GREAT),
         trustRegionMaxAbsSource_(1.0e12),
         trustRegionMaxAbsJacobian_(1.0e12),
         trustRegionMaxAbsQdot_(1.0e15),
@@ -915,6 +1151,37 @@ public:
             tableDict.lookupOrDefault<scalar>("rbfEnvelopeScale", 0.1);
         lookupCacheQuantization_ =
             tableDict.lookupOrDefault<scalar>("lookupCacheQuantization", 0.0025);
+        coverageCorpusQuantization_ =
+            tableDict.found("coverageCorpusQuantization")
+          ? readScalar(tableDict.lookup("coverageCorpusQuantization"))
+          : lookupCacheQuantization_;
+        coverageCorpusHighFidelityTrustSnapshots_ =
+            tableDict.lookupOrDefault<Switch>(
+                "coverageCorpusHighFidelityTrustSnapshots",
+                false
+            );
+        coverageCorpusHighFidelityStageNames_ =
+            tableDict.lookupOrDefault<wordList>(
+                "coverageCorpusHighFidelityStageNames",
+                wordList(0)
+            );
+        coverageCorpusHighFidelityUseAngleGate_ = false;
+        coverageCorpusHighFidelityAngleMinDeg_ = -GREAT;
+        coverageCorpusHighFidelityAngleMaxDeg_ = GREAT;
+        if
+        (
+            tableDict.found("coverageCorpusHighFidelityAngleMinDeg")
+         && tableDict.found("coverageCorpusHighFidelityAngleMaxDeg")
+        )
+        {
+            coverageCorpusHighFidelityUseAngleGate_ = true;
+            coverageCorpusHighFidelityAngleMinDeg_ = readScalar(
+                tableDict.lookup("coverageCorpusHighFidelityAngleMinDeg")
+            );
+            coverageCorpusHighFidelityAngleMaxDeg_ = readScalar(
+                tableDict.lookup("coverageCorpusHighFidelityAngleMaxDeg")
+            );
+        }
         trustRegionMaxAbsSource_ =
             tableDict.lookupOrDefault<scalar>("trustRegionMaxAbsSource", 1.0e12);
         trustRegionMaxAbsJacobian_ =
@@ -1075,6 +1342,7 @@ public:
 
     bool populate
     (
+        const Time& runTime,
         const IOdictionary& engineGeometry,
         const PtrList<volScalarField>& Y,
         const volScalarField& p,
@@ -1092,6 +1360,30 @@ public:
             return false;
         }
 
+        const word runtimeStageName =
+            engineGeometry.lookupOrDefault<word>("runtimeChemistryStageName", "");
+        const scalar crankAngleDegValue = crankAngleDeg(engineGeometry, runTime);
+        bool angleOk =
+            !coverageCorpusHighFidelityUseAngleGate_
+         || (
+                crankAngleDegValue >= coverageCorpusHighFidelityAngleMinDeg_
+             && crankAngleDegValue <= coverageCorpusHighFidelityAngleMaxDeg_
+            );
+        bool stageOk = coverageCorpusHighFidelityStageNames_.empty();
+        if (!stageOk)
+        {
+            forAll(coverageCorpusHighFidelityStageNames_, stagei)
+            {
+                if (coverageCorpusHighFidelityStageNames_[stagei] == runtimeStageName)
+                {
+                    stageOk = true;
+                    break;
+                }
+            }
+        }
+        const bool allowHighFidelityTrustSnapshot =
+            coverageCorpusHighFidelityTrustSnapshots_ && angleOk && stageOk;
+
         const scalar permittedUntracked =
             engineGeometry.lookupOrDefault<scalar>
             (
@@ -1107,6 +1399,9 @@ public:
         tableQueryCells_ += TCells.size();
         missSummary.totalQueriedCells = TCells.size();
 
+        // Note: coverage reject / trust reject paths return false after the first failing cell,
+        // so only one corpus observation is recorded per timestep along those branches.
+
         forAll(TCells, celli)
         {
             scalarList rawQueryState(axes_.size(), 0.0);
@@ -1115,35 +1410,34 @@ public:
             rawQueryState[0] = stateT;
             rawQueryState[1] = stateP;
 
+            bool coverageReject = false;
+            word coverageRejectVariable(word::null);
+            scalar coverageRejectExcess = 0.0;
+
             if
             (
                 stateT < axes_[0][0] || stateT > axes_[0][axes_[0].size() - 1]
-             || stateP < axes_[1][0] || stateP > axes_[1][axes_[1].size() - 1]
             )
             {
-                missSummary.uncoveredCells += 1;
-                coverageRejectCells_ += 1;
-                if (stateT < axes_[0][0] || stateT > axes_[0][axes_[0].size() - 1])
-                {
-                    missSummary.note
-                    (
-                        "Temperature",
-                        stateT < axes_[0][0]
-                      ? axes_[0][0] - stateT
-                      : stateT - axes_[0][axes_[0].size() - 1]
-                    );
-                }
-                if (stateP < axes_[1][0] || stateP > axes_[1][axes_[1].size() - 1])
-                {
-                    missSummary.note
-                    (
-                        "Pressure",
-                        stateP < axes_[1][0]
-                      ? axes_[1][0] - stateP
-                      : stateP - axes_[1][axes_[1].size() - 1]
-                    );
-                }
-                return false;
+                coverageReject = true;
+                coverageRejectVariable = "Temperature";
+                coverageRejectExcess =
+                    stateT < axes_[0][0]
+                  ? axes_[0][0] - stateT
+                  : stateT - axes_[0][axes_[0].size() - 1];
+            }
+            if
+            (
+                !coverageReject
+             && (stateP < axes_[1][0] || stateP > axes_[1][axes_[1].size() - 1])
+            )
+            {
+                coverageReject = true;
+                coverageRejectVariable = "Pressure";
+                coverageRejectExcess =
+                    stateP < axes_[1][0]
+                  ? axes_[1][0] - stateP
+                  : stateP - axes_[1][axes_[1].size() - 1];
             }
 
             scalar trackedMassFraction = 0.0;
@@ -1158,20 +1452,19 @@ public:
                 rawQueryState[speciesi + 2] = speciesValue;
                 if
                 (
-                    speciesValue < axes_[speciesi + 2][0]
-                 || speciesValue > axes_[speciesi + 2][axes_[speciesi + 2].size() - 1]
+                    !coverageReject
+                 && (
+                        speciesValue < axes_[speciesi + 2][0]
+                     || speciesValue > axes_[speciesi + 2][axes_[speciesi + 2].size() - 1]
+                    )
                 )
                 {
-                    missSummary.uncoveredCells += 1;
-                    coverageRejectCells_ += 1;
-                    missSummary.note
-                    (
-                        stateSpecies_[speciesi],
+                    coverageReject = true;
+                    coverageRejectVariable = stateSpecies_[speciesi];
+                    coverageRejectExcess =
                         speciesValue < axes_[speciesi + 2][0]
                       ? axes_[speciesi + 2][0] - speciesValue
-                      : speciesValue - axes_[speciesi + 2][axes_[speciesi + 2].size() - 1]
-                    );
-                    return false;
+                      : speciesValue - axes_[speciesi + 2][axes_[speciesi + 2].size() - 1];
                 }
             }
 
@@ -1188,27 +1481,93 @@ public:
             }
             missSummary.maxObservedUntrackedMassFraction =
                 max(missSummary.maxObservedUntrackedMassFraction, untrackedMassFraction);
-            if (untrackedMassFraction > permittedUntracked)
+            if (!coverageReject && untrackedMassFraction > permittedUntracked)
             {
-                missSummary.uncoveredCells += 1;
-                coverageRejectCells_ += 1;
-                missSummary.note("untrackedMassFraction", untrackedMassFraction - permittedUntracked);
-                return false;
+                coverageReject = true;
+                coverageRejectVariable = "untrackedMassFraction";
+                coverageRejectExcess = untrackedMassFraction - permittedUntracked;
             }
 
             const scalarList queryState = transformState(rawQueryState);
+            if (coverageReject)
+            {
+                missSummary.uncoveredCells += 1;
+                coverageRejectCells_ += 1;
+                missSummary.note(coverageRejectVariable, coverageRejectExcess);
+                noteCoverageObservation(
+                    runtimeStageName,
+                    rawQueryState,
+                    queryState,
+                    false,
+                    true,
+                    false,
+                    coverageRejectVariable,
+                    coverageRejectExcess,
+                    -1.0,
+                    false
+                );
+                return false;
+            }
             InterpolatedState interpolated;
             word rejectVariable;
             scalar rejectExcess = 0.0;
-            if (!interpolateState(queryState, interpolated, rejectVariable, rejectExcess))
+            word failureClass;
+            word failureBranchId;
+            scalar rejectNearestSampleDistance = 0.0;
+            if
+            (
+                !interpolateState
+                (
+                    queryState,
+                    interpolated,
+                    rejectVariable,
+                    rejectExcess,
+                    failureClass,
+                    failureBranchId,
+                    rejectNearestSampleDistance
+                )
+            )
             {
                 missSummary.trustRejectCells += 1;
                 missSummary.note(
                     rejectVariable.size() == 0 ? word("interpolation") : rejectVariable,
                     rejectExcess
                 );
+                missSummary.noteFirstTrustReject
+                (
+                    rejectVariable.size() == 0 ? word("interpolation") : rejectVariable,
+                    failureClass.size() == 0 ? word("undetailed_authority_miss") : failureClass,
+                    failureBranchId.size() == 0 ? word("default") : failureBranchId,
+                    rejectExcess,
+                    rejectNearestSampleDistance,
+                    rawQueryState
+                );
+                noteCoverageObservation(
+                    runtimeStageName,
+                    rawQueryState,
+                    queryState,
+                    false,
+                    false,
+                    true,
+                    rejectVariable.size() == 0 ? word("interpolation") : rejectVariable,
+                    rejectExcess,
+                    rejectNearestSampleDistance,
+                    allowHighFidelityTrustSnapshot
+                );
                 return false;
             }
+            noteCoverageObservation(
+                runtimeStageName,
+                rawQueryState,
+                queryState,
+                true,
+                false,
+                false,
+                word::null,
+                0.0,
+                rejectNearestSampleDistance,
+                false
+            );
             tableHitCells_ += 1;
             runtimeQdotCells[celli] = interpolated.qdot;
             runtimeQdotTemperatureSensitivityCells[celli] =
@@ -1252,7 +1611,44 @@ public:
             << "  \"max_untracked_mass_fraction\": " << missSummary.maxObservedUntrackedMassFraction << ",\n"
             << "  \"table_id\": \"" << tableId_ << "\",\n"
             << "  \"table_hash\": \"" << engineGeometry.lookupOrDefault<word>("runtimeChemistryTableHash", "") << "\",\n"
-            << "  \"runtime_mode\": \"" << engineGeometry.lookupOrDefault<word>("runtimeChemistryMode", "fullReducedKinetics") << "\",\n"
+            << "  \"runtime_mode\": \"" << engineGeometry.lookupOrDefault<word>("runtimeChemistryMode", "fullReducedKinetics") << "\",\n";
+        if (missSummary.hasFirstTrustReject)
+        {
+            missFile
+                << "  \"failure_class\": \"" << missSummary.failureClass << "\",\n"
+                << "  \"failure_branch_id\": \"" << missSummary.failureBranchId << "\",\n"
+                << "  \"reject_variable\": \"" << missSummary.rejectVariable << "\",\n"
+                << "  \"reject_excess\": " << missSummary.rejectExcess << ",\n"
+                << "  \"reject_nearest_sample_distance\": "
+                << missSummary.rejectNearestSampleDistance << ",\n"
+                << "  \"reject_state\": {\n";
+            forAll(stateVariables_, dimi)
+            {
+                missFile
+                    << "    \"" << stateVariables_[dimi] << "\": ";
+                if (dimi < missSummary.rejectState.size())
+                {
+                    missFile << missSummary.rejectState[dimi];
+                }
+                else
+                {
+                    missFile << "0";
+                }
+                missFile << (dimi + 1 < stateVariables_.size() ? ",\n" : "\n");
+            }
+            missFile << "  },\n";
+        }
+        else
+        {
+            missFile
+                << "  \"failure_class\": null,\n"
+                << "  \"failure_branch_id\": null,\n"
+                << "  \"reject_variable\": null,\n"
+                << "  \"reject_excess\": null,\n"
+                << "  \"reject_nearest_sample_distance\": null,\n"
+                << "  \"reject_state\": {},\n";
+        }
+        missFile
             << "  \"first_offending_variables\": [";
         forAll(missSummary.offendingVariables, index)
         {
@@ -1289,12 +1685,144 @@ public:
         fallbackTimestepCount_ += 1;
     }
 
+    void writeCoverageCorpusRowJson
+    (
+        OFstream& corpusFile,
+        const CoverageCorpusRow& row,
+        const bool useTrustRejectSnapshot
+    ) const
+    {
+        const scalar denominator = max(row.queryCount, label(1));
+        corpusFile << "    {\n";
+        corpusFile << "      \"coverage_bucket_key\": [";
+        forAll(row.coverageBucketKey, dimi)
+        {
+            if (dimi > 0)
+            {
+                corpusFile << ", ";
+            }
+            corpusFile << row.coverageBucketKey[dimi];
+        }
+        corpusFile << "],\n";
+        if (useTrustRejectSnapshot)
+        {
+            corpusFile << "      \"high_fidelity_trust_reject\": true,\n";
+        }
+        corpusFile << "      \"raw_state\": {\n";
+        forAll(stateVariables_, dimi)
+        {
+            const scalar rawValue =
+                useTrustRejectSnapshot
+              ? row.bestTrustRejectRawState[dimi]
+              : row.rawStateSum[dimi]/denominator;
+            corpusFile
+                << "        \"" << stateVariables_[dimi] << "\": "
+                << rawValue;
+            corpusFile << (dimi + 1 < stateVariables_.size() ? ",\n" : "\n");
+        }
+        corpusFile << "      },\n";
+        corpusFile << "      \"transformed_state\": {\n";
+        forAll(stateVariables_, dimi)
+        {
+            const scalar transformedValue =
+                useTrustRejectSnapshot
+              ? row.bestTrustRejectTransformedState[dimi]
+              : row.transformedStateSum[dimi]/denominator;
+            corpusFile
+                << "        \"" << stateVariables_[dimi] << "\": "
+                << transformedValue;
+            corpusFile << (dimi + 1 < stateVariables_.size() ? ",\n" : "\n");
+        }
+        corpusFile << "      },\n";
+        corpusFile << "      \"query_count\": "
+                   << (useTrustRejectSnapshot ? 1 : row.queryCount) << ",\n";
+        corpusFile << "      \"table_hit_count\": "
+                   << (useTrustRejectSnapshot ? 0 : row.tableHitCount) << ",\n";
+        corpusFile << "      \"coverage_reject_count\": "
+                   << (useTrustRejectSnapshot ? 0 : row.coverageRejectCount) << ",\n";
+        corpusFile << "      \"trust_reject_count\": "
+                   << (useTrustRejectSnapshot ? 1 : row.trustRejectCount) << ",\n";
+        corpusFile << "      \"worst_reject_variable\": ";
+        if (row.worstRejectVariable.size())
+        {
+            corpusFile << "\"" << row.worstRejectVariable << "\"";
+        }
+        else
+        {
+            corpusFile << "null";
+        }
+        corpusFile << ",\n";
+        corpusFile << "      \"worst_reject_excess\": "
+                   << (useTrustRejectSnapshot ? row.bestTrustRejectSnapshotExcess
+                        : row.worstRejectExcess)
+                   << ",\n";
+        corpusFile << "      \"nearest_sample_distance_min\": "
+                   << (row.hasNearestSampleDistance ? row.nearestSampleDistanceMin : 0.0)
+                   << ",\n";
+        corpusFile << "      \"nearest_sample_distance_max\": "
+                   << (row.hasNearestSampleDistance ? row.nearestSampleDistanceMax : 0.0)
+                   << ",\n";
+        corpusFile << "      \"stage_names\": [";
+        forAll(row.stageNames, stagei)
+        {
+            if (stagei > 0)
+            {
+                corpusFile << ", ";
+            }
+            corpusFile << "\"" << row.stageNames[stagei] << "\"";
+        }
+        corpusFile << "]\n";
+        corpusFile << "    }";
+    }
+
+    void writeCoverageCorpus(const Time& runTime) const
+    {
+        if (!active_ || coverageRows_.empty())
+        {
+            return;
+        }
+        OFstream corpusFile(runTime.path()/"runtimeChemistryCoverageCorpus.json");
+        corpusFile << "{\n";
+        corpusFile << "  \"state_variables\": [";
+        forAll(stateVariables_, dimi)
+        {
+            if (dimi > 0)
+            {
+                corpusFile << ", ";
+            }
+            corpusFile << "\"" << stateVariables_[dimi] << "\"";
+        }
+        corpusFile << "],\n";
+        corpusFile << "  \"rows\": [\n";
+        label emitted = 0;
+        forAll(coverageRows_, rowi)
+        {
+            const CoverageCorpusRow& row = coverageRows_[rowi];
+            if (emitted++)
+            {
+                corpusFile << ",\n";
+            }
+            writeCoverageCorpusRowJson(corpusFile, row, false);
+            if (row.hasBestTrustRejectSnapshot)
+            {
+                if (emitted++)
+                {
+                    corpusFile << ",\n";
+                }
+                writeCoverageCorpusRowJson(corpusFile, row, true);
+            }
+        }
+        corpusFile << "\n  ]\n";
+        corpusFile << "}\n";
+    }
+
     void writeSummary(const Time& runTime) const
     {
         if (!active_)
         {
             return;
         }
+        writeCoverageCorpus(runTime);
         OFstream summaryFile
         (
             runTime.path()/("runtimeChemistrySummary." + runTime.timeName() + ".dat")
@@ -1488,6 +2016,7 @@ int main(int argc, char *argv[])
                 RuntimeChemistryTable::AuthorityMissSummary authorityMiss;
                 useRuntimeChemistryTable = runtimeChemistryTable.populate
                 (
+                    runTime,
                     engineGeometry,
                     Y,
                     p,

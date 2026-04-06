@@ -21,7 +21,7 @@ from larrak2.architecture.contracts import (
 )
 from larrak2.core.encoding import N_TOTAL
 from larrak2.core.types import BreathingConfig, EvalContext
-from larrak2.optimization.production_gate import (
+from larrak_optimization import (
     STRICT_PRODUCTION_PROFILE,
     evaluate_production_gate,
 )
