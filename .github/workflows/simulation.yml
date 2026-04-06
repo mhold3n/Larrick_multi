@@ -11,6 +11,7 @@ on:
       - "src/larrak2/architecture/**"
       - "src/larrak2/analysis/telemetry.py"
       - "src/larrak2/simulation_validation/**"
+      - "src/larrak2/cli/validate_simulation.py"
       - "src/larrak2/pipelines/openfoam.py"
       - "src/larrak2/adapters/openfoam.py"
       - "src/larrak2/adapters/docker_openfoam.py"
@@ -19,6 +20,7 @@ on:
       - "mechanisms/openfoam/**"
       - "tools/rebuild_calculix_case_replay_dataset.py"
       - "tests/ci/test_validate_simulation_cli_cache.py"
+      - "tests/ci/test_coverage_corpus_analysis.py"
       - "tests/ci/test_workflow_contracts.py"
       - "tests/ci/test_workflow_ci_layout.py"
   pull_request:
@@ -29,6 +31,7 @@ on:
       - "src/larrak2/architecture/**"
       - "src/larrak2/analysis/telemetry.py"
       - "src/larrak2/simulation_validation/**"
+      - "src/larrak2/cli/validate_simulation.py"
       - "src/larrak2/pipelines/openfoam.py"
       - "src/larrak2/adapters/openfoam.py"
       - "src/larrak2/adapters/docker_openfoam.py"
@@ -37,6 +40,7 @@ on:
       - "mechanisms/openfoam/**"
       - "tools/rebuild_calculix_case_replay_dataset.py"
       - "tests/ci/test_validate_simulation_cli_cache.py"
+      - "tests/ci/test_coverage_corpus_analysis.py"
       - "tests/ci/test_workflow_contracts.py"
       - "tests/ci/test_workflow_ci_layout.py"
   workflow_dispatch:
@@ -57,7 +61,7 @@ jobs:
       workflow_name: simulation
       pytest_args: "pytest -q"
       mypy_paths: "src/larrak2/architecture/workflow_contracts.py src/larrak2/analysis/telemetry.py"
-      ruff_paths: "src/larrak2/simulation_validation src/larrak2/pipelines/openfoam.py src/larrak2/adapters/openfoam.py src/larrak2/adapters/docker_openfoam.py src/larrak2/architecture tests/ci/test_validate_simulation_cli_cache.py tests/ci/test_workflow_contracts.py tests/ci/test_workflow_ci_layout.py tests/ci/test_agent_docs.py"
+      ruff_paths: "src/larrak2/simulation_validation src/larrak2/cli/validate_simulation.py src/larrak2/pipelines/openfoam.py src/larrak2/adapters/openfoam.py src/larrak2/adapters/docker_openfoam.py src/larrak2/architecture tests/ci/test_validate_simulation_cli_cache.py tests/ci/test_coverage_corpus_analysis.py tests/ci/test_workflow_contracts.py tests/ci/test_workflow_ci_layout.py tests/ci/test_agent_docs.py"
 
   heavy-self-hosted:
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_heavy) || vars.LARRAK_ENABLE_SELF_HOSTED_SIMULATION == 'true' }}

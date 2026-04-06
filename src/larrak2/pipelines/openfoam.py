@@ -559,6 +559,7 @@ class OpenFoamPipeline:
         custom_solver_cache_root: str | Path | None = None,
         chemistry_package_dir: str | Path | None = None,
         runtime_chemistry_table_dir: str | Path | None = None,
+        refresh_custom_solver: bool = False,
     ):
         self.template_dir = Path(template_dir)
         self.solver_cmd = solver_cmd
@@ -598,6 +599,7 @@ class OpenFoamPipeline:
             docker_image=docker_image,
             docker_bin=docker_bin,
         )
+        self.refresh_custom_solver = bool(refresh_custom_solver)
 
     def docker_preflight(self, *, log_file: str | Path | None = None) -> dict[str, Any]:
         return self.docker.docker_preflight(
@@ -691,6 +693,7 @@ class OpenFoamPipeline:
             source_dir=self.custom_solver_source_dir,
             solver_name=self.solver_cmd,
             cache_root=self.custom_solver_cache_root,
+            refresh=bool(self.refresh_custom_solver),
             log_file=log_file,
         )
 

@@ -1,0 +1,35 @@
+# Optional Docker wmake smoke for larrakEngineFoam. Does not run on PRs by default.
+name: OpenFOAM custom solver smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-solver-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project (minimal)
+        run: pip install -e .
+      - name: ensure_custom_solver (refresh)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          from larrak2.adapters.docker_openfoam import DockerOpenFoam, DockerOpenFoamConfig
+
+          repo = Path.cwd()
+          cfg = DockerOpenFoamConfig()
+          DockerOpenFoam(cfg).ensure_custom_solver(
+              source_dir=repo / "openfoam_custom_solvers" / "larrakEngineFoam",
+              solver_name="larrakEngineFoam",
+              cache_root=cfg.custom_solver_cache_root,
+              refresh=True,
+          )
+          PY

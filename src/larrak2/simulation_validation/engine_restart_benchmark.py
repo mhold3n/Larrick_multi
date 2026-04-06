@@ -295,6 +295,7 @@ def benchmark_engine_restart_profiles(
     docker_bin: str | None = None,
     refresh_runtime_tables: bool = False,
     continue_across_remaining_stages: bool = False,
+    refresh_custom_solver: bool = False,
 ) -> dict[str, Any]:
     base_run_dir = Path(run_dir)
     tuned_params = _load_json(tuned_params_path)
@@ -420,6 +421,7 @@ def benchmark_engine_restart_profiles(
             docker_bin=docker_bin,
             chemistry_package_dir=selected_package_dir,
             runtime_chemistry_table_dir=runtime_table_dir,
+            refresh_custom_solver=bool(refresh_custom_solver),
         )
         case_params, case_staged_inputs, _, package_manifest, runtime_table_manifest = (
             pipeline._engine_case_assets(  # noqa: SLF001

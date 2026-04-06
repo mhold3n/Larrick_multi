@@ -1,5 +1,5 @@
 {
-  "_comment": "Stage-local Chem323 runtime table for the ignition_entry bin. This keeps the stable v66o-style Qdot baseline and active species/Qdot frontiers fixed while shifting fresh-support generation to solver-emitted coverage corpora instead of ad hoc field-support case dirs.",
+  "_comment": "Stage-local Chem323 runtime table for the ignition_entry bin. This keeps the stable v66o-style Qdot baseline and active species/Qdot frontiers fixed while shifting fresh-support generation to solver-emitted coverage corpora instead of ad hoc field-support case dirs. Frontier audit (species vs Qdot priority): data/simulation_validation/v66_frontier_audit_ignition_entry.txt",
   "runtime_chemistry_table": {
     "table_id": "chem323_engine_ignition_entry_v1",
     "package_dir": "mechanisms/openfoam/v2512/chem323_reduced",

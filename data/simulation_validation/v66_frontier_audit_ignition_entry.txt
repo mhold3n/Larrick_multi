@@ -1,0 +1,13 @@
+v66 ignition_entry frontier audit (species vs Qdot)
+
+Config: openfoam_runtime_chemistry_table_chem323_ignition_entry.json
+
+seed_species_miss_artifacts (v66h, v66i, v66k, v66p paths) capture species- and diag-oriented authority misses, including H2O2-focused runs (v66h) for the active reduced manifold.
+
+seed_qdot_miss_artifacts (v66c, v66j, v66l paths) capture Qdot-class misses at staged ignition_entry states.
+
+Priority rule for the next iteration:
+- If restart regression / authority_miss cluster is dominated by Qdot rejects, prioritize qdot targets, seed_qdot_miss_artifacts alignment, and current_window_qdot_* limits before expanding species corpus work.
+- If the cluster is dominated by species (e.g. H2O2 or other state_species), prioritize species targets, seed_species_miss_artifacts alignment, and corpus diversity for those axes.
+
+Use `larrak-validate-sim coverage-corpus-analysis --config ...` to quantify transformed-space distances from targets to corpus rows and point_key dedupe before large C++ or table knob changes.

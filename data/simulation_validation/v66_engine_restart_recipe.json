@@ -1,0 +1,20 @@
+{
+  "_comment": "Canonical v66 multitable engine-restart-benchmark recipe. Run via scripts/run_v66_engine_restart_benchmark.py (do not hand-assemble CLI flags). Use a single outdir per iteration such as outputs/diagnostics/engine_restart_benchmark_live_parallel_vNNx_chem323_<purpose>/ (replace v66_recipe_placeholder or pass --outdir). Multitable refresh order: data/simulation_validation/v66_multitable_refresh_order.md. After editing openfoam_custom_solvers/larrakEngineFoam/, set refresh_custom_solver true once to force Docker wmake; otherwise source_hash cache invalidates on change.",
+  "strategy_config": "data/simulation_validation/engine_runtime_mechanism_strategy_multitable_v1.json",
+  "tuned_params": "outputs/diagnostics/engine_calibration/tuned_engine_params.json",
+  "handoff_artifact": "outputs/diagnostics/engine_calibration/two_zone_cantera_preignition_handoff_staged_v2.json",
+  "run_dir": "outputs/openfoam_engine_reacting_closed_valve_handoff_two_zone_staged_v2",
+  "profiles": [
+    "chem323_lookup_strict"
+  ],
+  "outdir": "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66_recipe_placeholder",
+  "window_angle_deg": 0.01,
+  "docker_timeout_s": 3600,
+  "solver_name": "larrakEngineFoam",
+  "package_label": "",
+  "refresh_runtime_tables": false,
+  "continue_across_remaining_stages": false,
+  "refresh_custom_solver": false,
+  "docker_image": null,
+  "docker_bin": null
+}

@@ -8,6 +8,7 @@ Commands:
     larrak-validate-sim full-handoff
     larrak-validate-sim runtime-chemistry-table
     larrak-validate-sim engine-restart-benchmark
+    larrak-validate-sim coverage-corpus-analysis
     larrak-validate-sim restart-regression-analysis
     larrak-validate-sim chemistry-cache
     larrak-validate-sim flame-speed-compare
@@ -400,6 +401,23 @@ def _run_runtime_chemistry_table_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_coverage_corpus_analysis_cmd(args: argparse.Namespace) -> int:
+    from larrak2.simulation_validation.coverage_corpus_analysis import (
+        analyze_coverage_corpus_vs_targets,
+    )
+
+    extra = [str(p).strip() for p in (getattr(args, "extra_corpus", []) or []) if str(p).strip()]
+    miss = str(getattr(args, "authority_miss", "") or "").strip()
+    result = analyze_coverage_corpus_vs_targets(
+        table_config_path=args.config,
+        repo_root=Path.cwd(),
+        extra_corpus_paths=extra or None,
+        authority_miss_path=miss or None,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
     from larrak2.simulation_validation.engine_restart_benchmark import (
         benchmark_engine_restart_profiles,
@@ -420,6 +438,7 @@ def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
         docker_bin=args.docker_bin,
         refresh_runtime_tables=bool(args.refresh_runtime_tables),
         continue_across_remaining_stages=bool(args.continue_across_stages),
+        refresh_custom_solver=bool(args.refresh_custom_solver),
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
@@ -635,6 +654,32 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Continue across the remaining staged ignition bins instead of replaying only the first remaining stage",
     )
+    benchmark_sub.add_argument(
+        "--refresh-custom-solver",
+        action="store_true",
+        help="Force Docker rebuild of larrakEngineFoam even when the cached binary matches source_hash",
+    )
+
+    coverage_sub = subparsers.add_parser(
+        "coverage-corpus-analysis",
+        help="Measure transformed-space distances from miss targets to coverage corpus rows",
+    )
+    coverage_sub.add_argument(
+        "--config",
+        required=True,
+        help="Path to runtime chemistry table JSON (ignition_entry config)",
+    )
+    coverage_sub.add_argument(
+        "--extra-corpus",
+        action="append",
+        default=[],
+        help="Additional runtimeChemistryCoverageCorpus.json path (repeatable); merged with config coverage_corpora",
+    )
+    coverage_sub.add_argument(
+        "--authority-miss",
+        default="",
+        help="Optional runtimeChemistryAuthorityMiss.json to attach a single-row summary",
+    )
 
     regression_sub = subparsers.add_parser(
         "restart-regression-analysis",
@@ -727,6 +772,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_runtime_chemistry_table_cmd(args)
     if args.command == "engine-restart-benchmark":
         return _run_engine_restart_benchmark_cmd(args)
+    if args.command == "coverage-corpus-analysis":
+        return _run_coverage_corpus_analysis_cmd(args)
     if args.command == "restart-regression-analysis":
         return _run_restart_regression_analysis_cmd(args)
     if args.command == "combustion-truth":
