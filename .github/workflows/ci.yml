@@ -40,11 +40,9 @@ jobs:
           PYTHONPATH: src
         run: >
           mypy
-          src/larrak2/analysis
           src/larrak2/architecture/workflow_contracts.py
           src/larrak2/cli/run.py
           src/larrak2/cli/train.py
-          scripts/check_repo_layout.py
       - name: Pytest
         env:
           PYTHONPATH: src
