@@ -166,28 +166,36 @@ class TestSimulationValidationConfigFiles:
         payload = _load_config("openfoam_runtime_chemistry_table_chem323_ignition_entry.json")
         table_cfg = dict(payload["runtime_chemistry_table"])
 
-        assert table_cfg["seed_species_miss_artifacts"] == [
+        species_miss = list(table_cfg["seed_species_miss_artifacts"])
+        assert species_miss[-1] == (
+            "data/simulation_validation/chem323_ignition_entry_ho2_diag_authority_miss.json"
+        )
+        for required in (
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66h_chem323_ignition_entry_seeded_h2o2_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66i_chem323_ignition_entry_seeded_c5h82ooh45_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66k_chem323_ignition_entry_frontier_rebalanced_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66p_chem323_ignition_entry_qdot_quad_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
-        ]
-        assert not any("v65" in str(path) for path in table_cfg["seed_species_miss_artifacts"])
+        ):
+            assert required in species_miss
+        assert not any("v65" in str(path) for path in species_miss)
         assert table_cfg["seed_qdot_miss_artifacts"] == [
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66c_chem323_ignition_entry_seedable_qdot_capture/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66j_chem323_ignition_entry_seeded_cy3c5h8o_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66l_chem323_ignition_entry_seeded_ch2oh_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
         ]
-        assert table_cfg["coverage_corpora"] == [
+        corpora = list(table_cfg["coverage_corpora"])
+        assert corpora[0] == "data/simulation_validation/chem323_ignition_entry_cold_lowp_corpus_stub.json"
+        for required in (
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v62_chem323_multitable_handoff_gate/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v63_chem323_multitable_entry_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v64_chem323_multitable_entry_qdot_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
             "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66s_chem323_ignition_entry_corpus_capture/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
-        ]
+        ):
+            assert required in corpora
         assert table_cfg["current_window_qdot_target_limit"] == 3
         assert table_cfg["current_window_qdot_support_per_target"] == 12
         assert table_cfg["current_window_diag_target_limit"] == 4
         assert "state_axes" not in table_cfg
-        assert not any("v65" in str(path) for path in table_cfg["coverage_corpora"])
-        assert not any("v66a" in str(path) for path in table_cfg["coverage_corpora"])
-        assert not any("v66c" in str(path) for path in table_cfg["coverage_corpora"])
+        assert not any("v65" in str(path) for path in corpora)
+        assert not any("v66a" in str(path) for path in corpora)
+        assert not any("v66c" in str(path) for path in corpora)

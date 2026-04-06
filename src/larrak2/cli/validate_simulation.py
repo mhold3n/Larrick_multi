@@ -10,6 +10,7 @@ Commands:
     larrak-validate-sim engine-restart-benchmark
     larrak-validate-sim coverage-corpus-analysis
     larrak-validate-sim restart-regression-analysis
+    larrak-validate-sim tuning-characterization --mode ingest|propose|run-batch
     larrak-validate-sim chemistry-cache
     larrak-validate-sim flame-speed-compare
     larrak-validate-sim suite
@@ -444,6 +445,91 @@ def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_tuning_characterization_cmd(args: argparse.Namespace) -> int:
+    from larrak2.simulation_validation.tuning_characterization_study import (
+        STRATEGY_REGISTRY,
+        append_experiments_jsonl,
+        ingest_benchmark_run_directory,
+        load_experiments_jsonl,
+        load_knob_schema,
+        resolve_run_directories,
+        run_tuning_batch,
+    )
+
+    mode = str(args.tc_mode).strip().lower()
+    if mode == "ingest":
+        if (
+            not list(getattr(args, "runs", []) or [])
+            and not str(getattr(args, "glob", "") or "").strip()
+        ):
+            logger.error("ingest mode requires --runs and/or --glob")
+            return 2
+        resolved = resolve_run_directories(
+            runs=list(getattr(args, "runs", []) or []),
+            glob_pattern=str(getattr(args, "glob", "") or ""),
+            latest=getattr(args, "latest", None),
+        )
+        profile = str(getattr(args, "profile_name", "") or "").strip() or None
+        records = [ingest_benchmark_run_directory(p, profile_name=profile) for p in resolved]
+        out_path = Path(str(args.experiments_jsonl))
+        append_experiments_jsonl(out_path, records)
+        print(json.dumps({"ingested": len(records), "path": str(out_path.resolve())}, indent=2))
+        return 0
+
+    if mode == "propose":
+        schema = load_knob_schema(args.knob_schema)
+        experiments = (
+            load_experiments_jsonl(args.experiments_jsonl)
+            if Path(args.experiments_jsonl).exists()
+            else []
+        )
+        strat_name = str(args.strategy).strip().lower()
+        if strat_name not in STRATEGY_REGISTRY:
+            logger.error("Unknown strategy %s", strat_name)
+            return 2
+        import numpy as np
+
+        rng = np.random.default_rng(int(args.rng_seed))
+        proposals = STRATEGY_REGISTRY[strat_name]().propose(
+            knob_schema=schema,
+            experiments=experiments,
+            n=int(args.n_proposals),
+            rng=rng,
+        )
+        print(json.dumps({"proposals": proposals}, indent=2, sort_keys=True))
+        return 0
+
+    if mode == "run-batch":
+        summary = run_tuning_batch(
+            knob_schema_path=args.knob_schema,
+            base_table_config_path=args.base_table_config,
+            strategy_config_path=str(args.strategy_config).strip() or None,
+            experiments_jsonl_path=args.experiments_jsonl,
+            study_outdir=args.study_outdir,
+            search_strategy=str(args.strategy).strip().lower(),
+            n_trials=int(args.n_trials),
+            refresh_table=bool(args.refresh_table),
+            run_benchmark=bool(args.run_benchmark),
+            benchmark_run_dir=str(args.benchmark_run_dir).strip() or None,
+            tuned_params_path=str(args.tuned_params).strip() or None,
+            handoff_artifact_path=str(args.handoff_artifact).strip() or None,
+            runtime_strategy_config=str(args.runtime_strategy_config).strip() or None,
+            benchmark_profiles=list(args.benchmark_profiles or []) or None,
+            window_angle_deg=float(args.window_angle_deg),
+            docker_timeout_s=int(args.docker_timeout_s),
+            refresh_custom_solver=bool(args.refresh_custom_solver),
+            max_benchmarks=int(args.max_benchmarks),
+            dry_run=bool(args.dry_run),
+            profile_name=str(args.profile_name).strip() or None,
+            rng_seed=int(args.rng_seed),
+        )
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
+
+    logger.error("Unknown tuning-characterization mode %s", mode)
+    return 2
+
+
 def _run_restart_regression_analysis_cmd(args: argparse.Namespace) -> int:
     """Analyze ordered restart benchmark runs without depending on solver internals."""
     from larrak2.simulation_validation.restart_regression_suite import (
@@ -725,6 +811,110 @@ def main(argv: list[str] | None = None) -> int:
         help="Output directory for regression-analysis artifacts",
     )
 
+    tuning_sub = subparsers.add_parser(
+        "tuning-characterization",
+        help="Ingest benchmark runs into experiment JSONL, propose knob vectors (GP-EI/NSGA2), or run a batch study",
+    )
+    tuning_sub.add_argument(
+        "--mode",
+        choices=["ingest", "propose", "run-batch"],
+        dest="tc_mode",
+        required=True,
+    )
+    tuning_sub.add_argument(
+        "--runs",
+        action="append",
+        default=[],
+        help="Restart benchmark outdir(s) containing engine_restart_benchmark_summary.json (ingest mode)",
+    )
+    tuning_sub.add_argument(
+        "--glob",
+        default="",
+        help="Glob for benchmark outdirs when --runs is not used (ingest mode)",
+    )
+    tuning_sub.add_argument(
+        "--latest",
+        type=int,
+        default=None,
+        help="Keep only the latest N dirs after glob sort (ingest mode)",
+    )
+    tuning_sub.add_argument(
+        "--experiments-jsonl",
+        default="outputs/diagnostics/tuning_characterization/experiments.jsonl",
+        help="Append-only experiment log path",
+    )
+    tuning_sub.add_argument(
+        "--profile-name",
+        default="",
+        help="Profile name when summaries contain multiple profiles",
+    )
+    tuning_sub.add_argument(
+        "--knob-schema",
+        default="data/simulation_validation/tuning_knob_schema_chem323_ignition_entry_v1.json",
+        help="Declarative knob schema JSON (propose and run-batch)",
+    )
+    tuning_sub.add_argument(
+        "--n-proposals",
+        type=int,
+        default=4,
+        dest="n_proposals",
+        help="Number of knob vectors to propose (propose mode)",
+    )
+    tuning_sub.add_argument(
+        "--strategy",
+        default="gp_ei",
+        choices=["random", "gp_ei", "nsga2_surrogate"],
+        help="Search strategy for propose/run-batch",
+    )
+    tuning_sub.add_argument("--rng-seed", type=int, default=0, dest="rng_seed")
+    tuning_sub.add_argument(
+        "--base-table-config",
+        default="data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_entry.json",
+        help="Base runtime table JSON to patch (run-batch)",
+    )
+    tuning_sub.add_argument(
+        "--strategy-config",
+        default="",
+        help="Optional strategy JSON path for manifest hashes (run-batch)",
+    )
+    tuning_sub.add_argument(
+        "--study-outdir",
+        default="outputs/diagnostics/tuning_characterization/study_runs",
+        dest="study_outdir",
+        help="Per-trial staging directory parent (run-batch)",
+    )
+    tuning_sub.add_argument("--n-trials", type=int, default=1, dest="n_trials")
+    tuning_sub.add_argument("--refresh-table", action="store_true", dest="refresh_table")
+    tuning_sub.add_argument("--run-benchmark", action="store_true", dest="run_benchmark")
+    tuning_sub.add_argument("--benchmark-run-dir", default="", dest="benchmark_run_dir")
+    tuning_sub.add_argument("--tuned-params", default="", dest="tuned_params")
+    tuning_sub.add_argument("--handoff-artifact", default="", dest="handoff_artifact")
+    tuning_sub.add_argument(
+        "--runtime-strategy-config",
+        default="",
+        dest="runtime_strategy_config",
+        help="Multitable strategy JSON for engine-restart-benchmark",
+    )
+    tuning_sub.add_argument(
+        "--benchmark-profiles",
+        nargs="*",
+        default=[],
+        dest="benchmark_profiles",
+        help="Profiles for engine-restart-benchmark (default chem323_lookup_strict if empty)",
+    )
+    tuning_sub.add_argument("--window-angle-deg", type=float, default=0.01, dest="window_angle_deg")
+    tuning_sub.add_argument("--docker-timeout-s", type=int, default=3600, dest="docker_timeout_s")
+    tuning_sub.add_argument(
+        "--refresh-custom-solver", action="store_true", dest="refresh_custom_solver"
+    )
+    tuning_sub.add_argument("--max-benchmarks", type=int, default=8, dest="max_benchmarks")
+    tuning_sub.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Stage configs and manifests only; do not refresh table or run benchmark",
+    )
+
     truth_sub = subparsers.add_parser(
         "combustion-truth",
         help="Run the gas-combustion truth workflow over the DOE core corridor",
@@ -776,6 +966,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_coverage_corpus_analysis_cmd(args)
     if args.command == "restart-regression-analysis":
         return _run_restart_regression_analysis_cmd(args)
+    if args.command == "tuning-characterization":
+        return _run_tuning_characterization_cmd(args)
     if args.command == "combustion-truth":
         return _run_combustion_truth_cmd(args)
 

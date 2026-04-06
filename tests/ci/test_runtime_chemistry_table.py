@@ -9,6 +9,7 @@ import numpy as np
 from larrak2.simulation_validation.runtime_chemistry_table import (
     _load_coverage_corpus_rows,
     _local_rbf_interpolate,
+    _runtime_table_dictionary_text,
     _support_points_for_targets,
     build_runtime_chemistry_table_from_spec,
 )
@@ -262,6 +263,121 @@ def test_build_runtime_chemistry_table_from_spec_writes_binary_and_manifest(
         (output_dir / "runtime_chemistry_table_manifest.json").read_text(encoding="utf-8")
     )
     assert manifest_on_disk["generated_file_hashes"] == manifest["generated_file_hashes"]
+
+
+def test_build_runtime_table_manifest_includes_rbf_diag_envelope_scale_ho2(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package_dir = tmp_path / "chem323_reduced"
+    package_dir.mkdir(parents=True)
+    yaml_file = tmp_path / "chem323_reduced.yaml"
+    yaml_file.write_text("phases:\n- name: gas\n", encoding="utf-8")
+    (package_dir / "package_manifest.json").write_text(
+        json.dumps(
+            {
+                "package_id": "chem323_reduced_v2512",
+                "package_hash": "abc",
+                "species_count": 5,
+                "reaction_count": 1,
+                "fuel_species": "IC8H18",
+                "generated_yaml_path": str(yaml_file),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _FakeCanteraModule:
+        def Solution(self, path: str, transport_model=None):
+            assert path.endswith(".yaml")
+            assert transport_model is None
+            return _FakeGas()
+
+    monkeypatch.setattr(
+        "larrak2.simulation_validation.runtime_chemistry_table._load_cantera",
+        lambda: _FakeCanteraModule(),
+    )
+
+    output_dir = tmp_path / "runtime_table_ho2_margin"
+    manifest = build_runtime_chemistry_table_from_spec(
+        {
+            "table_id": "chem323_engine_margin_test",
+            "package_dir": str(package_dir),
+            "output_dir": str(output_dir),
+            "state_species": ["IC8H18", "O2", "CO2", "H2O"],
+            "state_axes": {
+                "Temperature": [900.0, 1100.0],
+                "Pressure": [8.5e5, 9.5e5],
+                "IC8H18": [0.005, 0.015],
+                "O2": [0.03, 0.06],
+                "CO2": [0.0, 0.03],
+                "H2O": [0.0, 0.03],
+            },
+            "adaptive_sampling": {
+                "sparse_level": 1,
+                "candidate_sparse_level": 2,
+                "refinement_rounds": 1,
+                "batch_size": 4,
+                "max_samples": 24,
+                "source_tolerance": 0.0,
+                "jacobian_tolerance": 0.0,
+                "rbf_neighbor_count": 4,
+                "rbf_epsilon": 1.0,
+                "lookup_cache_quantization": 0.01,
+            },
+            "interpolation_method": "local_rbf",
+            "fallback_policy": "fullReducedKinetics",
+            "jacobian_mode": "full_species",
+            "jacobian_storage": "csr",
+            "max_untracked_mass_fraction": 0.015,
+            "rbf_diag_envelope_scale_ho2": 1.25,
+        },
+        refresh=True,
+        repo_root=tmp_path,
+    )
+
+    assert manifest["rbf_diag_envelope_scale_ho2"] == 1.25
+    dictionary_text = (output_dir / "runtimeChemistryTable").read_text(encoding="utf-8")
+    assert "rbfDiagEnvelopeScaleHO2" in dictionary_text
+    assert "1.25" in dictionary_text
+
+
+def test_runtime_table_dictionary_text_omits_rbf_diag_envelope_scale_ho2_when_none() -> None:
+    axis_order = ["Temperature", "Pressure", "IC8H18", "O2", "CO2", "H2O"]
+    axes = [[300.0, 400.0], [1e5, 2e5], [0.01, 0.02], [0.2, 0.22], [0.01, 0.02], [0.01, 0.02]]
+    species_names = ["IC8H18", "O2", "N2", "CO2", "H2O"]
+    sample_states = np.zeros((1, len(axis_order)), dtype=float)
+    state_scales = np.ones(len(axis_order), dtype=float)
+    qdot = np.zeros(1, dtype=float)
+    qdot_dt = np.zeros(1, dtype=float)
+    source_terms = np.zeros((1, len(species_names)), dtype=float)
+    diag_jacobian = np.zeros((1, len(species_names)), dtype=float)
+    temperature_sensitivity = np.zeros((1, len(species_names)), dtype=float)
+    text = _runtime_table_dictionary_text(
+        table_id="t1",
+        package_manifest={"package_id": "p", "package_hash": "h"},
+        axis_order=axis_order,
+        axes=axes,
+        state_species=["IC8H18", "O2", "CO2", "H2O"],
+        balance_species="N2",
+        interpolation_method="local_rbf",
+        fallback_policy="fullReducedKinetics",
+        max_untracked_mass_fraction=0.02,
+        species_names=species_names,
+        sample_states=sample_states,
+        state_scales=state_scales,
+        qdot_values=qdot,
+        qdot_temperature_sensitivity=qdot_dt,
+        source_terms=source_terms,
+        diag_jacobian=diag_jacobian,
+        temperature_sensitivity=temperature_sensitivity,
+        adaptive_cfg={"rbf_neighbor_count": 4, "rbf_epsilon": 1.0, "rbf_envelope_scale": 0.1},
+        trust_region_cfg={"max_abs_source": 1e12, "max_abs_jacobian": 1e12, "max_abs_qdot": 1e15},
+        transformed_state_variables=["Pressure"],
+        state_transform_floors={name: (1.0 if name == "Pressure" else 0.0) for name in axis_order},
+        rbf_diag_envelope_scale_ho2=None,
+    )
+    assert "rbfDiagEnvelopeScaleHO2" not in text
 
 
 def test_seed_corridor_axes_infer_mass_fraction_envelope_from_handoff_and_fields(

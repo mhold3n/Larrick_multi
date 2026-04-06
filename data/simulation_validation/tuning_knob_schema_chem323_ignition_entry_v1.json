@@ -1,0 +1,52 @@
+{
+  "_comment": "Declarative knob set for chem323 ignition_entry stage-local runtime table JSON (wrapper with runtime_chemistry_table). Used by tuning-characterization study (apply, BO, ingest). Bounds are conservative; tighten per workflow.",
+  "schema_id": "chem323_ignition_entry_rbf_v1",
+  "config_root_key": "runtime_chemistry_table",
+  "knobs": [
+    {
+      "name": "rbf_envelope_scale",
+      "path": "adaptive_sampling.rbf_envelope_scale",
+      "type": "float",
+      "low": 1.0,
+      "high": 1.35,
+      "scale": "linear",
+      "group": "rbf"
+    },
+    {
+      "name": "rbf_neighbor_count",
+      "path": "adaptive_sampling.rbf_neighbor_count",
+      "type": "int",
+      "low": 8,
+      "high": 24,
+      "scale": "linear",
+      "group": "rbf"
+    },
+    {
+      "name": "rbf_epsilon",
+      "path": "adaptive_sampling.rbf_epsilon",
+      "type": "float",
+      "low": 0.5,
+      "high": 2.0,
+      "scale": "linear",
+      "group": "rbf"
+    },
+    {
+      "name": "rbf_diag_envelope_scale_ho2",
+      "path": "rbf_diag_envelope_scale_ho2",
+      "type": "float",
+      "low": 1.0,
+      "high": 1.5,
+      "scale": "linear",
+      "group": "rbf"
+    },
+    {
+      "name": "max_samples",
+      "path": "adaptive_sampling.max_samples",
+      "type": "int",
+      "low": 400,
+      "high": 900,
+      "scale": "linear",
+      "group": "adaptive"
+    }
+  ]
+}

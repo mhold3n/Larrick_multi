@@ -4,8 +4,10 @@
 This is the single supported entry point for v66 multitable benchmark runs: do not hand-assemble
 `larrak-validate-sim engine-restart-benchmark` flags.
 
-After any edit under openfoam_custom_solvers/larrakEngineFoam/, either set refresh_custom_solver
-to true in the recipe for one run, or rely on ensure_custom_solver source_hash invalidation.
+After any edit under openfoam_custom_solvers/larrakEngineFoam/, force a Docker wmake once via
+`--refresh-custom-solver` or by setting `refresh_custom_solver` to true in the recipe for that run
+(then set it back to false). New runtimeChemistryTable entries such as `rbfDiagEnvelopeScaleHO2`
+require a rebuilt solver binary to take effect.
 
 Usage:
   python scripts/run_v66_engine_restart_benchmark.py
@@ -43,6 +45,11 @@ def main() -> int:
         "--outdir",
         default="",
         help="Override recipe outdir (required if recipe still contains v66_recipe_placeholder)",
+    )
+    parser.add_argument(
+        "--refresh-custom-solver",
+        action="store_true",
+        help="Override recipe: rebuild custom larrakEngineFoam in Docker once (use after C++ changes)",
     )
     args = parser.parse_args()
     root = _repo_root()
@@ -82,6 +89,8 @@ def main() -> int:
     refresh_runtime_tables = bool(recipe.get("refresh_runtime_tables", False))
     continue_across = bool(recipe.get("continue_across_remaining_stages", False))
     refresh_custom_solver = bool(recipe.get("refresh_custom_solver", False))
+    if args.refresh_custom_solver:
+        refresh_custom_solver = True
     docker_image = recipe.get("docker_image")
     docker_bin = recipe.get("docker_bin")
 

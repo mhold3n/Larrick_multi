@@ -503,6 +503,7 @@ private:
     label rbfNeighborCount_;
     scalar rbfEpsilon_;
     scalar rbfEnvelopeScale_;
+    scalar rbfDiagEnvelopeScaleHO2_;
     scalar lookupCacheQuantization_;
     scalar coverageCorpusQuantization_;
     Switch coverageCorpusHighFidelityTrustSnapshots_;
@@ -1018,7 +1019,7 @@ private:
             const scalar diagAmp =
                 max(max(mag(stencilDiagMin), mag(stencilDiagMax)), scalar(1.0e-12));
             const scalar diagSpan = mag(stencilDiagMax - stencilDiagMin);
-            const scalar diagMargin = envelopeScale*(diagAmp + diagSpan);
+            scalar diagMargin = envelopeScale*(diagAmp + diagSpan);
             bool speciesOnStateAxes = false;
             forAll(stateSpecies_, stateSpeciesi)
             {
@@ -1042,6 +1043,15 @@ private:
             else if (enforceStencilEnvelope && speciesOnStateAxes && sourceStencilScale < scalar(1.0e-07))
             {
                 sourceMargin = max(sourceMargin, envelopeScale*scalar(3.5e-09));
+            }
+            if
+            (
+                speciesOnStateAxes
+             && speciesNames_[speciesi] == word("HO2")
+             && rbfDiagEnvelopeScaleHO2_ > scalar(1.0e-12)
+            )
+            {
+                diagMargin *= rbfDiagEnvelopeScaleHO2_;
             }
             if
             (
@@ -1149,6 +1159,7 @@ public:
         rbfNeighborCount_(8),
         rbfEpsilon_(1.0),
         rbfEnvelopeScale_(0.1),
+        rbfDiagEnvelopeScaleHO2_(1.0),
         lookupCacheQuantization_(0.0025),
         coverageCorpusQuantization_(0.0025),
         coverageCorpusHighFidelityTrustSnapshots_(false),
@@ -1207,6 +1218,8 @@ public:
             tableDict.lookupOrDefault<scalar>("rbfEpsilon", 1.0);
         rbfEnvelopeScale_ =
             tableDict.lookupOrDefault<scalar>("rbfEnvelopeScale", 0.1);
+        rbfDiagEnvelopeScaleHO2_ =
+            tableDict.lookupOrDefault<scalar>("rbfDiagEnvelopeScaleHO2", 1.0);
         lookupCacheQuantization_ =
             tableDict.lookupOrDefault<scalar>("lookupCacheQuantization", 0.0025);
         coverageCorpusQuantization_ =

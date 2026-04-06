@@ -1,0 +1,30 @@
+{
+  "_comment": "Repository-local coverage row near the cold low-P HO2_diag corner (~448 K, 30 kPa). Supplements benchmark-generated corpora when outputs/ paths are absent so table builds still pick up corpus_support neighbors for authority miss targets.",
+  "rows": [
+    {
+      "raw_state": {
+        "Temperature": 448.0,
+        "Pressure": 30000.0,
+        "IC8H18": 0.04226847,
+        "O2": 0.21938547,
+        "CO2": 0.0133311,
+        "H2O": 0.00289176,
+        "OH": 9.02254e-10,
+        "H": 2.61009e-09,
+        "CO": 1.74208e-12,
+        "HO2": 4.91326e-08,
+        "H2": 8.01751e-10,
+        "H2O2": 7.53052e-12,
+        "CH2O": 9.84579e-11
+      },
+      "query_count": 1,
+      "table_hit_count": 1,
+      "coverage_reject_count": 0,
+      "trust_reject_count": 0,
+      "worst_reject_variable": "",
+      "worst_reject_excess": 0.0,
+      "nearest_sample_distance_min": 0.0,
+      "stage_names": ["ignition_entry"]
+    }
+  ]
+}

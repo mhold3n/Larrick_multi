@@ -1601,6 +1601,7 @@ def _runtime_table_dictionary_text(
     transformed_state_variables: list[str],
     state_transform_floors: dict[str, float],
     skip_stencil_envelope_non_state_species: bool = False,
+    rbf_diag_envelope_scale_ho2: float | None = None,
 ) -> str:
     lines = [
         "FoamFile",
@@ -1625,28 +1626,36 @@ def _runtime_table_dictionary_text(
         f"rbfNeighborCount         {int(adaptive_cfg.get('rbf_neighbor_count', 10))};",
         f"rbfEpsilon               {_format_number(float(adaptive_cfg.get('rbf_epsilon', 1.0)))};",
         f"rbfEnvelopeScale         {_format_number(float(adaptive_cfg.get('rbf_envelope_scale', 0.1)))};",
-        f"lookupCacheQuantization  {_format_number(float(adaptive_cfg.get('lookup_cache_quantization', 0.0025)))};",
-        f"coverageCorpusQuantization {_format_number(float(adaptive_cfg.get('coverage_corpus_quantization', 0.0025)))};",
-        "skipStencilEnvelopeNonStateSpecies "
-        f"{'yes' if skip_stencil_envelope_non_state_species else 'no'};",
-        f"trustRegionMaxAbsSource  {_format_number(float(trust_region_cfg.get('max_abs_source', 1.0e12)))};",
-        f"trustRegionMaxAbsJacobian {_format_number(float(trust_region_cfg.get('max_abs_jacobian', 1.0e12)))};",
-        f"trustRegionMaxAbsQdot    {_format_number(float(trust_region_cfg.get('max_abs_qdot', 1.0e15)))};",
-        "stateVariables",
-        _foam_word_list(axis_order),
-        ";",
-        "stateSpecies",
-        _foam_word_list(state_species),
-        ";",
-        "transformedStateVariables",
-        _foam_word_list(transformed_state_variables),
-        ";",
-        "stateScales",
-        _foam_scalar_list([float(value) for value in state_scales.tolist()]),
-        ";",
-        "stateTransformFloors",
-        "{",
     ]
+    if rbf_diag_envelope_scale_ho2 is not None:
+        lines.append(
+            f"rbfDiagEnvelopeScaleHO2  {_format_number(float(rbf_diag_envelope_scale_ho2))};",
+        )
+    lines.extend(
+        [
+            f"lookupCacheQuantization  {_format_number(float(adaptive_cfg.get('lookup_cache_quantization', 0.0025)))};",
+            f"coverageCorpusQuantization {_format_number(float(adaptive_cfg.get('coverage_corpus_quantization', 0.0025)))};",
+            "skipStencilEnvelopeNonStateSpecies "
+            f"{'yes' if skip_stencil_envelope_non_state_species else 'no'};",
+            f"trustRegionMaxAbsSource  {_format_number(float(trust_region_cfg.get('max_abs_source', 1.0e12)))};",
+            f"trustRegionMaxAbsJacobian {_format_number(float(trust_region_cfg.get('max_abs_jacobian', 1.0e12)))};",
+            f"trustRegionMaxAbsQdot    {_format_number(float(trust_region_cfg.get('max_abs_qdot', 1.0e15)))};",
+            "stateVariables",
+            _foam_word_list(axis_order),
+            ";",
+            "stateSpecies",
+            _foam_word_list(state_species),
+            ";",
+            "transformedStateVariables",
+            _foam_word_list(transformed_state_variables),
+            ";",
+            "stateScales",
+            _foam_scalar_list([float(value) for value in state_scales.tolist()]),
+            ";",
+            "stateTransformFloors",
+            "{",
+        ],
+    )
     for axis_name in axis_order:
         lines.append(
             f"    {_format_word(axis_name)} {_format_number(float(state_transform_floors.get(axis_name, 0.0)))};"
@@ -2092,6 +2101,13 @@ def build_runtime_chemistry_table_from_spec(
         qdot_temperature_sensitivity=qdot_temperature_sensitivity,
     )
 
+    rbf_diag_ho2_raw = table_cfg.get("rbf_diag_envelope_scale_ho2")
+    rbf_diag_envelope_scale_ho2: float | None
+    if rbf_diag_ho2_raw is None or str(rbf_diag_ho2_raw).strip() == "":
+        rbf_diag_envelope_scale_ho2 = None
+    else:
+        rbf_diag_envelope_scale_ho2 = float(rbf_diag_ho2_raw)
+
     dict_path.write_text(
         _runtime_table_dictionary_text(
             table_id=table_id,
@@ -2118,6 +2134,7 @@ def build_runtime_chemistry_table_from_spec(
             skip_stencil_envelope_non_state_species=bool(
                 table_cfg.get("skip_stencil_envelope_non_state_species", False)
             ),
+            rbf_diag_envelope_scale_ho2=rbf_diag_envelope_scale_ho2,
         ),
         encoding="utf-8",
     )
@@ -2168,6 +2185,11 @@ def build_runtime_chemistry_table_from_spec(
         "max_untracked_mass_fraction": max_untracked_mass_fraction,
         "skip_stencil_envelope_non_state_species": bool(
             table_cfg.get("skip_stencil_envelope_non_state_species", False)
+        ),
+        **(
+            {"rbf_diag_envelope_scale_ho2": float(rbf_diag_envelope_scale_ho2)}
+            if rbf_diag_envelope_scale_ho2 is not None
+            else {}
         ),
         "jacobian_mode": jacobian_mode,
         "jacobian_storage": jacobian_storage,
