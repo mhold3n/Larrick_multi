@@ -1,0 +1,27 @@
+{
+  "_comment": "v66w CH2(S) trust reject localization. Reject state lies inside table axes (Temperature 1039.81-1476, Pressure 819102-1.74e7); failure is RBF stencil envelope on full-mechanism species CH2(S), not untracked mass fraction.",
+  "benchmark_outdir": "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66w_chem323_run/chem323_lookup_strict",
+  "reject_variable": "CH2(S)",
+  "failure_class": "same_sign_overshoot",
+  "reject_nearest_sample_distance": 1.31524e-08,
+  "reject_state": {
+    "Temperature": 1218.04,
+    "Pressure": 2221500.0,
+    "IC8H18": 0.0422638,
+    "O2": 0.219386,
+    "CO2": 0.0133311,
+    "H2O": 0.00289177,
+    "OH": 1.87209e-08,
+    "H": 5.84764e-09,
+    "CO": 2.52252e-11,
+    "HO2": 1.13593e-07,
+    "H2": 1.37718e-08,
+    "H2O2": 8.72057e-11,
+    "CH2O": 1.82934e-09
+  },
+  "table_axes_at_build": {
+    "Temperature_range": [200.0, 1039.81, 1476.0],
+    "Pressure_range": [1.0, 819102.0, 17407750.0],
+    "query_inside_axes": true
+  }
+}

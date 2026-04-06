@@ -1600,6 +1600,7 @@ def _runtime_table_dictionary_text(
     trust_region_cfg: dict[str, Any],
     transformed_state_variables: list[str],
     state_transform_floors: dict[str, float],
+    skip_stencil_envelope_non_state_species: bool = False,
 ) -> str:
     lines = [
         "FoamFile",
@@ -1626,6 +1627,8 @@ def _runtime_table_dictionary_text(
         f"rbfEnvelopeScale         {_format_number(float(adaptive_cfg.get('rbf_envelope_scale', 0.1)))};",
         f"lookupCacheQuantization  {_format_number(float(adaptive_cfg.get('lookup_cache_quantization', 0.0025)))};",
         f"coverageCorpusQuantization {_format_number(float(adaptive_cfg.get('coverage_corpus_quantization', 0.0025)))};",
+        "skipStencilEnvelopeNonStateSpecies "
+        f"{'yes' if skip_stencil_envelope_non_state_species else 'no'};",
         f"trustRegionMaxAbsSource  {_format_number(float(trust_region_cfg.get('max_abs_source', 1.0e12)))};",
         f"trustRegionMaxAbsJacobian {_format_number(float(trust_region_cfg.get('max_abs_jacobian', 1.0e12)))};",
         f"trustRegionMaxAbsQdot    {_format_number(float(trust_region_cfg.get('max_abs_qdot', 1.0e15)))};",
@@ -2112,6 +2115,9 @@ def build_runtime_chemistry_table_from_spec(
             trust_region_cfg=effective_trust_region_cfg,
             transformed_state_variables=transformed_state_variables,
             state_transform_floors=state_transform_floors,
+            skip_stencil_envelope_non_state_species=bool(
+                table_cfg.get("skip_stencil_envelope_non_state_species", False)
+            ),
         ),
         encoding="utf-8",
     )
@@ -2160,6 +2166,9 @@ def build_runtime_chemistry_table_from_spec(
         "interpolation_method": interpolation_method,
         "fallback_policy": fallback_policy,
         "max_untracked_mass_fraction": max_untracked_mass_fraction,
+        "skip_stencil_envelope_non_state_species": bool(
+            table_cfg.get("skip_stencil_envelope_non_state_species", False)
+        ),
         "jacobian_mode": jacobian_mode,
         "jacobian_storage": jacobian_storage,
         "state_scales": [float(value) for value in state_scales.tolist()],

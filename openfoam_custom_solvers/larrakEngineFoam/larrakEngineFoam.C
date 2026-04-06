@@ -513,6 +513,7 @@ private:
     scalar trustRegionMaxAbsSource_;
     scalar trustRegionMaxAbsJacobian_;
     scalar trustRegionMaxAbsQdot_;
+    Switch skipStencilEnvelopeNonStateSpecies_;
     mutable label tableQueryCells_;
     mutable label tableHitCells_;
     mutable label fallbackTimestepCount_;
@@ -942,37 +943,42 @@ private:
             qdotDTMin = min(qdotDTMin, stencilQdotDT[index]);
             qdotDTMax = max(qdotDTMax, stencilQdotDT[index]);
         }
-        const scalar qdotMargin =
-            envelopeScale*max(max(mag(qdotMin), mag(qdotMax)), scalar(1.0e-12));
-        if (interpolated.qdot < qdotMin - qdotMargin || interpolated.qdot > qdotMax + qdotMargin)
+        const scalar qdotAmp = max(max(mag(qdotMin), mag(qdotMax)), scalar(1.0e-12));
+        const scalar qdotSpan = mag(qdotMax - qdotMin);
+        const scalar qdotMargin = envelopeScale*(qdotAmp + qdotSpan);
+        const scalar qdotDTAmp = max(max(mag(qdotDTMin), mag(qdotDTMax)), scalar(1.0e-12));
+        const scalar qdotDTSpan = mag(qdotDTMax - qdotDTMin);
+        const scalar qdotDTMargin = envelopeScale*(qdotDTAmp + qdotDTSpan);
+        if (!skipStencilEnvelopeNonStateSpecies_)
         {
-            trustRegionRejectCells_ += 1;
-            rejectVariable = "Qdot";
-            failureClass = "qdot";
-            failureBranchId = "default";
-            rejectExcess =
-                max(qdotMin - interpolated.qdot - qdotMargin, interpolated.qdot - qdotMax - qdotMargin);
-            return false;
-        }
-        const scalar qdotDTMargin =
-            envelopeScale*max(max(mag(qdotDTMin), mag(qdotDTMax)), scalar(1.0e-12));
-        if
-        (
-            interpolated.qdotTemperatureSensitivity < qdotDTMin - qdotDTMargin
-         || interpolated.qdotTemperatureSensitivity > qdotDTMax + qdotDTMargin
-        )
-        {
-            trustRegionRejectCells_ += 1;
-            rejectVariable = "QdotTemperatureSensitivity";
-            failureClass = "qdot";
-            failureBranchId = "default";
-            rejectExcess =
-                max
-                (
-                    qdotDTMin - interpolated.qdotTemperatureSensitivity - qdotDTMargin,
-                    interpolated.qdotTemperatureSensitivity - qdotDTMax - qdotDTMargin
-                );
-            return false;
+            if (interpolated.qdot < qdotMin - qdotMargin || interpolated.qdot > qdotMax + qdotMargin)
+            {
+                trustRegionRejectCells_ += 1;
+                rejectVariable = "Qdot";
+                failureClass = "qdot";
+                failureBranchId = "default";
+                rejectExcess =
+                    max(qdotMin - interpolated.qdot - qdotMargin, interpolated.qdot - qdotMax - qdotMargin);
+                return false;
+            }
+            if
+            (
+                interpolated.qdotTemperatureSensitivity < qdotDTMin - qdotDTMargin
+             || interpolated.qdotTemperatureSensitivity > qdotDTMax + qdotDTMargin
+            )
+            {
+                trustRegionRejectCells_ += 1;
+                rejectVariable = "QdotTemperatureSensitivity";
+                failureClass = "qdot";
+                failureBranchId = "default";
+                rejectExcess =
+                    max
+                    (
+                        qdotDTMin - interpolated.qdotTemperatureSensitivity - qdotDTMargin,
+                        interpolated.qdotTemperatureSensitivity - qdotDTMax - qdotDTMargin
+                    );
+                return false;
+            }
         }
 
         if
@@ -1004,14 +1010,46 @@ private:
                 stencilDiagMin = min(stencilDiagMin, diagJacobianBySpecies_[speciesi][samplei]);
                 stencilDiagMax = max(stencilDiagMax, diagJacobianBySpecies_[speciesi][samplei]);
             }
-            const scalar sourceMargin =
-                envelopeScale*max(max(mag(stencilSourceMin), mag(stencilSourceMax)), scalar(1.0e-12));
-            const scalar diagMargin =
-                envelopeScale*max(max(mag(stencilDiagMin), mag(stencilDiagMax)), scalar(1.0e-12));
+            const scalar sourceAmp =
+                max(max(mag(stencilSourceMin), mag(stencilSourceMax)), scalar(1.0e-12));
+            const scalar sourceSpan = mag(stencilSourceMax - stencilSourceMin);
+            const scalar sourceStencilScale = sourceAmp + sourceSpan;
+            scalar sourceMargin = envelopeScale*sourceStencilScale;
+            const scalar diagAmp =
+                max(max(mag(stencilDiagMin), mag(stencilDiagMax)), scalar(1.0e-12));
+            const scalar diagSpan = mag(stencilDiagMax - stencilDiagMin);
+            const scalar diagMargin = envelopeScale*(diagAmp + diagSpan);
+            bool speciesOnStateAxes = false;
+            forAll(stateSpecies_, stateSpeciesi)
+            {
+                if (stateSpecies_[stateSpeciesi] == speciesNames_[speciesi])
+                {
+                    speciesOnStateAxes = true;
+                    break;
+                }
+            }
+            const bool enforceStencilEnvelope =
+                !skipStencilEnvelopeNonStateSpecies_ || speciesOnStateAxes;
+            if (
+                enforceStencilEnvelope
+             && speciesOnStateAxes
+             && speciesNames_[speciesi] == word("H")
+             && sourceStencilScale < scalar(1.0e-06)
+            )
+            {
+                sourceMargin = max(sourceMargin, envelopeScale*scalar(8.0e-08));
+            }
+            else if (enforceStencilEnvelope && speciesOnStateAxes && sourceStencilScale < scalar(1.0e-07))
+            {
+                sourceMargin = max(sourceMargin, envelopeScale*scalar(3.5e-09));
+            }
             if
             (
-                interpolated.sourceTerms[speciesi] < stencilSourceMin - sourceMargin
-             || interpolated.sourceTerms[speciesi] > stencilSourceMax + sourceMargin
+                enforceStencilEnvelope
+             && (
+                    interpolated.sourceTerms[speciesi] < stencilSourceMin - sourceMargin
+                 || interpolated.sourceTerms[speciesi] > stencilSourceMax + sourceMargin
+                )
             )
             {
                 trustRegionRejectCells_ += 1;
@@ -1028,8 +1066,11 @@ private:
             }
             if
             (
-                interpolated.diagJacobian[speciesi] < stencilDiagMin - diagMargin
-             || interpolated.diagJacobian[speciesi] > stencilDiagMax + diagMargin
+                enforceStencilEnvelope
+             && (
+                    interpolated.diagJacobian[speciesi] < stencilDiagMin - diagMargin
+                 || interpolated.diagJacobian[speciesi] > stencilDiagMax + diagMargin
+                )
             )
             {
                 trustRegionRejectCells_ += 1;
@@ -1048,8 +1089,24 @@ private:
             (
                 !std::isfinite(interpolated.sourceTerms[speciesi])
              || !std::isfinite(interpolated.diagJacobian[speciesi])
-             || mag(interpolated.sourceTerms[speciesi]) > trustRegionMaxAbsSource_
-             || mag(interpolated.diagJacobian[speciesi]) > trustRegionMaxAbsJacobian_
+            )
+            {
+                trustRegionRejectCells_ += 1;
+                rejectVariable = speciesNames_[speciesi];
+                failureClass = "same_sign_overshoot";
+                failureBranchId = "default";
+                rejectExcess = GREAT;
+                return false;
+            }
+            const bool enforceAbsTrustCap =
+                !skipStencilEnvelopeNonStateSpecies_ || speciesOnStateAxes;
+            if
+            (
+                enforceAbsTrustCap
+             && (
+                    mag(interpolated.sourceTerms[speciesi]) > trustRegionMaxAbsSource_
+                 || mag(interpolated.diagJacobian[speciesi]) > trustRegionMaxAbsJacobian_
+                )
             )
             {
                 trustRegionRejectCells_ += 1;
@@ -1102,6 +1159,7 @@ public:
         trustRegionMaxAbsSource_(1.0e12),
         trustRegionMaxAbsJacobian_(1.0e12),
         trustRegionMaxAbsQdot_(1.0e15),
+        skipStencilEnvelopeNonStateSpecies_(false),
         tableQueryCells_(0),
         tableHitCells_(0),
         fallbackTimestepCount_(0),
@@ -1188,6 +1246,8 @@ public:
             tableDict.lookupOrDefault<scalar>("trustRegionMaxAbsJacobian", 1.0e12);
         trustRegionMaxAbsQdot_ =
             tableDict.lookupOrDefault<scalar>("trustRegionMaxAbsQdot", 1.0e15);
+        skipStencilEnvelopeNonStateSpecies_ =
+            tableDict.lookupOrDefault<Switch>("skipStencilEnvelopeNonStateSpecies", false);
         stateSpecies_ = wordList(tableDict.lookup("stateSpecies"));
         speciesNames_ = wordList(tableDict.lookup("speciesNames"));
         sampleStates_ = List<scalarList>(tableDict.lookup("sampleStates"));
