@@ -2,58 +2,51 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
-
 jobs:
-  test:
+  fast-checks:
+    name: CI
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml', 'setup.cfg') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Ruff format check
-        run: ruff format --check .
-
+        run: ruff format --check src tests scripts
       - name: Ruff lint
-        run: ruff check .
-
-      - name: Run tests
+        run: ruff check src tests scripts
+      - name: Mypy
+        env:
+          PYTHONPATH: src
+        run: >
+          mypy
+          src/larrak2/analysis/telemetry.py
+          src/larrak2/architecture/workflow_contracts.py
+          src/larrak2/cli/run.py
+          src/larrak2/cli/train.py
+          src/larrak2/orchestration/simulation_inputs.py
+          scripts/check_repo_layout.py
+      - name: Pytest
         env:
           PYTHONPATH: src
         run: pytest -q
-
-  casadi:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies (CasADi lane)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,casadi]"
-      - name: Run CasADi architecture tests
-        env:
-          PYTHONPATH: src
-        run: |
-          pytest -q \
-            tests/ci/test_symbolic_mlp_export.py \
-            tests/ci/test_symbolic_slice_nlp_nonlinear.py \
-            tests/ci/test_refine_pareto_backend_fallback.py \
-            tests/ci/test_orchestration_adapters_smoke.py

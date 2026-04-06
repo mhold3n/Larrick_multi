@@ -1,22 +1,13 @@
 name: CI Telemetry
 
-# Fires after any of the six primary workflow runs complete on protected branches.
-# Fetches job-level timing from the GitHub API and writes a Markdown summary.
-# Requires actions:read only — no repo write access.
-
 on:
   workflow_run:
     workflows:
-      - "Main Compatibility"
-      - "Simulation CI"
-      - "Training CI"
-      - "Optimization CI"
-      - "Analysis CI"
-      - "CEM Orchestration CI"
-    types: [completed]
+      - CI
+    types:
+      - completed
     branches:
       - main
-      - "dev/**"
 
 permissions:
   actions: read
@@ -37,12 +28,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Fetch job list for the triggering run
           jobs_json=$(gh api \
             "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
             --jq '.jobs')
 
-          # Build Markdown timing table
           {
             echo "## CI Timing — ${WORKFLOW_NAME}"
             echo ""
@@ -64,7 +53,6 @@ jobs:
             echo "_Reported by ci-telemetry workflow at $(date -u '+%Y-%m-%dT%H:%M:%SZ')_"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Also emit a JSON record as an artifact for offline analysis
           echo "${jobs_json}" | jq -c \
             --arg workflow "$WORKFLOW_NAME" \
             --arg branch "$BRANCH" \

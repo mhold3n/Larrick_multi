@@ -50,6 +50,9 @@ __pycache__/
 *.pyc
 .mypy_cache/
 .pytest_cache/
+.venv/
+.tmp/
+.task-runtime/
 .DS_Store
 /data_temp/
 *.egg-info/

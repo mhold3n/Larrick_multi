@@ -13,6 +13,7 @@ from .contracts import (
     get_active_contract_tracer,
     log_contract_edge,
 )
+from .workflow_contracts import load_simulation_dataset_bundle
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -26,4 +27,5 @@ __all__ = [
     "flatten_key_paths",
     "get_active_contract_tracer",
     "log_contract_edge",
+    "load_simulation_dataset_bundle",
 ]

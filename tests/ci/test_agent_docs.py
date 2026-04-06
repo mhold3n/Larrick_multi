@@ -1,4 +1,4 @@
-"""Tests that agent context documents exist and contain required branch information."""
+"""Tests that agent context docs reflect the main-only workflow model."""
 
 from __future__ import annotations
 
@@ -14,18 +14,22 @@ AGENT_FILES = {
     "copilot-instructions.md": REPO_ROOT / ".github" / "copilot-instructions.md",
 }
 
-REQUIRED_BRANCHES = [
-    "dev/simulation",
-    "dev/training",
-    "dev/optimization",
-    "dev/analysis",
-    "dev/cem-orchestration",
+REQUIRED_DOMAIN_PATHS = [
+    "src/larrak2/simulation_validation/",
+    "src/larrak2/training/",
+    "src/larrak2/optimization/",
+    "src/larrak2/analysis/",
+    "src/larrak2/cem/",
+    "src/larrak2/architecture/",
 ]
 
-REQUIRED_CONCEPTS = [
-    "codex/",  # task-branch naming convention
-    "main",  # integration branch
-    "contents: write" not in "",  # placeholder — checked below via separate assertion
+REMOVED_AUTOMATION_TERMS = [
+    "dev/",
+    "codex/",
+    "archive_eligible",
+    "scripts/start_parallel_task.sh",
+    "scripts/route_current_thread.py",
+    "scripts/plan_github_concierge.py",
 ]
 
 
@@ -37,26 +41,30 @@ def test_agent_doc_exists_and_is_nonempty(label: str, path: Path) -> None:
 
 
 @pytest.mark.parametrize("label,path", list(AGENT_FILES.items()))
-def test_agent_doc_contains_all_workflow_branches(label: str, path: Path) -> None:
+def test_agent_doc_mentions_main_only_workflow(label: str, path: Path) -> None:
     content = path.read_text(encoding="utf-8")
-    for branch in REQUIRED_BRANCHES:
-        assert branch in content, f"{label} must mention branch '{branch}'"
+    assert "`main` is the only documented repo workflow branch." in content
+    assert "Direct commits to `main` are the default working model" in content
+    assert "documentation only" in content
 
 
 @pytest.mark.parametrize("label,path", list(AGENT_FILES.items()))
-def test_agent_doc_contains_codex_branch_convention(label: str, path: Path) -> None:
+def test_agent_doc_retains_domain_path_guidance(label: str, path: Path) -> None:
     content = path.read_text(encoding="utf-8")
-    assert "codex/" in content, (
-        f"{label} must document the codex/<workflow>/<topic> naming convention"
-    )
+    for snippet in REQUIRED_DOMAIN_PATHS:
+        assert snippet in content, f"{label} must mention '{snippet}'"
+
+
+@pytest.mark.parametrize("label,path", list(AGENT_FILES.items()))
+def test_agent_doc_omits_removed_branch_automation_terms(label: str, path: Path) -> None:
+    content = path.read_text(encoding="utf-8")
+    for term in REMOVED_AUTOMATION_TERMS:
+        assert term not in content, f"{label} must not mention '{term}'"
 
 
 @pytest.mark.parametrize("label,path", list(AGENT_FILES.items()))
 def test_agent_doc_does_not_permit_contents_write(label: str, path: Path) -> None:
     content = path.read_text(encoding="utf-8")
-    # The docs must not instruct agents to add write permissions.
-    # Checking for the permissive phrasing; the prohibition text ("Do not add contents: write")
-    # is expected and desirable.
-    assert "contents: write" not in content.replace("Do **not** add `contents: write`", "").replace(
-        "Do not add `contents: write`", ""
+    assert "contents: write" not in content.replace("Do not add `contents: write`", "").replace(
+        "Do **not** add `contents: write`", ""
     ), f"{label} must not instruct agents to add contents:write permissions"

@@ -1,4 +1,105 @@
-# .github/CODEOWNERS
-/repo_layout.yml  @maxholden
-/frontend/        @maxholden
-/outputs/         @maxholden
+# Shared docs, CI, and architecture contracts
+/.gitignore @maxholden
+/AGENTS.md @maxholden
+/CLAUDE.md @maxholden
+/README.md @maxholden
+/repo_layout.yml @maxholden
+/.github/CODEOWNERS @maxholden
+/.github/copilot-instructions.md @maxholden
+/.github/workflows/ci.yml @maxholden
+/.github/workflows/ci-telemetry.yml @maxholden
+/.github/workflows/layout.yml @maxholden
+/Docs/github_admin_hardening_checklist.md @maxholden
+/scripts/check_repo_layout.py @maxholden
+/src/larrak2/architecture/ @maxholden
+/tests/ci/test_agent_docs.py @maxholden
+/tests/ci/test_workflow_ci_layout.py @maxholden
+/tests/ci/test_workflow_contracts.py @maxholden
+
+# Simulation domain
+/src/larrak2/simulation_validation/ @maxholden
+/src/larrak2/pipelines/openfoam.py @maxholden
+/src/larrak2/adapters/openfoam.py @maxholden
+/src/larrak2/adapters/docker_openfoam.py @maxholden
+/openfoam_custom_solvers/ @maxholden
+/openfoam_templates/ @maxholden
+/mechanisms/openfoam/ @maxholden
+/tests/ci/test_docker_openfoam.py @maxholden
+/tests/ci/test_gas_combustion_truth_suite.py @maxholden
+/tests/ci/test_openfoam_authority.py @maxholden
+/tests/ci/test_openfoam_chemistry_package.py @maxholden
+/tests/ci/test_openfoam_engine_package.py @maxholden
+/tests/ci/test_openfoam_field_metrics.py @maxholden
+/tests/ci/test_openfoam_runner.py @maxholden
+/tests/ci/test_runtime_chemistry_table.py @maxholden
+/tests/ci/test_simulation_validation_acceptance.py @maxholden
+/tests/ci/test_simulation_validation_chemistry_runner.py @maxholden
+/tests/ci/test_simulation_validation_closed_cylinder_runner.py @maxholden
+/tests/ci/test_simulation_validation_config_files.py @maxholden
+/tests/ci/test_simulation_validation_full_handoff_runner.py @maxholden
+/tests/ci/test_simulation_validation_gating.py @maxholden
+/tests/ci/test_simulation_validation_openfoam_templates.py @maxholden
+/tests/ci/test_simulation_validation_reacting_flow_runner.py @maxholden
+/tests/ci/test_simulation_validation_schemas.py @maxholden
+/tests/ci/test_simulation_validation_solver_adapters.py @maxholden
+/tests/ci/test_simulation_validation_source_rules.py @maxholden
+/tests/ci/test_simulation_validation_spray_runner.py @maxholden
+/tests/ci/test_simulation_validation_tolerance.py @maxholden
+/tests/ci/test_validate_simulation_cli_cache.py @maxholden
+
+# Training domain
+/src/larrak2/training/ @maxholden
+/src/larrak2/surrogate/ @maxholden
+/src/larrak2/cli/train.py @maxholden
+/tests/ci/test_hifi_surrogate_adapter_strict.py @maxholden
+/tests/ci/test_overnight_f2_campaign.py @maxholden
+/tests/ci/test_surrogate_mode_switches.py @maxholden
+/tests/ci/test_surrogate_quality_contract.py @maxholden
+/tests/ci/test_train_cli_validation_gate.py @maxholden
+/tests/ci/test_train_surrogates.py @maxholden
+/tests/ci/test_train_thermo_symbolic_cli_smoke.py @maxholden
+/tests/ci/test_training_quality_report_emission.py @maxholden
+
+# Optimization and orchestration domain
+/src/larrak2/optimization/ @maxholden
+/src/larrak2/promote/ @maxholden
+/src/larrak2/cli/run.py @maxholden
+/src/larrak2/cli/run_workflows.py @maxholden
+/src/larrak2/orchestration/simulation_inputs.py @maxholden
+/tests/ci/test_explore_exploit_cli_smoke.py @maxholden
+/tests/ci/test_explore_exploit_pipeline.py @maxholden
+/tests/ci/test_orchestrate_auto_truth_dispatch.py @maxholden
+/tests/ci/test_orchestrate_cli_smoke.py @maxholden
+/tests/ci/test_orchestrate_manual_truth_plan.py @maxholden
+/tests/ci/test_orchestration_budget.py @maxholden
+/tests/ci/test_orchestration_cache.py @maxholden
+/tests/ci/test_orchestration_trust_region.py @maxholden
+/tests/ci/test_pareto_3obj.py @maxholden
+/tests/ci/test_pareto_fidelity1.py @maxholden
+/tests/ci/test_production_gate.py @maxholden
+/tests/ci/test_promotion.py @maxholden
+/tests/ci/test_pymoo_problem_fault_isolation.py @maxholden
+/tests/ci/test_refine_pareto_backend_fallback.py @maxholden
+/tests/ci/test_refine_pareto_casadi_slice.py @maxholden
+/tests/ci/test_refine_pareto_scipy_explicit_mode.py @maxholden
+/tests/ci/test_slice_active_set.py @maxholden
+
+# Analysis domain
+/src/larrak2/analysis/ @maxholden
+/tests/ci/test_telemetry_summary.py @maxholden
+
+# CEM and real-world domain
+/src/larrak2/cem/ @maxholden
+/src/larrak2/realworld/ @maxholden
+/src/larrak2/orchestration/ @maxholden
+/src/larrak2/optimization/production_gate.py @maxholden
+/src/larrak2/optimization/workflow_report.py @maxholden
+/tests/ci/test_cem_modules.py @maxholden
+/tests/ci/test_life_damage_calibration.py @maxholden
+/tests/ci/test_lifetime_scalar_fallback.py @maxholden
+/tests/ci/test_material_snapping.py @maxholden
+/tests/ci/test_orchestration_adapters_smoke.py @maxholden
+/tests/ci/test_orchestration_optional_backends.py @maxholden
+/tests/ci/test_realworld_analysis_reuse.py @maxholden
+/tests/ci/test_realworld_surrogates.py @maxholden
+/tests/ci/test_simulation_input_providers.py @maxholden
