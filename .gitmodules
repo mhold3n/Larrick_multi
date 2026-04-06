@@ -6,10 +6,10 @@
 	url = https://github.com/leap71/LEAP71_ShapeKernel.git
 [submodule "larrak-simulation"]
 	path = larrak-simulation
-	url = /Users/maxholden/GitHub/larrak-simulation
+	url = https://github.com/mhold3n/larrak-simulation.git
 [submodule "larrak-core"]
 	path = larrak-core
-	url = /Users/maxholden/GitHub/larrak-core
+	url = https://github.com/mhold3n/larrak-core.git
 [submodule "larrak-optimization"]
 	path = larrak-optimization
-	url = /Users/maxholden/GitHub/larrak-optimization
+	url = https://github.com/mhold3n/larrak-optimization.git
