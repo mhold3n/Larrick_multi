@@ -40,7 +40,7 @@ jobs:
           PYTHONPATH: src
         run: >
           mypy
-          src/larrak2/analysis/telemetry.py
+          src/larrak2/analysis
           src/larrak2/architecture/workflow_contracts.py
           src/larrak2/cli/run.py
           src/larrak2/cli/train.py
