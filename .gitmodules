@@ -4,3 +4,6 @@
 [submodule "LEAP71_ShapeKernel"]
 	path = LEAP71_ShapeKernel
 	url = https://github.com/leap71/LEAP71_ShapeKernel.git
+[submodule "larrak-simulation"]
+	path = larrak-simulation
+	url = /Users/maxholden/GitHub/larrak-simulation
