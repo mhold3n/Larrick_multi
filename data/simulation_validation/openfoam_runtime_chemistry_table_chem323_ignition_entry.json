@@ -74,6 +74,7 @@
       "outputs/openfoam_engine_reacting_closed_valve_handoff_two_zone_staged_v2"
     ],
     "seed_species_miss_artifacts": [
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66u_chem323_post_commit_smoke/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66h_chem323_ignition_entry_seeded_h2o2_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66i_chem323_ignition_entry_seeded_c5h82ooh45_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66k_chem323_ignition_entry_frontier_rebalanced_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
@@ -88,7 +89,8 @@
       "outputs/diagnostics/engine_restart_benchmark_live_parallel_v62_chem323_multitable_handoff_gate/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
       "outputs/diagnostics/engine_restart_benchmark_live_parallel_v63_chem323_multitable_entry_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
       "outputs/diagnostics/engine_restart_benchmark_live_parallel_v64_chem323_multitable_entry_qdot_refreshed/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
-      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66s_chem323_ignition_entry_corpus_capture/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json"
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66s_chem323_ignition_entry_corpus_capture/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json",
+      "outputs/diagnostics/engine_restart_benchmark_live_parallel_v66u_chem323_post_commit_smoke/chem323_lookup_strict/runtimeChemistryCoverageCorpus.json"
     ],
     "current_window_diag_stage_names": [
       "ignition_entry"
@@ -124,7 +126,9 @@
       "jacobian_tolerance": 0.2,
       "rbf_neighbor_count": 12,
       "rbf_epsilon": 1.0,
-      "lookup_cache_quantization": 0.0025
+      "rbf_envelope_scale": 0.22,
+      "lookup_cache_quantization": 0.0025,
+      "coverage_corpus_quantization": 0.0015
     },
     "interpolation_method": "local_rbf",
     "fallback_policy": "fullReducedKinetics",
@@ -132,7 +136,9 @@
     "jacobian_storage": "csr",
     "jacobian_sparsity_tolerance": 1e-16,
     "max_untracked_mass_fraction": 0.015,
+    "corpus_support_min_transformed_distance": 0.0,
     "trust_region": {
+      "derive_from_samples": false,
       "max_abs_source": 1000000000000.0,
       "max_abs_jacobian": 1000000000000.0,
       "max_abs_qdot": 1000000000000000.0

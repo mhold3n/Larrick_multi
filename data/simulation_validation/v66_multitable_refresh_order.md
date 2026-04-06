@@ -11,3 +11,5 @@ Refresh and validate **in this order** until the entry-stage replacement gate pa
 5. **`ignition_tail`** — `openfoam_runtime_chemistry_table_chem323_ignition_tail.json`
 
 **Benchmark scope:** The default v66 recipe (`v66_engine_restart_recipe.json`) and `engine-restart-benchmark` replay **only the first remaining ignition stage** (entry-first). Add `--continue-across-stages` only **after** the entry authority surface passes its gate, so ramp/branch tables are not tuned while entry is still broken.
+
+**Handoff before multi-stage benchmarks:** When you eventually enable `--continue-across-stages`, each downstream stage uses its own `stage_runtime_tables` config; keep **the same** handoff bundle, corpus philosophy (solver-emitted coverage corpora), and regression harness (`restart-regression-analysis` ordering) so stage-to-stage transitions are not fighting mismatched table generations. Refresh downstream tables **one stage at a time** after entry’s `chem323_runtime_replacement_gate_passed` is true.

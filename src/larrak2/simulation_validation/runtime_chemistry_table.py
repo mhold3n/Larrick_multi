@@ -1625,6 +1625,7 @@ def _runtime_table_dictionary_text(
         f"rbfEpsilon               {_format_number(float(adaptive_cfg.get('rbf_epsilon', 1.0)))};",
         f"rbfEnvelopeScale         {_format_number(float(adaptive_cfg.get('rbf_envelope_scale', 0.1)))};",
         f"lookupCacheQuantization  {_format_number(float(adaptive_cfg.get('lookup_cache_quantization', 0.0025)))};",
+        f"coverageCorpusQuantization {_format_number(float(adaptive_cfg.get('coverage_corpus_quantization', 0.0025)))};",
         f"trustRegionMaxAbsSource  {_format_number(float(trust_region_cfg.get('max_abs_source', 1.0e12)))};",
         f"trustRegionMaxAbsJacobian {_format_number(float(trust_region_cfg.get('max_abs_jacobian', 1.0e12)))};",
         f"trustRegionMaxAbsQdot    {_format_number(float(trust_region_cfg.get('max_abs_qdot', 1.0e15)))};",
@@ -1724,6 +1725,7 @@ def _default_adaptive_sampling() -> dict[str, Any]:
         "rbf_epsilon": 1.0,
         "rbf_envelope_scale": 0.1,
         "lookup_cache_quantization": 0.0025,
+        "coverage_corpus_quantization": 0.0025,
     }
 
 
