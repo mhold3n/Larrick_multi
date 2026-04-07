@@ -3,6 +3,7 @@ allowed_top_level_dirs:
   - .github
   - .task-runtime
   - Docs
+  - legacy_docs
   - data
   - mechanisms
   - openfoam_custom_solvers

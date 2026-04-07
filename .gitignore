@@ -68,4 +68,3 @@ build/
 /mechanisms/openfoam/v2512/*
 !/mechanisms/openfoam/v2512/chem323_reduced/
 !/mechanisms/openfoam/v2512/chem323_reduced/**
-/Legacy_Monolithic
