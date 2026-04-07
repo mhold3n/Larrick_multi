@@ -4,11 +4,7 @@ larrak2/out/
 larrak2/diagnostic_*/
 larrak2/results_*/
 output/
-outputs/*
-!outputs/validation_runtime/
-outputs/validation_runtime/*
-!outputs/validation_runtime/chemistry_cache/
-!outputs/validation_runtime/chemistry_cache/**
+outputs/
 runs/
 
 # Large Data
@@ -59,12 +55,4 @@ __pycache__/
 dist/
 build/
 .env
-/Docs/
-/mechanisms/
-!/mechanisms/
-!/mechanisms/openfoam/
-/mechanisms/openfoam/*
-!/mechanisms/openfoam/v2512/
-/mechanisms/openfoam/v2512/*
-!/mechanisms/openfoam/v2512/chem323_reduced/
-!/mechanisms/openfoam/v2512/chem323_reduced/**
+mechanisms/

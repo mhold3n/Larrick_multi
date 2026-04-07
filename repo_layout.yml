@@ -5,10 +5,8 @@ allowed_top_level_dirs:
   - Docs
   - legacy_docs
   - data
-  - mechanisms
   - openfoam_custom_solvers
   - openfoam_templates
-  - outputs
   - scripts
   - src
   - tests
@@ -24,17 +22,12 @@ allowed_top_level_files:
   - AGENTS.md
   - CLAUDE.md
   - README.md
-  - doe_results.pkl
-  - doe_run.log
-  - partial_doe_results.pkl
   - pareto_F.npy
   - pareto_G.npy
   - pareto_X.npy
   - pyproject.toml
   - repo_layout.yml
   - requirements-external.txt
-  - sensitivity_analysis.json
-  - summary.json
   - verify_kinematics.py
 allowed_top_level_file_patterns: []
 ignore_top_level_dirs:
