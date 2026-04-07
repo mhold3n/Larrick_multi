@@ -1,13 +1,3 @@
-"""Orchestration control/provenance backend implementations."""
+"""Compatibility shim to extracted orchestration loop backends."""
 
-from .control_file import FileControlBackend
-from .control_redis import RedisControlBackend
-from .provenance_jsonl import JSONLProvenanceBackend
-from .provenance_weaviate import WeaviateProvenanceBackend
-
-__all__ = [
-    "FileControlBackend",
-    "RedisControlBackend",
-    "JSONLProvenanceBackend",
-    "WeaviateProvenanceBackend",
-]
+from larrak_orchestration.legacy_loop.backends import *  # noqa: F403

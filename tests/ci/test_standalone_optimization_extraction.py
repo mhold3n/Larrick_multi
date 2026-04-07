@@ -116,7 +116,7 @@ def test_standalone_package_manifests_are_present() -> None:
 
     assert external_req.exists()
     pins = _pep508_git_pins_from_requirements(external_req)
-    required = ("larrak-core", "larrak-simulation", "larrak-optimization")
+    required = ("larrak-core", "larrak-simulation", "larrak-optimization", "larrak-orchestration")
     for name in required:
         assert name in pins, f"missing git pin for {name} in {external_req}"
         assert pins[name].startswith("git+https://github.com/mhold3n/"), (
