@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
+from larrak_optimization import (
+    STRICT_PRODUCTION_PROFILE,
+    evaluate_production_gate,
+)
 
 from larrak2.architecture.contracts import (
     CONTRACT_VERSION,
@@ -21,10 +25,6 @@ from larrak2.architecture.contracts import (
 )
 from larrak2.core.encoding import N_TOTAL
 from larrak2.core.types import BreathingConfig, EvalContext
-from larrak_optimization import (
-    STRICT_PRODUCTION_PROFILE,
-    evaluate_production_gate,
-)
 
 from .budget import BudgetManager
 from .cache import EvaluationCache

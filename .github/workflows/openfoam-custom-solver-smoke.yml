@@ -12,11 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install project (minimal)
-        run: pip install -e .
+        run: |
+          pip install -r requirements-integration.txt
+          pip install -e . --no-deps
       - name: ensure_custom_solver (refresh)
         run: |
           python - <<'PY'

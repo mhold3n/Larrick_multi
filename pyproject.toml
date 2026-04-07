@@ -3,7 +3,7 @@ name = "larrak2"
 version = "0.1.0"
 description = "Multi-objective Pareto optimization for thermo-gear systems"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.24",
     "pymoo>=0.6",
@@ -53,6 +53,11 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["larrak2.cli.run", "larrak2.cli.train"]
+# These CLIs import artifact path constants from the dynamic `larrak2.core.*` facades.
+disable_error_code = ["attr-defined"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/ci"]

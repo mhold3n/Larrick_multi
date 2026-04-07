@@ -1,12 +1,15 @@
-"""HiFi surrogate models and training primitives."""
+"""Facade: canonical implementation lives in `larrak_runtime.surrogate.hifi` (submodule package).
 
-from .ensemble import BoundedMLP, EnsembleSurrogate
-from .models import FlowCoefficientSurrogate, StructuralSurrogate, ThermalSurrogate
+This file is part of the Larrick_multi integration distribution only.
+"""
 
-__all__ = [
-    "BoundedMLP",
-    "EnsembleSurrogate",
-    "FlowCoefficientSurrogate",
-    "StructuralSurrogate",
-    "ThermalSurrogate",
-]
+from __future__ import annotations
+
+import importlib
+
+_canonical = importlib.import_module("larrak_runtime.surrogate.hifi")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

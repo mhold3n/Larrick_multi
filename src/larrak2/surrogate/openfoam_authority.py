@@ -8,12 +8,12 @@ import time
 from pathlib import Path
 from typing import Any
 
-from larrak2.core.artifact_paths import (
+from larrak_runtime.core.artifact_paths import (
     DEFAULT_OPENFOAM_NN_ARTIFACT,
     DEFAULT_OPENFOAM_NN_DIR,
     OUTPUTS_ROOT,
 )
-from larrak2.surrogate.quality_contract import (
+from larrak_runtime.surrogate.quality_contract import (
     load_quality_report,
     openfoam_quality_fail_reasons,
     openfoam_strict_f2_provenance_status,

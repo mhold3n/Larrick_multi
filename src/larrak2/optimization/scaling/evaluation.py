@@ -1,18 +1,15 @@
-"""Quality metrics for scaling vectors."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.scaling.evaluation` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
 
 from __future__ import annotations
 
-import numpy as np
+import importlib
 
-
-def scaling_quality(scale: np.ndarray) -> dict[str, float]:
-    """Return coarse quality metrics for a scale vector."""
-    scale = np.asarray(scale, dtype=np.float64)
-    finite = scale[np.isfinite(scale)]
-    if finite.size == 0:
-        return {"min": 0.0, "max": 0.0, "condition": float("inf")}
-
-    smin = float(np.min(finite))
-    smax = float(np.max(finite))
-    cond = float(smax / max(smin, 1e-16))
-    return {"min": smin, "max": smax, "condition": cond}
+_canonical = importlib.import_module("larrak_optimization.optimization.scaling.evaluation")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

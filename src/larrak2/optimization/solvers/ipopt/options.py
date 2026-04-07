@@ -1,19 +1,15 @@
-"""IPOPT option composition helpers."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.solvers.ipopt.options` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+import importlib
 
-from .types import IPOPTOptions
-
-
-def create_ipopt_options(
-    options: IPOPTOptions | None = None,
-    overrides: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Compose IPOPT options dict for CasADi's `nlpsol` interface."""
-    base = (options or IPOPTOptions()).as_ipopt_dict()
-    if overrides:
-        base.update(dict(overrides))
-    return base
+_canonical = importlib.import_module("larrak_optimization.optimization.solvers.ipopt.options")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

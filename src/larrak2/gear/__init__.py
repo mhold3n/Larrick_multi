@@ -1,5 +1,15 @@
+"""Facade: canonical implementation lives in `larrak_runtime.gear` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
+
 from __future__ import annotations
 
-"""Gear module — gear synthesis and losses."""
+import importlib
 
-__all__ = []
+_canonical = importlib.import_module("larrak_runtime.gear")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

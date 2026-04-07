@@ -1,26 +1,26 @@
-"""Global stack surrogate package for symbolic CasADi refinement."""
+"""Stack surrogate: submodule runtime re-exports plus integration training entrypoints."""
 
-from .artifact import DenseLayer, StackSurrogateArtifact, load_stack_artifact, save_stack_artifact
-from .runtime import StackSurrogateRuntime, default_feature_names, load_stack_runtime
-from .symbolic import (
-    assemble_symbolic_feature_vector,
-    symbolic_forward,
-    symbolic_objectives_constraints,
+from __future__ import annotations
+
+import importlib
+
+_m = importlib.import_module("larrak_runtime.surrogate.stack")
+for _k, _v in vars(_m).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+
+from .train import (  # noqa: E402
+    Normalization,
+    StackMLP,
+    export_torch_mlp_artifact,
+    train_stack_surrogate,
 )
-from .train import StackMLP, export_torch_mlp_artifact, train_stack_surrogate
 
-__all__ = [
-    "DenseLayer",
+__all__ = list(getattr(_m, "__all__", [])) + [
+    "Normalization",
     "StackMLP",
-    "StackSurrogateArtifact",
-    "StackSurrogateRuntime",
-    "assemble_symbolic_feature_vector",
-    "default_feature_names",
     "export_torch_mlp_artifact",
-    "load_stack_artifact",
-    "load_stack_runtime",
-    "save_stack_artifact",
-    "symbolic_forward",
-    "symbolic_objectives_constraints",
     "train_stack_surrogate",
 ]
+del importlib, _m, _k, _v

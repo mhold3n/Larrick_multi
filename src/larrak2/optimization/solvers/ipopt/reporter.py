@@ -1,21 +1,15 @@
-"""Small reporting shim for IPOPT runs."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.solvers.ipopt.reporter` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
 
 from __future__ import annotations
 
-import logging
+import importlib
 
-
-class IPOPTReporter:
-    """Structured logger wrapper for solve traces."""
-
-    def __init__(self, logger: logging.Logger | None = None):
-        self._log = logger or logging.getLogger(__name__)
-
-    def info(self, msg: str) -> None:
-        self._log.info(msg)
-
-    def warning(self, msg: str) -> None:
-        self._log.warning(msg)
-
-    def debug(self, msg: str) -> None:
-        self._log.debug(msg)
+_canonical = importlib.import_module("larrak_optimization.optimization.solvers.ipopt.reporter")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

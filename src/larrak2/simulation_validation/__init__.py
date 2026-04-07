@@ -1,29 +1,15 @@
-"""Canonical-regime simulation validation suite.
+"""Facade: canonical implementation lives in `larrak_simulation.simulation_validation` (submodule package).
 
-Replaces the monolithic thermo-anchor gate with a five-regime validation
-ladder: chemistry → spray → reacting_flow → closed_cylinder → full_handoff.
+This file is part of the Larrick_multi integration distribution only.
 """
 
 from __future__ import annotations
 
-from .models import (
-    ValidationCaseSpec,
-    ValidationDatasetManifest,
-    ValidationMetricResult,
-    ValidationMetricSpec,
-    ValidationRunManifest,
-    ValidationSuiteManifest,
-    ValidationSuiteProfile,
-)
-from .regimes import CanonicalRegime
+import importlib
 
-__all__ = [
-    "CanonicalRegime",
-    "ValidationCaseSpec",
-    "ValidationDatasetManifest",
-    "ValidationMetricResult",
-    "ValidationMetricSpec",
-    "ValidationRunManifest",
-    "ValidationSuiteProfile",
-    "ValidationSuiteManifest",
-]
+_canonical = importlib.import_module("larrak_simulation.simulation_validation")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

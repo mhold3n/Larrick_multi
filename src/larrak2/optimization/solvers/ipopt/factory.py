@@ -1,26 +1,15 @@
-"""Factory methods for IPOPT solver objects."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.solvers.ipopt.factory` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+import importlib
 
-from .options import create_ipopt_options
-from .types import IPOPTOptions
-
-
-def create_ipopt_solver(
-    name: str,
-    nlp: dict[str, Any],
-    *,
-    options: IPOPTOptions | None = None,
-    overrides: Mapping[str, Any] | None = None,
-):
-    """Create a CasADi IPOPT solver with consistent defaults."""
-    import casadi as ca
-
-    solver_opts = {
-        "print_time": False,
-        "ipopt": create_ipopt_options(options=options, overrides=overrides),
-    }
-    return ca.nlpsol(name, "ipopt", nlp, solver_opts)
+_canonical = importlib.import_module("larrak_optimization.optimization.solvers.ipopt.factory")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

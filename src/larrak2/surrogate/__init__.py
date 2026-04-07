@@ -1,29 +1,15 @@
+"""Facade: canonical implementation lives in `larrak_runtime.surrogate` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
+
 from __future__ import annotations
 
-"""Surrogate modeling components."""
+import importlib
 
-from larrak2.surrogate.calculix_nn import CalculixSurrogate  # noqa: E402
-from larrak2.surrogate.features import (  # noqa: E402
-    extract_scavenge_features_v1,
-    get_scavenge_schema_v1,
-)
-from larrak2.surrogate.gear_loss_net import GearLossNetwork  # noqa: E402
-from larrak2.surrogate.hifi import (  # noqa: E402
-    FlowCoefficientSurrogate,
-    StructuralSurrogate,
-    ThermalSurrogate,
-)
-from larrak2.surrogate.models import EnsembleRegressor  # noqa: E402
-from larrak2.surrogate.openfoam_nn import OpenFoamSurrogate  # noqa: E402
-
-__all__ = [
-    "CalculixSurrogate",
-    "extract_scavenge_features_v1",
-    "get_scavenge_schema_v1",
-    "GearLossNetwork",
-    "EnsembleRegressor",
-    "OpenFoamSurrogate",
-    "ThermalSurrogate",
-    "StructuralSurrogate",
-    "FlowCoefficientSurrogate",
-]
+_canonical = importlib.import_module("larrak_runtime.surrogate")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

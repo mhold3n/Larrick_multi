@@ -5,7 +5,6 @@ description = "Standalone optimization package for Larrak search and refinement"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "larrak-runtime>=0.1.0",
     "numpy>=1.24",
     "pymoo>=0.6",
 ]

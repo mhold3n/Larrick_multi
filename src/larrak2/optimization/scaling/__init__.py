@@ -1,7 +1,15 @@
-"""Scaling utilities used by CasADi/IPOPT workflows."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.scaling` (submodule package).
 
-from .constraint_scaling import compute_constraint_scaling
-from .evaluation import scaling_quality
-from .variable_scaling import compute_variable_scaling
+This file is part of the Larrick_multi integration distribution only.
+"""
 
-__all__ = ["compute_constraint_scaling", "compute_variable_scaling", "scaling_quality"]
+from __future__ import annotations
+
+import importlib
+
+_canonical = importlib.import_module("larrak_optimization.optimization.scaling")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

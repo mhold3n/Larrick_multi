@@ -1,15 +1,15 @@
-"""Iteration callback stubs for compatibility with legacy interfaces."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.solvers.ipopt.callback` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import importlib
 
-
-@dataclass
-class IPOPTIterationCallback:
-    """No-op callback placeholder used by downstream code."""
-
-    step: int = 1
-
-    def update_bounds(self, *_args, **_kwargs) -> None:
-        return
+_canonical = importlib.import_module("larrak_optimization.optimization.solvers.ipopt.callback")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

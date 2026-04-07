@@ -1,20 +1,15 @@
-"""Larrak v1 forward-evaluation port.
+"""Facade: canonical implementation lives in `larrak_runtime.ports.larrak_v1` (submodule package).
 
-This package contains pure forward-evaluation logic ported from Larrak v1.
-NO optimizer loops, pack/unpack schemes, or global state are included.
-
-Ported with attribution from:
-- campro/physics/chem.py (Wiebe functions)
-- campro/physics/geometry/litvin.py (LitvinSynthesis)
-- campro/physics/geometry/curvature.py (curvature computation)
-
-Usage:
-    from larrak2.ports.larrak_v1 import v1_eval_gear_forward, v1_eval_thermo_forward
+This file is part of the Larrick_multi integration distribution only.
 """
 
 from __future__ import annotations
 
-from .gear_forward import v1_eval_gear_forward
-from .thermo_forward import v1_eval_thermo_forward
+import importlib
 
-__all__ = ["v1_eval_gear_forward", "v1_eval_thermo_forward"]
+_canonical = importlib.import_module("larrak_runtime.ports.larrak_v1")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

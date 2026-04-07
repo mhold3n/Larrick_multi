@@ -1,15 +1,15 @@
-"""Diagnostics utilities for IPOPT solves."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.solvers.ipopt.diagnostics` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+import importlib
 
-
-def summarize_stats(stats: dict[str, Any]) -> dict[str, Any]:
-    """Extract stable diagnostics fields from CasADi solver stats."""
-    return {
-        "success": bool(stats.get("success", False)),
-        "return_status": str(stats.get("return_status", "")),
-        "iter_count": int(stats.get("iter_count", 0) or 0),
-        "t_proc_total": float(stats.get("t_proc_total", 0.0) or 0.0),
-    }
+_canonical = importlib.import_module("larrak_optimization.optimization.solvers.ipopt.diagnostics")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

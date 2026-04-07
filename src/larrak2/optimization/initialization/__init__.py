@@ -1,5 +1,15 @@
-"""Initialization utilities."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.initialization` (submodule package).
 
-from .surrogate_adapter import VoxelSurrogateAdapter
+This file is part of the Larrick_multi integration distribution only.
+"""
 
-__all__ = ["VoxelSurrogateAdapter"]
+from __future__ import annotations
+
+import importlib
+
+_canonical = importlib.import_module("larrak_optimization.optimization.initialization")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

@@ -1,15 +1,15 @@
-"""Helpers to parse IPOPT status text."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.solvers.ipopt.log_parser` (submodule package).
+
+This file is part of the Larrick_multi integration distribution only.
+"""
 
 from __future__ import annotations
 
+import importlib
 
-def is_success_status(status: str) -> bool:
-    """Return True for common IPOPT success statuses."""
-    s = (status or "").lower()
-    good = (
-        "solve_succeeded",
-        "solved_to_acceptable_level",
-        "optimal solution found",
-        "success",
-    )
-    return any(token in s for token in good)
+_canonical = importlib.import_module("larrak_optimization.optimization.solvers.ipopt.log_parser")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

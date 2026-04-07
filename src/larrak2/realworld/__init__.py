@@ -1,26 +1,15 @@
-from __future__ import annotations
+"""Facade: canonical implementation lives in `larrak_runtime.realworld` (submodule package).
 
-"""Optimization-loop real-world surrogates.
-
-Lightweight surrogate representations of material, surface finish,
-lubrication, and coating decisions used inside the pymoo evaluation loop.
-
-Instead of scalar placeholders, the optimizer works with continuous
-levels (0–1) that map to CEM enum tiers.  The surrogates produce
-ordered feature-importance rankings and feasibility estimates without
-calling the full CEM.
+This file is part of the Larrick_multi integration distribution only.
 """
 
-from larrak2.realworld.constraints import compute_realworld_constraints  # noqa: E402
-from larrak2.realworld.surrogates import (  # noqa: E402
-    DEFAULT_REALWORLD_PARAMS,
-    RealWorldSurrogateParams,
-    evaluate_realworld_surrogates,
-)
+from __future__ import annotations
 
-__all__ = [
-    "DEFAULT_REALWORLD_PARAMS",
-    "RealWorldSurrogateParams",
-    "evaluate_realworld_surrogates",
-    "compute_realworld_constraints",
-]
+import importlib
+
+_canonical = importlib.import_module("larrak_runtime.realworld")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

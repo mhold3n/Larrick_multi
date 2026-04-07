@@ -1,0 +1,6 @@
+# Editable submodule packages for the Larrick_multi integration checkout.
+# Install before `pip install -e ".[dev]" --no-deps` so `larrak_runtime` resolves to
+# larrak-core/src (live edits + LARRICK_MULTI_ROOT data paths) instead of a wheel.
+-e ./larrak-core
+-e ./packages/larrak-simulation
+-e ./packages/larrak-optimization

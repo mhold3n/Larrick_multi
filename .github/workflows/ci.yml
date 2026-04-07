@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -25,13 +28,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml', 'setup.cfg') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml', 'requirements-integration.txt', 'setup.cfg') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -r requirements-integration.txt
+          pip install -e ".[dev]" --no-deps
       - name: Ruff format check
         run: ruff format --check src tests scripts
       - name: Ruff lint
@@ -47,4 +51,5 @@ jobs:
       - name: Pytest
         env:
           PYTHONPATH: src
+          LARRICK_MULTI_ROOT: ${{ github.workspace }}
         run: pytest -q

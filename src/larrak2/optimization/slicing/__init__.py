@@ -1,20 +1,15 @@
-"""Variable slicing utilities for high-dimensional refinement."""
+"""Facade: canonical implementation lives in `larrak_optimization.optimization.slicing` (submodule package).
 
-from .active_set import SliceSelection, select_active_set, sensitivity_scores
-from .slice_problem import (
-    SliceSolveResult,
-    solve_slice_with_ipopt,
-    solve_slice_with_ipopt_linearized,
-)
-from .symbolic_slice_problem import SymbolicSliceSolveResult, solve_symbolic_slice_with_ipopt
+This file is part of the Larrick_multi integration distribution only.
+"""
 
-__all__ = [
-    "SliceSelection",
-    "SliceSolveResult",
-    "SymbolicSliceSolveResult",
-    "select_active_set",
-    "sensitivity_scores",
-    "solve_slice_with_ipopt",
-    "solve_slice_with_ipopt_linearized",
-    "solve_symbolic_slice_with_ipopt",
-]
+from __future__ import annotations
+
+import importlib
+
+_canonical = importlib.import_module("larrak_optimization.optimization.slicing")
+for _k, _v in vars(_canonical).items():
+    if _k.startswith("__"):
+        continue
+    globals()[_k] = _v
+del importlib, _canonical, _k, _v

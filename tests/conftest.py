@@ -15,6 +15,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# Integration monorepo checkout root (data/thermo, data/cem, etc.). Required when tests
+# import `larrak_runtime` from the installed editable package instead of a src/ tree.
+os.environ.setdefault(
+    "LARRICK_MULTI_ROOT",
+    str(Path(__file__).resolve().parents[1]),
+)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _ensure_openfoam_nn_artifact_for_tests() -> None:
