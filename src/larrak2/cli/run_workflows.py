@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_optimization.cli.run_pareto import main as run_pareto_main
 
 from larrak2.adapters.calculix import CalculiXRunner
 from larrak2.adapters.openfoam import OpenFoamRunner
@@ -46,7 +47,6 @@ from larrak2.core.evaluator import evaluate_candidate
 from larrak2.core.types import BreathingConfig, EvalContext
 from larrak2.pipelines.openfoam import OpenFoamPipeline
 from larrak2.promote.staged import StagedWorkflow
-from larrak_optimization.cli.run_pareto import main as run_pareto_main
 
 DEFAULT_READINESS_ROOT = Path("outputs/readiness")
 DEFAULT_PIPELINE_READINESS_SUMMARY = DEFAULT_READINESS_ROOT / "pipeline_readiness_summary.md"

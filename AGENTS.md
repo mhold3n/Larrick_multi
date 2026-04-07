@@ -20,6 +20,10 @@ projects.
 - Do not assume any workflow-routing, promotion, or branch-ownership automation
   exists.
 
+## External modules
+
+`larrak-core` (Python import **`larrak_runtime`**), `larrak-simulation`, and `larrak-optimization` install from **pinned git URLs** in [`requirements-external.txt`](requirements-external.txt), normally via [`scripts/install_external_larrak.sh`](scripts/install_external_larrak.sh) (pip install + monorepo `data/` symlink for wheel-installed `larrak_runtime`). None are checked in as submodules. LEAP71 PicoGK/ShapeKernel vendor trees are likewise external. Set **`LARRICK_MULTI_ROOT`** to the repo root when packaged code must resolve `data/` paths.
+
 ## Domain Ownership (Documentation Only)
 
 | Domain | Primary Paths |

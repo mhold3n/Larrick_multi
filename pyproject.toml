@@ -3,7 +3,7 @@ name = "larrak2"
 version = "0.1.0"
 description = "Multi-objective Pareto optimization for thermo-gear systems"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.24",
     "pymoo>=0.6",
@@ -12,6 +12,9 @@ dependencies = [
     "numpy-stl>=3.0",
     "torch>=2.0",
     "scikit-learn>=1.0",
+    "larrak-core @ git+https://github.com/mhold3n/larrak-core.git@9368bb8040f7dc2ea4b3b063bf7482d8dd7b18a0",
+    "larrak-simulation @ git+https://github.com/mhold3n/larrak-simulation.git@65ee2339c1cd7d977cc2ba6ceff977a9dd0deab6",
+    "larrak-optimization @ git+https://github.com/mhold3n/larrak-optimization.git@b21de537d4eb2f2c1d07af1e9772b6447ba59072",
 ]
 
 [project.optional-dependencies]
@@ -38,11 +41,7 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-exclude = [
-    "larrak-core",
-    "larrak-simulation",
-    "larrak-optimization",
-]
+exclude = []
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP"]

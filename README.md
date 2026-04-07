@@ -43,6 +43,17 @@ We enforce a strict layout to maintain modularity.
 - **`data/`**: Large datasets (Git-ignored usually).
 - **`outputs/`**: Run artifacts (Git-ignored).
 
+### External Python packages
+
+`larrak-runtime` (from the **`larrak-core`** repo), **`larrak-simulation`**, and **`larrak-optimization`** are **not** vendored in this repository. Install the pinned git URLs in [`requirements-external.txt`](requirements-external.txt) via [`scripts/install_external_larrak.sh`](scripts/install_external_larrak.sh) (also symlinks monorepo **`data/`** into the venv for wheel-installed `larrak_runtime`), then install this project:
+
+```bash
+bash scripts/install_external_larrak.sh
+pip install -e ".[dev]" --no-deps
+```
+
+Set **`LARRICK_MULTI_ROOT`** to the root of this checkout when code needs monorepo-relative paths (CI sets it to the workspace root). PicoGK and LEAP71 ShapeKernel C# sources are not submodules here; use upstream clones if you need them for .NET tooling.
+
 ### Rules
 
 - Do not create root-level folders like `logs`, `results`, `temp`. Use `outputs/` or `data_temp/`.

@@ -16,7 +16,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install project (minimal)
-        run: pip install -e .
+        run: |
+          python -m pip install --upgrade pip
+          bash scripts/install_external_larrak.sh
+          pip install -e . --no-deps
       - name: ensure_custom_solver (refresh)
         run: |
           python - <<'PY'

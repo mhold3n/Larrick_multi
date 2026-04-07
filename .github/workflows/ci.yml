@@ -25,13 +25,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml', 'setup.cfg') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml', 'requirements-external.txt', 'scripts/install_external_larrak.sh') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          bash scripts/install_external_larrak.sh
+          pip install -e ".[dev]" --no-deps
       - name: Ruff format check
         run: ruff format --check src tests scripts
       - name: Ruff lint
@@ -39,6 +40,7 @@ jobs:
       - name: Mypy
         env:
           PYTHONPATH: src
+          LARRICK_MULTI_ROOT: ${{ github.workspace }}
         run: >
           mypy
           src/larrak2/architecture/workflow_contracts.py
@@ -47,4 +49,5 @@ jobs:
       - name: Pytest
         env:
           PYTHONPATH: src
+          LARRICK_MULTI_ROOT: ${{ github.workspace }}
         run: pytest -q

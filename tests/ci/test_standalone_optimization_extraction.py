@@ -90,11 +90,29 @@ def test_standalone_cli_parser_exposes_three_optimization_frames() -> None:
 
 
 def test_standalone_package_manifests_are_present() -> None:
-    runtime_manifest = Path("packages/larrak-runtime/pyproject.toml")
-    optimization_manifest = Path("packages/larrak-optimization/pyproject.toml")
+    """External Larrak packages install from pinned PEP 508 git URLs."""
 
-    assert runtime_manifest.exists()
-    assert optimization_manifest.exists()
+    external_req = Path("requirements-external.txt")
+    root_manifest = Path("pyproject.toml")
+    bootstrap = Path("scripts/install_external_larrak.sh")
 
-    assert 'name = "larrak-runtime"' in runtime_manifest.read_text(encoding="utf-8")
-    assert 'name = "larrak-optimization"' in optimization_manifest.read_text(encoding="utf-8")
+    assert external_req.exists()
+    text = external_req.read_text(encoding="utf-8")
+    assert "larrak-core @ git+https://github.com/mhold3n/larrak-core.git@" in text
+    assert "larrak-simulation @ git+https://github.com/mhold3n/larrak-simulation.git@" in text
+    assert "larrak-optimization @ git+https://github.com/mhold3n/larrak-optimization.git@" in text
+    assert "9368bb8040f7dc2ea4b3b063bf7482d8dd7b18a0" in text
+    assert "65ee2339c1cd7d977cc2ba6ceff977a9dd0deab6" in text
+    assert "b21de537d4eb2f2c1d07af1e9772b6447ba59072" in text
+
+    root_txt = root_manifest.read_text(encoding="utf-8")
+    assert "larrak-core @ git+https://github.com/mhold3n/larrak-core.git@" in root_txt
+    assert "larrak-simulation @ git+https://github.com/mhold3n/larrak-simulation.git@" in root_txt
+    assert "larrak-optimization @ git+https://github.com/mhold3n/larrak-optimization.git@" in root_txt
+    assert "9368bb8040f7dc2ea4b3b063bf7482d8dd7b18a0" in root_txt
+    assert "65ee2339c1cd7d977cc2ba6ceff977a9dd0deab6" in root_txt
+    assert "b21de537d4eb2f2c1d07af1e9772b6447ba59072" in root_txt
+
+    assert bootstrap.exists()
+    boot_txt = bootstrap.read_text(encoding="utf-8")
+    assert "requirements-external.txt" in boot_txt

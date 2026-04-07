@@ -1,0 +1,4 @@
+# Pinned Larrak distributions (install before editable larrak2). Bump SHAs when upstream moves.
+larrak-core @ git+https://github.com/mhold3n/larrak-core.git@9368bb8040f7dc2ea4b3b063bf7482d8dd7b18a0
+larrak-simulation @ git+https://github.com/mhold3n/larrak-simulation.git@65ee2339c1cd7d977cc2ba6ceff977a9dd0deab6
+larrak-optimization @ git+https://github.com/mhold3n/larrak-optimization.git@b21de537d4eb2f2c1d07af1e9772b6447ba59072
