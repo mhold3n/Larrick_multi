@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from larrak2.simulation_validation.cantera_mechanisms import sanitize_chemkin_file_text
+from larrak_simulation.simulation_validation.cantera_mechanisms import sanitize_chemkin_file_text
 
 from .docker_openfoam import DockerOpenFoam, DockerOpenFoamConfig
 

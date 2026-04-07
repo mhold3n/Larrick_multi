@@ -22,14 +22,14 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from larrak2.core.artifact_paths import (  # noqa: E402
+from larrak_runtime.core.artifact_paths import (  # noqa: E402
     DEFAULT_CALCULIX_NN_ARTIFACT,
     DEFAULT_HIFI_SURROGATE_DIR,
     DEFAULT_OPENFOAM_NN_ARTIFACT,
     DEFAULT_STACK_SURROGATE_ARTIFACT,
     DEFAULT_THERMO_SYMBOLIC_ARTIFACT,
 )
-from larrak2.surrogate.quality_contract import validate_artifact_quality  # noqa: E402
+from larrak_runtime.surrogate.quality_contract import validate_artifact_quality  # noqa: E402
 
 
 @dataclass

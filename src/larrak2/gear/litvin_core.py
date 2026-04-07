@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.encoding import GearParams
+from larrak_runtime.core.types import EvalContext
 
 from ..core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,
@@ -27,8 +29,6 @@ from ..core.artifact_paths import (
     assert_not_legacy_models_path,
 )
 from ..core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
-from ..core.encoding import GearParams
-from ..core.types import EvalContext
 from ..ports.larrak_v1.gear_forward import litvin_synthesize
 from ..surrogate.gear_loss_net import get_gear_surrogate
 from .energy_ledger import EnergyLedger

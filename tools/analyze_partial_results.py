@@ -4,13 +4,12 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-
-from larrak2.core.encoding import GearParams
-from larrak2.gear.manufacturability_limits import (
+from larrak_engines.gear.manufacturability_limits import (
     ManufacturingProcessParams,
     _build_all_candidates,
     _surrogate_check,
 )
+from larrak_runtime.core.encoding import GearParams
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -59,7 +58,7 @@ def analyze_partial():
     )
 
     # Durations and Amplitudes
-    from larrak2.gear.manufacturability_limits import DEFAULT_DURATION_GRID_DEG
+    from larrak_engines.gear.manufacturability_limits import DEFAULT_DURATION_GRID_DEG
 
     durations = DEFAULT_DURATION_GRID_DEG.astype(float)
     amps = np.linspace(-1.5, 4.0, 61)

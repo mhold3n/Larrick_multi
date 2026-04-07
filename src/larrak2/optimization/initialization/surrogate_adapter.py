@@ -8,8 +8,7 @@ from typing import Any
 
 import joblib
 import numpy as np
-
-from larrak2.core.artifact_paths import (
+from larrak_runtime.core.artifact_paths import (
     DEFAULT_INITIALIZATION_SURROGATE_DIR,
     assert_not_legacy_models_path,
 )

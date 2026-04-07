@@ -1,10 +1,9 @@
 """Verification of Energy Closure for Gear System."""
 
 import numpy as np
-
-from larrak2.core.encoding import GearParams
-from larrak2.core.types import EvalContext
-from larrak2.gear.litvin_core import eval_gear
+from larrak_engines.gear.litvin_core import eval_gear
+from larrak_runtime.core.encoding import GearParams
+from larrak_runtime.core.types import EvalContext
 
 
 def test_toy_energy_closure():

@@ -15,11 +15,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.encoding import GearParams
+from larrak_runtime.core.types import EvalContext
 from scipy.interpolate import PchipInterpolator
 
 from ...core.constants import GEAR_INTERFERENCE_CLEARANCE_MM, GEAR_MIN_THICKNESS_MM
-from ...core.encoding import GearParams
-from ...core.types import EvalContext
 from ...gear.energy_ledger import EnergyLedger
 from ...gear.loss_model import total_loss
 from ...gear.pitchcurve import fourier_pitch_curve

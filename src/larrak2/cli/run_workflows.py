@@ -17,18 +17,13 @@ from typing import Any
 
 import numpy as np
 from larrak_optimization.cli.run_pareto import main as run_pareto_main
-from larrak_optimization.promote.control_plane import (
-    select_promotion_indices as _select_promotion_indices_impl,
-)
-
-from larrak2.adapters.calculix import CalculiXRunner
-from larrak2.adapters.openfoam import OpenFoamRunner
-from larrak2.architecture.contracts import (
+from larrak_optimization.promote import select_strict_nsga3
+from larrak_runtime.architecture.contracts import (
     CONTRACT_VERSION,
     active_contract_tracer,
     get_active_contract_tracer,
 )
-from larrak2.core.artifact_paths import (
+from larrak_runtime.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,
     DEFAULT_GEAR_LOSS_NN_DIR,
     DEFAULT_HIFI_SURROGATE_DIR,
@@ -38,17 +33,20 @@ from larrak2.core.artifact_paths import (
     resolve_stack_artifact_path,
     resolve_thermo_symbolic_artifact_path,
 )
-from larrak2.core.constraints import (
+from larrak_runtime.core.constraints import (
     get_constraint_kinds_for_phase,
     get_constraint_names,
     get_constraint_reasons,
     get_constraint_scales,
     get_material_constraint_names,
 )
-from larrak2.core.encoding import N_GEAR, N_THERMO, N_TOTAL, decode_candidate
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.types import BreathingConfig, EvalContext
-from larrak2.pipelines.openfoam import OpenFoamPipeline
+from larrak_runtime.core.encoding import N_TOTAL, decode_candidate
+from larrak_runtime.core.evaluator import evaluate_candidate
+from larrak_runtime.core.types import BreathingConfig, EvalContext
+from larrak_simulation.pipelines.openfoam import OpenFoamPipeline
+
+from larrak2.adapters.calculix import CalculiXRunner
+from larrak2.adapters.openfoam import OpenFoamRunner
 from larrak2.promote.staged import StagedWorkflow
 
 DEFAULT_READINESS_ROOT = Path("outputs/readiness")
@@ -505,16 +503,36 @@ def _select_promotion_indices(
     margin_arr = np.array([m["margin_min"] for m in margins], dtype=float)
     hard_margin_arr = np.array([m["hard_margin_min"] for m in margins], dtype=float)
     soft_arr = np.array([m["soft_violation_sum"] for m in margins], dtype=float)
-    Xg = np.asarray(X[:, N_THERMO : N_THERMO + N_GEAR], dtype=float)
-    selected_arr, meta = _select_promotion_indices_impl(
-        F=F,
-        hard_margin_min=hard_margin_arr,
-        soft_violation_sum=soft_arr,
-        diversity_vectors=Xg,
-        k=int(k),
-        margin_min_required=float(margin_min),
-        pool_mult=int(pool_mult),
+    # Canonical promotion selection lives in `larrak-optimization`. The pinned
+    # public API exposes strict NSGA-III selection; we apply a margin filter and
+    # use soft-violation sum as a deterministic secondary objective.
+    eligible = np.where(hard_margin_arr >= float(margin_min))[0]
+    if eligible.size == 0:
+        return np.zeros(0, dtype=int), {
+            "n_candidates": n,
+            "n_selected": 0,
+            "margin_min_required": float(margin_min),
+            "applied_margin_filter": int(n),
+        }
+
+    F_elig = np.asarray(F, dtype=float)[eligible]
+    soft_elig = soft_arr[eligible].reshape(-1, 1)
+    F_aug = np.concatenate([F_elig, soft_elig], axis=1)
+    hashes = [hashlib.sha256(X[int(i)].tobytes()).hexdigest() for i in eligible.tolist()]
+    chosen_local = select_strict_nsga3(
+        F_aug,
+        hashes=hashes,
+        k=int(min(k, eligible.size)),
     )
+    selected_arr = eligible[np.asarray(chosen_local, dtype=int)]
+    meta = {
+        "n_candidates": n,
+        "n_selected": int(np.asarray(selected_arr).size),
+        "margin_min_required": float(margin_min),
+        "applied_margin_filter": int(n - eligible.size),
+        "selector": "larrak_optimization.promote.select_strict_nsga3",
+        "pool_mult": int(pool_mult),
+    }
     # Preserve legacy metadata fields for dashboards/debugging.
     meta.setdefault("margin_min", float(margin_min))
     meta.setdefault("margin_arr_preview", [float(x) for x in margin_arr[: min(8, n)]])
@@ -921,7 +939,7 @@ def _resolve_path_from_arg_or_env(
 
 def run_train_surrogates_workflow(args: argparse.Namespace) -> int:
     """Train OpenFOAM + CalculiX NN surrogates as a standalone pre-job."""
-    from larrak2.training.workflows import (
+    from larrak_simulation.training.workflows import (
         train_calculix_workflow,
         train_openfoam_workflow,
     )
@@ -1146,7 +1164,7 @@ def run_train_surrogates_workflow(args: argparse.Namespace) -> int:
 
 def run_train_stack_surrogate_workflow(args: argparse.Namespace) -> int:
     """Train global stack surrogate artifact used by symbolic CasADi refinement."""
-    from larrak2.training.workflows import train_stack_surrogate_workflow
+    from larrak_simulation.training.workflows import train_stack_surrogate_workflow
 
     outdir = Path(str(args.outdir))
     outdir.mkdir(parents=True, exist_ok=True)
@@ -1183,7 +1201,7 @@ def run_train_stack_surrogate_workflow(args: argparse.Namespace) -> int:
 
 def run_train_thermo_symbolic_workflow(args: argparse.Namespace) -> int:
     """Train thermo symbolic surrogate artifact used by CasADi thermo overlay."""
-    from larrak2.training.workflows import train_thermo_symbolic_workflow
+    from larrak_simulation.training.workflows import train_thermo_symbolic_workflow
 
     outdir = Path(str(args.outdir))
     outdir.mkdir(parents=True, exist_ok=True)
@@ -1933,8 +1951,9 @@ def _extract_exception_payload(exc: BaseException | None) -> dict[str, Any]:
 
 def run_explore_exploit_workflow(args: argparse.Namespace) -> int:
     """Two-stage pipeline: explore Pareto set then exploit selected slices via CasADi."""
+    from larrak_optimization.pipelines.principles_frontier import synthesize_principles_frontier
+
     from larrak2.pipelines.explore_exploit import run_two_stage_pipeline
-    from larrak2.pipelines.principles_frontier import synthesize_principles_frontier
 
     source_mode = str(getattr(args, "explore_source", "principles")).strip().lower()
     pareto_dir = Path(args.pareto_dir)
@@ -2372,6 +2391,14 @@ def _load_truth_plan_tokens(path: str | Path) -> list[str]:
 
 def run_orchestrate_workflow(args: argparse.Namespace) -> int:
     """Run backend-only orchestration merge path (Wave 2)."""
+    from larrak_orchestration.legacy_loop.backends import (
+        FileControlBackend,
+        JSONLProvenanceBackend,
+        RedisControlBackend,
+        WeaviateProvenanceBackend,
+    )
+    from larrak_simulation.pipelines.openfoam import OpenFoamPipeline
+
     from larrak2.adapters.openfoam import OpenFoamRunner
     from larrak2.orchestration import OrchestrationConfig, Orchestrator
     from larrak2.orchestration.adapters import (
@@ -2380,14 +2407,7 @@ def run_orchestrate_workflow(args: argparse.Namespace) -> int:
         HifiSurrogateAdapter,
         PhysicsSimulationAdapter,
     )
-    from larrak2.orchestration.backends import (
-        FileControlBackend,
-        JSONLProvenanceBackend,
-        RedisControlBackend,
-        WeaviateProvenanceBackend,
-    )
     from larrak2.orchestration.multi_start import optimize_with_multistart
-    from larrak2.pipelines.openfoam import OpenFoamPipeline
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -2837,7 +2857,10 @@ def run_promote_openfoam_artifact_workflow(args: argparse.Namespace) -> int:
 
 def run_overnight_f2_nn_campaign_workflow(args: argparse.Namespace) -> int:
     """Run staged overnight DOE/training/promotion campaign for F2 NN artifacts."""
-    from larrak2.training.overnight_campaign import CampaignError, run_overnight_f2_nn_campaign
+    from larrak_simulation.training.overnight_campaign import (
+        CampaignError,
+        run_overnight_f2_nn_campaign,
+    )
 
     run_id = str(getattr(args, "run_id", "")).strip() or time.strftime("%Y%m%d_%H%M%S")
     outdir_root = Path(str(getattr(args, "outdir_root", "outputs/overnight_f2")))

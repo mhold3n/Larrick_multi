@@ -6,10 +6,9 @@ import os
 
 import numpy as np
 import pytest
-
-from larrak2.core.encoding import mid_bounds_candidate
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.types import EvalContext
+from larrak_runtime.core.encoding import mid_bounds_candidate
+from larrak_runtime.core.evaluator import evaluate_candidate
+from larrak_runtime.core.types import EvalContext
 
 
 def test_fidelity2_requires_openfoam_nn(monkeypatch):

@@ -123,7 +123,7 @@ def main() -> int:
         if profile_tc:
             tuning_characterization["profile_name"] = profile_tc
 
-    from larrak2.simulation_validation.engine_restart_benchmark import (
+    from larrak_simulation.simulation_validation.engine_restart_benchmark import (
         benchmark_engine_restart_profiles,
     )
 

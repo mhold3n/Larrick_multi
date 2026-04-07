@@ -1,9 +1,8 @@
 import logging
 
 import numpy as np
-
-from larrak2.gear import picogk_adapter
-from larrak2.gear.picogk_adapter import evaluate_manufacturability
+from larrak_engines.gear import picogk_adapter
+from larrak_engines.gear.picogk_adapter import evaluate_manufacturability
 
 # Enable debug logging
 logging.basicConfig(level=logging.INFO)

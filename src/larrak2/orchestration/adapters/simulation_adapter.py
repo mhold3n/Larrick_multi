@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.encoding import N_TOTAL, decode_candidate
+from larrak_runtime.core.evaluator import evaluate_candidate
+from larrak_runtime.core.types import EvalContext
 
 from larrak2.adapters.calculix import CalculiXRunner
 from larrak2.adapters.openfoam import OpenFoamRunner
-from larrak2.core.encoding import N_TOTAL, decode_candidate
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.types import EvalContext
 
 LOGGER = logging.getLogger(__name__)
 

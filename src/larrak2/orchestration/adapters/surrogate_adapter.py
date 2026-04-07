@@ -7,16 +7,19 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.artifact_paths import (
+    DEFAULT_HIFI_SURROGATE_DIR,
+    assert_not_legacy_models_path,
+)
+from larrak_runtime.core.encoding import N_TOTAL, decode_candidate
+from larrak_runtime.surrogate.quality_contract import validate_artifact_quality
+from larrak_simulation.training.hifi_schema import NormalizationParams
 
-from larrak2.core.artifact_paths import DEFAULT_HIFI_SURROGATE_DIR, assert_not_legacy_models_path
-from larrak2.core.encoding import N_TOTAL, decode_candidate
 from larrak2.surrogate.hifi.models import (
     FlowCoefficientSurrogate,
     StructuralSurrogate,
     ThermalSurrogate,
 )
-from larrak2.surrogate.quality_contract import validate_artifact_quality
-from larrak2.training.hifi_schema import NormalizationParams
 
 LOGGER = logging.getLogger(__name__)
 

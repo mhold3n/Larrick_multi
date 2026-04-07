@@ -51,7 +51,7 @@ def _build_dataset_and_case(
     regime: str,
 ) -> tuple:
     """Build ValidationDatasetManifest and ValidationCaseSpec from config dict."""
-    from larrak2.simulation_validation.models import (
+    from larrak_simulation.simulation_validation.models import (
         ComparisonMode,
         SourceType,
         ValidationCaseSpec,
@@ -104,8 +104,8 @@ def _build_dataset_and_case(
 
 def _build_suite_profile(config: dict[str, Any]):
     """Build a ValidationSuiteProfile from a suite config dict."""
-    from larrak2.simulation_validation.models import ValidationSuiteProfile
-    from larrak2.simulation_validation.regimes import (
+    from larrak_simulation.simulation_validation.models import ValidationSuiteProfile
+    from larrak_simulation.simulation_validation.regimes import (
         CanonicalRegime,
         canonical_prerequisite_names,
     )
@@ -137,7 +137,7 @@ def _write_regime_artifacts(
     outdir: Path,
     elapsed: float,
 ) -> tuple[Path, Path]:
-    from larrak2.simulation_validation.plotting import (
+    from larrak_simulation.simulation_validation.plotting import (
         generate_error_summary_plot,
         generate_metric_comparison_plot,
     )
@@ -206,8 +206,8 @@ def _write_regime_artifacts(
 
 def _run_single_regime_cmd(args: argparse.Namespace, regime_name: str) -> int:
     """Execute a single regime validation from CLI args."""
-    from larrak2.simulation_validation.regimes import CanonicalRegime
-    from larrak2.simulation_validation.suite import (
+    from larrak_simulation.simulation_validation.regimes import CanonicalRegime
+    from larrak_simulation.simulation_validation.suite import (
         run_single_regime,
     )
 
@@ -250,8 +250,8 @@ def _run_single_regime_cmd(args: argparse.Namespace, regime_name: str) -> int:
 
 def _run_chemistry_cache_cmd(args: argparse.Namespace) -> int:
     """Build or refresh the persistent offline chemistry-results cache."""
-    from larrak2.simulation_validation.regimes import CanonicalRegime
-    from larrak2.simulation_validation.suite import run_single_regime
+    from larrak_simulation.simulation_validation.regimes import CanonicalRegime
+    from larrak_simulation.simulation_validation.suite import run_single_regime
 
     config_path = Path(args.config)
     config = _extract_chemistry_config(_load_regime_config(config_path))
@@ -317,7 +317,7 @@ def _run_chemistry_cache_cmd(args: argparse.Namespace) -> int:
 
 def _run_suite_cmd(args: argparse.Namespace) -> int:
     """Execute the full validation suite from CLI args."""
-    from larrak2.simulation_validation.suite import (
+    from larrak_simulation.simulation_validation.suite import (
         run_suite,
         suite_to_json,
         suite_to_markdown,
@@ -360,7 +360,7 @@ def _run_suite_cmd(args: argparse.Namespace) -> int:
 
 def _run_combustion_truth_cmd(args: argparse.Namespace) -> int:
     """Execute the gas-combustion truth workflow over the DOE core corridor."""
-    from larrak2.simulation_validation.combustion_truth import (
+    from larrak_simulation.simulation_validation.combustion_truth import (
         DEFAULT_PROFILE_PATH,
         run_combustion_truth_workflow,
     )
@@ -377,7 +377,7 @@ def _run_combustion_truth_cmd(args: argparse.Namespace) -> int:
 
 def _run_flame_speed_compare_cmd(args: argparse.Namespace) -> int:
     """Compare flame-speed tractability across mechanism candidates."""
-    from larrak2.simulation_validation.flame_speed_comparison import (
+    from larrak_simulation.simulation_validation.flame_speed_comparison import (
         compare_flame_speed_mechanisms,
     )
 
@@ -391,7 +391,9 @@ def _run_flame_speed_compare_cmd(args: argparse.Namespace) -> int:
 
 
 def _run_runtime_chemistry_table_cmd(args: argparse.Namespace) -> int:
-    from larrak2.simulation_validation.runtime_chemistry_table import build_runtime_chemistry_table
+    from larrak_simulation.simulation_validation.runtime_chemistry_table import (
+        build_runtime_chemistry_table,
+    )
 
     manifest = build_runtime_chemistry_table(
         config_path=args.config,
@@ -403,7 +405,7 @@ def _run_runtime_chemistry_table_cmd(args: argparse.Namespace) -> int:
 
 
 def _run_coverage_corpus_analysis_cmd(args: argparse.Namespace) -> int:
-    from larrak2.simulation_validation.coverage_corpus_analysis import (
+    from larrak_simulation.simulation_validation.coverage_corpus_analysis import (
         analyze_coverage_corpus_vs_targets,
     )
 
@@ -420,7 +422,7 @@ def _run_coverage_corpus_analysis_cmd(args: argparse.Namespace) -> int:
 
 
 def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
-    from larrak2.simulation_validation.engine_restart_benchmark import (
+    from larrak_simulation.simulation_validation.engine_restart_benchmark import (
         benchmark_engine_restart_profiles,
     )
 
@@ -472,7 +474,7 @@ def _run_engine_restart_benchmark_cmd(args: argparse.Namespace) -> int:
 
 
 def _run_tuning_characterization_cmd(args: argparse.Namespace) -> int:
-    from larrak2.simulation_validation.tuning_characterization_study import (
+    from larrak_simulation.simulation_validation.tuning_characterization_study import (
         STRATEGY_REGISTRY,
         append_experiments_jsonl,
         ingest_benchmark_run_directory,
@@ -613,7 +615,7 @@ def _run_tuning_characterization_cmd(args: argparse.Namespace) -> int:
 
 def _run_restart_regression_analysis_cmd(args: argparse.Namespace) -> int:
     """Analyze ordered restart benchmark runs without depending on solver internals."""
-    from larrak2.simulation_validation.restart_regression_suite import (
+    from larrak_simulation.simulation_validation.restart_regression_suite import (
         analyze_restart_regression_runs,
         write_restart_regression_artifacts,
     )

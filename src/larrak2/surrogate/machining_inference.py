@@ -4,12 +4,11 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-
-from larrak2.core.artifact_paths import (
+from larrak_engines.gear.manufacturability_limits import PROFILE_NAMES
+from larrak_runtime.core.artifact_paths import (
     DEFAULT_MACHINING_NN_ARTIFACT,
     assert_not_legacy_models_path,
 )
-from larrak2.gear.manufacturability_limits import PROFILE_NAMES
 
 
 class MachiningSurrogateNet(nn.Module):

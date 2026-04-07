@@ -6,10 +6,9 @@ from dataclasses import dataclass
 from math import ceil
 
 import numpy as np
-
-from ...core.encoding import N_TOTAL, bounds, group_indices
-from ...core.evaluator import evaluate_candidate
-from ...core.types import EvalContext
+from larrak_runtime.core.encoding import N_TOTAL, bounds, group_indices
+from larrak_runtime.core.evaluator import evaluate_candidate
+from larrak_runtime.core.types import EvalContext
 
 
 @dataclass

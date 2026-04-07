@@ -15,7 +15,7 @@ dependencies = [
     "larrak-core @ git+https://github.com/mhold3n/larrak-core.git@3fd949e4f41bd5c5f2a0e825fca2118fe301d235",
     "larrak-engines @ git+https://github.com/mhold3n/larrak-engines.git@3f7f342cbda410cdd334edfc4211a3637dddabc1",
     "larrak-simulation @ git+https://github.com/mhold3n/larrak-simulation.git@249230799636f2aa78a3b18b532432c9d6f2c28e",
-    "larrak-optimization @ git+https://github.com/mhold3n/larrak-optimization.git@90d508ac17dad24d75487cc7e2e7977d93063586",
+    "larrak-optimization @ git+https://github.com/mhold3n/larrak-optimization.git@b21de537d4eb2f2c1d07af1e9772b6447ba59072",
     "larrak-analysis @ git+https://github.com/mhold3n/larrak-analysis.git@1c71aad7bcb336cdee7ba7f9f665a7089f0f3266",
     "larrak-orchestration @ git+https://github.com/mhold3n/larrak-orchestration.git@7a1efa4fdbf31c0f1acbb1bd31e3fe5404c07136",
 ]
@@ -57,6 +57,6 @@ warn_unused_configs = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests/ci"]
+testpaths = ["tests/ci_contract"]
 norecursedirs = ["tests/dev"]
 python_files = "test_*.py"

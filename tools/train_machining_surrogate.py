@@ -6,8 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
-from larrak2.gear.manufacturability_limits import (
+from larrak_engines.gear.manufacturability_limits import (
     DEFAULT_DURATION_GRID_DEG,
     PROFILE_NAMES,
     ManufacturingProcessParams,

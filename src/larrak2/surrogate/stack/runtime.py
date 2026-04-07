@@ -6,8 +6,7 @@ import re
 from pathlib import Path
 
 import numpy as np
-
-from larrak2.core.encoding import resolve_index_for_encoding
+from larrak_runtime.core.encoding import resolve_index_for_encoding
 
 from .artifact import StackSurrogateArtifact, load_stack_artifact
 

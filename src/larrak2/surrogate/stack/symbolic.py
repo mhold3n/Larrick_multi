@@ -5,8 +5,7 @@ from __future__ import annotations
 import sys
 
 import numpy as np
-
-from larrak2.core.encoding import resolve_index_for_encoding
+from larrak_runtime.core.encoding import resolve_index_for_encoding
 
 from .artifact import StackSurrogateArtifact
 from .runtime import parse_feature_index

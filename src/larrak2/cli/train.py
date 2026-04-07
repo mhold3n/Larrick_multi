@@ -6,13 +6,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from larrak2.core.artifact_paths import (
+from larrak_runtime.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_DIR,
     DEFAULT_GEAR_LOSS_NN_DIR,
     DEFAULT_OPENFOAM_NN_DIR,
     DEFAULT_SURROGATE_V1_DIR,
 )
-from larrak2.training.workflows import (
+from larrak_simulation.training.workflows import (
     train_calculix_workflow,
     train_gear_gbr_workflow,
     train_gear_nn_workflow,

@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from larrak2.simulation_validation.flame_speed_diagnostics import (
+from larrak_simulation.simulation_validation.flame_speed_diagnostics import (
     run_flame_speed_diagnostics,
 )
 

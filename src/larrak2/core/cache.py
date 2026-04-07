@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from .types import EvalContext, EvalResult
+    from larrak_runtime.core.types import EvalContext, EvalResult
 
 # Global cache version (bump when model changes)
 CACHE_VERSION = "0.1.0"

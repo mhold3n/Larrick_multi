@@ -8,6 +8,16 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.encoding import (
+    ENCODING_VERSION,
+    LEGACY_ENCODING_VERSION,
+    LEGACY_N_TOTAL,
+    N_TOTAL,
+    PRECHEM_ENCODING_VERSION,
+    PRECHEM_N_TOTAL,
+    upgrade_legacy_candidate_matrix,
+    upgrade_prechem_candidate_matrix,
+)
 
 from .constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from .constraints import (
@@ -15,16 +25,6 @@ from .constraints import (
     get_constraint_names,
     get_constraint_scales,
     get_material_constraint_names,
-)
-from .encoding import (
-    ENCODING_VERSION,
-    ENCODING_VERSION_V0_4,
-    N_TOTAL,
-    N_TOTAL_V0_4,
-    PRECHEM_ENCODING_VERSION,
-    PRECHEM_N_TOTAL,
-    upgrade_legacy_candidate_matrix,
-    upgrade_prechem_candidate_matrix,
 )
 
 META_FILENAME = "summary.json"
@@ -80,7 +80,7 @@ def load_archive(outdir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict
     G = np.load(outdir / "pareto_G.npy", allow_pickle=False)
 
     expected_n_var = int(summary.get("n_var", N_TOTAL))
-    if X.shape[1] == N_TOTAL_V0_4 and expected_n_var == N_TOTAL:
+    if X.shape[1] == LEGACY_N_TOTAL and expected_n_var == N_TOTAL:
         X = upgrade_legacy_candidate_matrix(X)
     elif X.shape[1] == PRECHEM_N_TOTAL and expected_n_var == N_TOTAL:
         X = upgrade_prechem_candidate_matrix(X)
@@ -99,13 +99,13 @@ def migrate_archive(summary: dict) -> dict:
     # Example migration map; extend as schemas evolve
     MIGRATION_MAP = {
         "0.0": lambda s: {**s, "encoding_version": ENCODING_VERSION, "n_var": N_TOTAL},
-        ENCODING_VERSION_V0_4: lambda s: {
+        LEGACY_ENCODING_VERSION: lambda s: {
             **s,
             "encoding_version": ENCODING_VERSION,
             "n_var": N_TOTAL,
             "legacy_upgrade": {
                 "timing_defaults_injected": True,
-                "legacy_n_var": N_TOTAL_V0_4,
+                "legacy_n_var": LEGACY_N_TOTAL,
                 "current_n_var": N_TOTAL,
             },
         },

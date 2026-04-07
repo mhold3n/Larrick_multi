@@ -14,7 +14,13 @@ from __future__ import annotations
 import argparse
 import sys
 
-from larrak2.analysis.workflows import diagnostic_workflow, sensitivity_workflow
+from larrak_analysis.workflows import diagnostic_workflow, sensitivity_workflow
+from larrak_runtime.core.artifact_paths import (
+    DEFAULT_CALCULIX_NN_DIR,
+    DEFAULT_HIFI_SURROGATE_DIR,
+    DEFAULT_OPENFOAM_NN_DIR,
+)
+
 from larrak2.cli.run_workflows import (
     run_active_learning_workflow,
     run_dress_rehearsal_workflow,
@@ -28,11 +34,6 @@ from larrak2.cli.run_workflows import (
     run_train_stack_surrogate_workflow,
     run_train_surrogates_workflow,
     run_train_thermo_symbolic_workflow,
-)
-from larrak2.core.artifact_paths import (
-    DEFAULT_CALCULIX_NN_DIR,
-    DEFAULT_HIFI_SURROGATE_DIR,
-    DEFAULT_OPENFOAM_NN_DIR,
 )
 
 

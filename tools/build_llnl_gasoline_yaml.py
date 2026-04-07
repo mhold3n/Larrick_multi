@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from larrak2.simulation_validation.cantera_mechanisms import (
+from larrak_simulation.simulation_validation.cantera_mechanisms import (
     LLNL_DETAILED_GASOLINE_SURROGATE,
     convert_chemkin_to_yaml,
 )

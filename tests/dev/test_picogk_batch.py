@@ -3,12 +3,11 @@ import os
 
 import numpy as np
 import pytest
-
-from larrak2.core.encoding import GearParams
-from larrak2.gear.manufacturability_limits import (
+from larrak_engines.gear.manufacturability_limits import (
     ManufacturingProcessParams,
     compute_manufacturable_ratio_rate_limits,
 )
+from larrak_runtime.core.encoding import GearParams
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

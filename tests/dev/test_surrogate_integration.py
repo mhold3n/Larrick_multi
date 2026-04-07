@@ -4,10 +4,10 @@ import pickle
 
 import numpy as np
 import pytest
+from larrak_runtime.core.encoding import random_candidate
+from larrak_runtime.core.evaluator import evaluate_candidate
+from larrak_runtime.core.types import EvalContext
 
-from larrak2.core.encoding import random_candidate
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.types import EvalContext
 from larrak2.surrogate.features import get_gear_schema_v1
 from larrak2.surrogate.inference import SurrogateEngine
 

@@ -53,7 +53,7 @@ requests targeting `main`. The fast lane runs:
 
 - `ruff format --check` and `ruff check`
 - `mypy` on the maintained typed entrypoints
-- `pytest -q`
+- `pytest -q` (default `testpaths`: `tests/ci_contract` only)
 
 Self-hosted heavy lanes may still exist in the future, but they are not tied to
 branch-specific workflow wrappers anymore.
@@ -63,8 +63,7 @@ branch-specific workflow wrappers anymore.
 - Manual domain separation: open one Cursor window per `git worktree` directory.
 - Cursor Parallel Agents create Cursor-managed worktrees and apply edits back via
   the Cursor "Apply" action.
-- Keep branch naming as `codex/<workflow>/<short-topic>` for consistency with repo
-  conventions and CI expectations.
+- Keep branch naming short, descriptive, and consistent within your team.
 - In Cursor-created worktrees, rely on CLI checks (`ruff`, `mypy`, `pytest`) for
   validation because LSP diagnostics are not available in that environment.
 - Cursor-specific hooks/setup should delegate to portable stubs in

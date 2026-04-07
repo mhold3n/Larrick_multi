@@ -7,12 +7,11 @@ import time
 from pathlib import Path
 
 import numpy as np
-
-from larrak2.core.encoding import GearParams
-from larrak2.gear.manufacturability_limits import (
+from larrak_engines.gear.manufacturability_limits import (
     ManufacturingProcessParams,
     compute_manufacturable_ratio_rate_limits,
 )
+from larrak_runtime.core.encoding import GearParams
 
 # Setup detailed logging
 logging.basicConfig(

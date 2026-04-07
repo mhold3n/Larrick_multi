@@ -76,11 +76,12 @@ def validate_candidates(
     Returns:
         ValidationReport with ranked candidates.
     """
+    from larrak_runtime.core.encoding import ENCODING_VERSION, N_TOTAL, decode_candidate
+
     from ..cem.evaluator import CEMEvalParams, evaluate_cem
     from ..cem.lubrication import LubricationParams, mode_from_level
     from ..cem.post_processing import coating_from_level
     from ..cem.surface_finish import tier_from_level
-    from ..core.encoding import ENCODING_VERSION, N_TOTAL, decode_candidate
     from ..realworld.surrogates import (
         RealWorldSurrogateParams,
         _material_from_level,

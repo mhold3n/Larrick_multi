@@ -5,9 +5,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from larrak_runtime.core.constraints import get_constraint_names
+from larrak_runtime.core.encoding import N_TOTAL
 
-from larrak2.core.constraints import get_constraint_names
-from larrak2.core.encoding import N_TOTAL
 from larrak2.promote.archive import load_npz
 from larrak2.promote.staged import StagedWorkflow
 

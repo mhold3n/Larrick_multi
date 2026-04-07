@@ -20,14 +20,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.encoding import ThermoParams
+from larrak_runtime.core.types import BreathingConfig, EvalContext
 
 from ...core.artifact_paths import (
     DEFAULT_OPENFOAM_NN_ARTIFACT,
     assert_not_legacy_models_path,
 )
 from ...core.constants import N_THETA, P_ATM, RATIO_SLOPE_LIMIT_FID1
-from ...core.encoding import ThermoParams
-from ...core.types import BreathingConfig, EvalContext
 from ...thermo.motionlaw import _ratio_profile_stats
 
 # Constants

@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.encoding import N_TOTAL
+from larrak_runtime.core.types import EvalContext
 
-from ...core.encoding import N_TOTAL
-from ...core.types import EvalContext
 from .symbolic_slice_problem import solve_symbolic_slice_with_ipopt
 
 

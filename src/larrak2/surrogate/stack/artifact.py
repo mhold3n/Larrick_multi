@@ -9,9 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-
-from larrak2.core.encoding import ENCODING_VERSION, ENCODING_VERSION_V0_4
-from larrak2.surrogate.quality_contract import (
+from larrak_runtime.core.encoding import ENCODING_VERSION, LEGACY_ENCODING_VERSION
+from larrak_runtime.surrogate.quality_contract import (
     sha256_file,
     validate_artifact_quality,
     write_quality_report,
@@ -231,7 +230,7 @@ def load_stack_artifact(
             activation=str(meta.get("activation", "relu")),
             leaky_relu_slope=float(meta.get("leaky_relu_slope", 0.01)),
             fidelity=int(meta.get("fidelity", 1)),
-            encoding_version=str(meta.get("encoding_version", ENCODING_VERSION_V0_4)),
+            encoding_version=str(meta.get("encoding_version", LEGACY_ENCODING_VERSION)),
             x_mean=np.asarray(data["x_mean"], dtype=np.float64),
             x_std=np.asarray(data["x_std"], dtype=np.float64),
             y_mean=np.asarray(data["y_mean"], dtype=np.float64),

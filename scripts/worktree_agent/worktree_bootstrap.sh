@@ -13,4 +13,4 @@ if [[ -n "${ROOT_WORKTREE_PATH:-}" ]] && [[ -f "${ROOT_WORKTREE_PATH}/.env" ]]; 
   cp "${ROOT_WORKTREE_PATH}/.env" .env
 fi
 
-python -m pytest -q tests/ci/test_workflow_ci_layout.py tests/ci/test_agent_docs.py
+python -m pytest -q tests/ci_contract

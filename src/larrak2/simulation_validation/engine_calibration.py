@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_engines.evaluator import evaluate_candidate
+from larrak_engines.thermo.validation import ThermoValidationError
+from larrak_runtime.core.types import BreathingConfig, EvalContext
 
-from ..core.evaluator import evaluate_candidate
-from ..core.types import BreathingConfig, EvalContext
 from ..orchestration.adapters.simulation_adapter import (
     candidate_openfoam_handoff_bundle,
     candidate_openfoam_params,
 )
-from ..thermo.validation import ThermoValidationError
 from .cantera_mechanisms import convert_chemkin_to_yaml
 
 DEFAULT_ENGINE_PACKAGE_MANIFEST = Path(

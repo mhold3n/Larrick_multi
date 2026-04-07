@@ -21,7 +21,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from larrak2.architecture.contracts import (  # noqa: E402
+from larrak_runtime.architecture.contracts import (  # noqa: E402
     CONNECTION_CONTRACT_V1,
     CONTRACT_VERSION,
     CRITICAL_REAL_KEY_PATHS_STAGE_A_TO_C,

@@ -8,9 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-
-from larrak2.core.archive_io import load_archive
-from larrak2.core.encoding import N_TOTAL
+from larrak_runtime.core.archive_io import load_archive
+from larrak_runtime.core.encoding import N_TOTAL
 
 
 @dataclass(frozen=True)

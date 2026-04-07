@@ -76,28 +76,27 @@ Orchestration note: `larrak2.orchestration` remains as the monorepo integration 
 
 ## 3. Testing Strategy
 
-We follow a **"Dev -> Robust -> CI"** promotion pipeline.
+We follow a **"Dev -> Contract CI"** split after package extraction.
 
 ### Test Groups
 
-1. **Robust (CI)**: `tests/ci/`
-    - **Goal**: Regression testing.
-    - **Rules**: Fast (<1s), Deterministic, Mocks external tools.
-    - **Execution**: Ran automatically by GitHub Actions on every push.
+1. **CI gate**: `tests/ci_contract/`
+    - **Goal**: Repo contract checks (docs, import hygiene, shim policy).
+    - **Rules**: Fast, deterministic, no heavy integration with extracted packages.
+    - **Execution**: GitHub Actions runs default `pytest` (see `pyproject.toml` `testpaths`).
 2. **Dev (Local)**: `tests/dev/`
     - **Goal**: Proving ground, validation, heavy workloads.
     - **Rules**: Can be slow/flaky. Manual execution only.
 
 ### Workflow
 
-1. **Incubate**: Write new tests in `tests/dev/`. Verify logic.
-2. **Refine**: Mock heavy dependencies. Ensure determinism.
-3. **Promote**: Move to `tests/ci/` when stable.
-4. **Verify**: Commit and push triggers CI.
+1. **Incubate**: Write new tests in `tests/dev/` or in the owning extracted package.
+2. **CI**: Keep the default suite small; add contract tests under `tests/ci_contract/` when the monorepo needs guardrails.
+3. **Verify**: Commit and push triggers CI.
 
 ### Running Tests
 
-- **CI Suite (Default)**: `pytest`
+- **CI Suite (Default)**: `pytest` (collects `tests/ci_contract` only)
 - **Dev Suite**: `pytest tests/dev`
 
 ---

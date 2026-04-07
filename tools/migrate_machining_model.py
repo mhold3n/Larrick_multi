@@ -6,7 +6,7 @@ import argparse
 import shutil
 from pathlib import Path
 
-from larrak2.core.artifact_paths import DEFAULT_MACHINING_NN_ARTIFACT
+from larrak_runtime.core.artifact_paths import DEFAULT_MACHINING_NN_ARTIFACT
 
 
 def main(argv: list[str] | None = None) -> int:

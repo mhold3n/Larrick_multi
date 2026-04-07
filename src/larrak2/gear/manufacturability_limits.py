@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from ..core.encoding import GearParams
+    from larrak_runtime.core.encoding import GearParams
 
 
 logger = logging.getLogger(__name__)

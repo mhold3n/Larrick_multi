@@ -9,8 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-
-from larrak2.pipelines.openfoam import OpenFoamPipeline
+from larrak_simulation.pipelines.openfoam import OpenFoamPipeline
 
 from .engine_results import build_engine_progress_summary, emit_engine_progress_artifacts
 from .engine_runtime_mechanism import resolve_engine_runtime_package

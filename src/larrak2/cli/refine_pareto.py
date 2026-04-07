@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 import numpy as np
+from larrak_runtime.core.encoding import ENCODING_VERSION, N_TOTAL
 
 from ..core.artifact_paths import (
     resolve_stack_artifact_path,
@@ -15,7 +16,6 @@ from ..core.artifact_paths import (
 )
 from ..core.constants import MODEL_VERSION_GEAR_V1, MODEL_VERSION_THERMO_V1
 from ..core.constraints import get_constraint_names, get_constraint_scales
-from ..core.encoding import ENCODING_VERSION, N_TOTAL
 
 
 def _load_freeze_mask(path: str | None) -> np.ndarray | None:
@@ -169,8 +169,9 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    from larrak_runtime.core.types import EvalContext
+
     from ..adapters.casadi_refine import RefinementMode, refine_candidate
-    from ..core.types import EvalContext
 
     input_dir = Path(args.input)
     output_dir = Path(args.output) if args.output else input_dir

@@ -1,8 +1,7 @@
 import numpy as np
-
-from larrak2.core.constraints import get_constraint_names
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.types import EvalContext
+from larrak_runtime.core.constraints import get_constraint_names
+from larrak_runtime.core.evaluator import evaluate_candidate
+from larrak_runtime.core.types import EvalContext
 
 
 def test_full_eval():

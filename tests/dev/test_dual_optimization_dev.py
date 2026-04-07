@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from larrak_runtime.core.encoding import random_candidate
+from larrak_runtime.core.evaluator import evaluate_candidate
+from larrak_runtime.core.types import EvalContext
 from pymoo.algorithms.moo.nsga3 import NSGA3
 from pymoo.optimize import minimize
 from pymoo.util.ref_dirs import get_reference_directions
 
 from larrak2.adapters.pymoo_problem import ParetoProblem
-from larrak2.core.encoding import random_candidate
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.types import EvalContext
 
 # --- Mocks ---
 

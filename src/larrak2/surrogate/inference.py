@@ -13,8 +13,11 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from larrak_runtime.core.artifact_paths import (
+    DEFAULT_SURROGATE_V1_DIR,
+    assert_not_legacy_models_path,
+)
 
-from larrak2.core.artifact_paths import DEFAULT_SURROGATE_V1_DIR, assert_not_legacy_models_path
 from larrak2.surrogate.features import (
     extract_gear_features_v1,
     extract_scavenge_features_v1,

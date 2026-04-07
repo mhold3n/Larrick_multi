@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from larrak2.core.artifact_paths import (
+from larrak_runtime.core.artifact_paths import (
     DEFAULT_CALCULIX_NN_ARTIFACT,
     DEFAULT_HIFI_SURROGATE_DIR,
     DEFAULT_INITIALIZATION_SURROGATE_DIR,

@@ -1,8 +1,7 @@
 import numpy as np
-
-from larrak2.core.encoding import decode_candidate, mid_bounds_candidate
-from larrak2.core.evaluator import evaluate_candidate
-from larrak2.core.types import EvalContext
+from larrak_engines.evaluator import evaluate_candidate
+from larrak_runtime.core.encoding import decode_candidate, mid_bounds_candidate
+from larrak_runtime.core.types import EvalContext
 
 
 def main():

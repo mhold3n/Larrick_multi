@@ -16,24 +16,22 @@ from typing import Any, Protocol
 
 import numpy as np
 from larrak_optimization import STRICT_PRODUCTION_PROFILE
+from larrak_orchestration.legacy_loop.budget import BudgetManager
+from larrak_orchestration.legacy_loop.cache import EvaluationCache
 from larrak_orchestration.legacy_loop.orchestrator import (
     LegacyOrchestrationConfig,
     LegacyOrchestrationResult,
     LegacyOrchestrator,
 )
-
-from larrak2.architecture.contracts import (
+from larrak_orchestration.legacy_loop.trust_region import TrustRegion
+from larrak_runtime.architecture.contracts import (
     ContractTracer,
     activate_contract_tracer,
     deactivate_contract_tracer,
     log_contract_edge,
 )
-from larrak2.core.encoding import N_TOTAL
-from larrak2.core.types import BreathingConfig, EvalContext
-
-from .budget import BudgetManager
-from .cache import EvaluationCache
-from .trust_region import TrustRegion
+from larrak_runtime.core.encoding import N_TOTAL
+from larrak_runtime.core.types import BreathingConfig, EvalContext
 
 
 class CEMInterface(Protocol):

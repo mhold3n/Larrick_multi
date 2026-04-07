@@ -14,8 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
-
-from larrak2.surrogate.quality_contract import (
+from larrak_runtime.surrogate.quality_contract import (
     sha256_file,
     validate_artifact_quality,
     write_quality_report,
