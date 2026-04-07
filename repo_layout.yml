@@ -1,4 +1,5 @@
 allowed_top_level_dirs:
+  - .cursor
   - .github
   - .task-runtime
   - Docs

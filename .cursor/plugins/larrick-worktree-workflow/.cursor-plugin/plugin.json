@@ -1,0 +1,8 @@
+{
+  "name": "larrick-worktree-workflow",
+  "version": "0.1.0",
+  "description": "Standardizes branch-domain worktree workflow and safety checks in Cursor.",
+  "author": {
+    "name": "Larrick Engineering"
+  }
+}

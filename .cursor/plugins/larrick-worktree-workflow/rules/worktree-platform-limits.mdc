@@ -1,0 +1,9 @@
+---
+description: Keep Cursor worktree automation aligned with platform limits.
+alwaysApply: true
+---
+
+- Cursor Parallel Agents run in Cursor-managed worktrees.
+- Merge-back from parallel runs occurs through Cursor's Apply flow.
+- In Cursor-created worktrees, prioritize CLI validation commands over editor LSP diagnostics.
+- Keep project bootstrap in repository-owned `.cursor/worktrees.json`.

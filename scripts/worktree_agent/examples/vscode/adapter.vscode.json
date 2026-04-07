@@ -1,0 +1,14 @@
+{
+  "adapter_name": "vscode-fork-minimal",
+  "purpose": "Minimal non-Cursor adapter using VS Code tasks and git hooks.",
+  "worktree_bootstrap_command": "scripts/worktree_agent/worktree_bootstrap.sh",
+  "branch_policy_guard_command": "scripts/worktree_agent/branch_policy_guard.sh",
+  "pre_pr_checks_command": "scripts/worktree_agent/pre_pr_checks.sh",
+  "task_file": ".vscode/tasks.json",
+  "git_hook_example": ".githooks/pre-push",
+  "notes": [
+    "Use VS Code tasks to invoke shared scripts.",
+    "Use git hooks for enforcement outside editor UX.",
+    "Keep codex/<workflow>/<short-topic> naming and protected branch policy."
+  ]
+}

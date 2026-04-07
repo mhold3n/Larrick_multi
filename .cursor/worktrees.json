@@ -1,0 +1,5 @@
+{
+  "setup-worktree-unix": [
+    "bash scripts/worktree_agent/worktree_bootstrap.sh"
+  ]
+}

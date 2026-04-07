@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "scripts/worktree_agent/branch_policy_guard.sh",
+        "matcher": "git\\s+(push|checkout|switch)"
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": ".cursor/plugins/larrick-worktree-workflow/scripts/session_hint.sh"
+      }
+    ]
+  }
+}

@@ -58,6 +58,19 @@ requests targeting `main`. The fast lane runs:
 Self-hosted heavy lanes may still exist in the future, but they are not tied to
 branch-specific workflow wrappers anymore.
 
+## Cursor Worktree Workflow
+
+- Manual domain separation: open one Cursor window per `git worktree` directory.
+- Cursor Parallel Agents create Cursor-managed worktrees and apply edits back via
+  the Cursor "Apply" action.
+- Keep branch naming as `codex/<workflow>/<short-topic>` for consistency with repo
+  conventions and CI expectations.
+- In Cursor-created worktrees, rely on CLI checks (`ruff`, `mypy`, `pytest`) for
+  validation because LSP diagnostics are not available in that environment.
+- Cursor-specific hooks/setup should delegate to portable stubs in
+  `scripts/worktree_agent/` so open-source editor/agent replacements can reuse
+  the same workflow contract across all five development branches.
+
 ## Simulation Dataset Contract
 
 Simulation outputs are shared through versioned manifest bundles

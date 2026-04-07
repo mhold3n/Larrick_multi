@@ -1,0 +1,12 @@
+{
+  "adapter_name": "replace-with-platform-name",
+  "purpose": "Map platform-specific hooks/commands to portable worktree-agent stubs.",
+  "worktree_bootstrap_command": "scripts/worktree_agent/worktree_bootstrap.sh",
+  "branch_policy_guard_command": "scripts/worktree_agent/branch_policy_guard.sh",
+  "pre_pr_checks_command": "scripts/worktree_agent/pre_pr_checks.sh",
+  "notes": [
+    "Do not duplicate policy logic in platform adapters.",
+    "Call shared scripts from hooks, command palettes, or agent runtimes.",
+    "Keep branch naming codex/<workflow>/<short-topic>."
+  ]
+}

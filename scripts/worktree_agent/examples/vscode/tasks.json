@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Larrick: Worktree Bootstrap",
+      "type": "shell",
+      "command": "bash scripts/worktree_agent/worktree_bootstrap.sh",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Larrick: Pre-PR Checks",
+      "type": "shell",
+      "command": "bash scripts/worktree_agent/pre_pr_checks.sh",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Larrick: Branch Policy Check (Current Branch)",
+      "type": "shell",
+      "command": "python3 - <<'PY'\nimport json, subprocess\nbranch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], text=True).strip()\ncmd = f'git checkout -b {branch}'\nproc = subprocess.run(['bash', 'scripts/worktree_agent/branch_policy_guard.sh'], input=json.dumps({'command': cmd}), text=True)\nraise SystemExit(proc.returncode)\nPY",
+      "problemMatcher": []
+    }
+  ]
+}

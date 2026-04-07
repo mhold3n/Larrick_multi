@@ -1,0 +1,9 @@
+---
+description: Enforce Larrick branch-domain ownership and branch naming.
+alwaysApply: true
+---
+
+- Use `codex/<workflow>/<short-topic>` branch naming for task branches.
+- Land changes on owning `dev/<workflow>` first, then promote to `main`.
+- Do not propose edits outside the owning domain paths unless explicitly requested.
+- Do not push directly to `main` or any `dev/*` branch.
