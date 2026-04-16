@@ -14,9 +14,9 @@ dependencies = [
     "scikit-learn>=1.0",
     "larrak-core @ git+https://github.com/LarrickCamPro/larrak-core.git@3fd949e4f41bd5c5f2a0e825fca2118fe301d235",
     "larrak-engines @ git+https://github.com/LarrickCamPro/larrak-engines.git@dcaa763baef5ba870db16038e9cbc832e24c13fe",
-    "larrak-simulation @ git+https://github.com/LarrickCamPro/larrak-simulation.git@66ba652dbeb2d223cd96a54710ef7fc480aef73d",
+    "larrak-simulation @ git+https://github.com/LarrickCamPro/larrak-simulation.git@6b19e38fd41a6385555ed74bb9d671821cc75506",
     "larrak-optimization @ git+https://github.com/LarrickCamPro/larrak-optimization.git@9e1fd892426ba8f86c171119419be3e1b879e023",
-    "larrak-analysis @ git+https://github.com/LarrickCamPro/larrak-analysis.git@63c8a98dd45808b84cdd27137e3e79a13f3d6536",
+    "larrak-analysis @ git+https://github.com/LarrickCamPro/larrak-analysis.git@c6fc3286a17bd7ad0ec8571b2076564d83ff31b3",
     "larrak-orchestration @ git+https://github.com/LarrickCamPro/larrak-orchestration.git@b94e702b7d5953550004979233072c6f14fa61a0",
 ]
 
