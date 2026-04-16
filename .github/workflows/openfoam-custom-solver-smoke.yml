@@ -15,6 +15,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Configure Git for private LarrickCamPro dependencies
+        env:
+          PAT: ${{ secrets.LARRICKCAMPRO_GIT_READ_PAT }}
+        run: |
+          if [ -z "${PAT}" ]; then
+            echo "::error::Missing repository secret LARRICKCAMPRO_GIT_READ_PAT (PAT with Contents: Read on private LarrickCamPro/larrak-* repos). Required for pip to clone pinned git dependencies."
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${PAT}@github.com/LarrickCamPro/".insteadOf "https://github.com/LarrickCamPro/"
       - name: Install project (minimal)
         run: |
           python -m pip install --upgrade pip
