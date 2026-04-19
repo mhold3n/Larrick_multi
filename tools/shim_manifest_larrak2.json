@@ -1,10 +1,10 @@
 {
   "counts": {
-    "real_module": 134,
-    "shim_alias": 1,
+    "real_module": 133,
+    "shim_alias": 0,
     "shim_delegate": 0,
-    "shim_star": 40,
-    "total": 175
+    "shim_star": 0,
+    "total": 133
   },
   "generated_by": "tools/replace_larrak2_shims.py inventory",
   "records": [
@@ -59,45 +59,10 @@
     },
     {
       "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.analysis",
-      "path": "src/larrak2/analysis/__init__.py",
-      "target_module": "larrak_analysis"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.analysis.sensitivity",
-      "path": "src/larrak2/analysis/sensitivity.py",
-      "target_module": "larrak_analysis.sensitivity"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.analysis.workflows",
-      "path": "src/larrak2/analysis/workflows.py",
-      "target_module": "larrak_analysis.workflows"
-    },
-    {
-      "adds_symbols": [],
       "kind": "real_module",
       "module": "larrak2.architecture",
       "path": "src/larrak2/architecture/__init__.py",
       "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.architecture.contracts",
-      "path": "src/larrak2/architecture/contracts.py",
-      "target_module": "larrak_runtime.architecture.contracts"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.architecture.workflow_contracts",
-      "path": "src/larrak2/architecture/workflow_contracts.py",
-      "target_module": "larrak_runtime.architecture.workflow_contracts"
     },
     {
       "adds_symbols": [],
@@ -112,83 +77,6 @@
       "module": "larrak2.artifacts.model_layout",
       "path": "src/larrak2/artifacts/model_layout.py",
       "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem",
-      "path": "src/larrak2/cem/__init__.py",
-      "target_module": "larrak_engines.cem"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.evaluator",
-      "path": "src/larrak2/cem/evaluator.py",
-      "target_module": "larrak_engines.cem.evaluator"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.galerkin_validation",
-      "path": "src/larrak2/cem/galerkin_validation.py",
-      "target_module": "larrak_engines.cem.galerkin_validation"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.lubrication",
-      "path": "src/larrak2/cem/lubrication.py",
-      "target_module": "larrak_engines.cem.lubrication"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.material_db",
-      "path": "src/larrak2/cem/material_db.py",
-      "target_module": "larrak_engines.cem.material_db"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.material_snapping",
-      "path": "src/larrak2/cem/material_snapping.py",
-      "target_module": "larrak_engines.cem.material_snapping"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.post_processing",
-      "path": "src/larrak2/cem/post_processing.py",
-      "target_module": "larrak_engines.cem.post_processing"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.property_curves",
-      "path": "src/larrak2/cem/property_curves.py",
-      "target_module": "larrak_engines.cem.property_curves"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.registry",
-      "path": "src/larrak2/cem/registry.py",
-      "target_module": "larrak_engines.cem.registry"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.surface_finish",
-      "path": "src/larrak2/cem/surface_finish.py",
-      "target_module": "larrak_engines.cem.surface_finish"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.cem.tribology",
-      "path": "src/larrak2/cem/tribology.py",
-      "target_module": "larrak_engines.cem.tribology"
     },
     {
       "adds_symbols": [],
@@ -263,13 +151,6 @@
     {
       "adds_symbols": [],
       "kind": "real_module",
-      "module": "larrak2.core",
-      "path": "src/larrak2/core/__init__.py",
-      "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "real_module",
       "module": "larrak2.core.archive_io",
       "path": "src/larrak2/core/archive_io.py",
       "target_module": null
@@ -310,30 +191,6 @@
       "target_module": null
     },
     {
-      "adds_symbols": [
-        "ENCODING_VERSION_V0_4",
-        "N_TOTAL_V0_4"
-      ],
-      "kind": "shim_star",
-      "module": "larrak2.core.encoding",
-      "path": "src/larrak2/core/encoding.py",
-      "target_module": "larrak_runtime.core.encoding"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.core.evaluator",
-      "path": "src/larrak2/core/evaluator.py",
-      "target_module": "larrak_engines.evaluator"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.core.types",
-      "path": "src/larrak2/core/types.py",
-      "target_module": "larrak_runtime.core.types"
-    },
-    {
       "adds_symbols": [],
       "kind": "real_module",
       "module": "larrak2.gear",
@@ -367,13 +224,6 @@
       "module": "larrak2.gear.manufacturability_limits",
       "path": "src/larrak2/gear/manufacturability_limits.py",
       "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.gear.picogk_adapter",
-      "path": "src/larrak2/gear/picogk_adapter.py",
-      "target_module": "larrak_engines.gear.picogk_adapter"
     },
     {
       "adds_symbols": [],
@@ -629,38 +479,10 @@
     },
     {
       "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.orchestration.adapters.solver_adapter",
-      "path": "src/larrak2/orchestration/adapters/solver_adapter.py",
-      "target_module": "larrak_optimization.integrations.orchestration"
-    },
-    {
-      "adds_symbols": [],
       "kind": "real_module",
       "module": "larrak2.orchestration.adapters.surrogate_adapter",
       "path": "src/larrak2/orchestration/adapters/surrogate_adapter.py",
       "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.orchestration.backends",
-      "path": "src/larrak2/orchestration/backends/__init__.py",
-      "target_module": "larrak_orchestration.legacy_loop.backends"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.orchestration.budget",
-      "path": "src/larrak2/orchestration/budget.py",
-      "target_module": "larrak_orchestration.legacy_loop.budget"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.orchestration.cache",
-      "path": "src/larrak2/orchestration/cache.py",
-      "target_module": "larrak_orchestration.legacy_loop.cache"
     },
     {
       "adds_symbols": [],
@@ -685,13 +507,6 @@
     },
     {
       "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.orchestration.trust_region",
-      "path": "src/larrak2/orchestration/trust_region.py",
-      "target_module": "larrak_orchestration.legacy_loop.trust_region"
-    },
-    {
-      "adds_symbols": [],
       "kind": "real_module",
       "module": "larrak2.pipelines",
       "path": "src/larrak2/pipelines/__init__.py",
@@ -703,13 +518,6 @@
       "module": "larrak2.pipelines.explore_exploit",
       "path": "src/larrak2/pipelines/explore_exploit.py",
       "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.pipelines.openfoam",
-      "path": "src/larrak2/pipelines/openfoam.py",
-      "target_module": "larrak_simulation.pipelines.openfoam"
     },
     {
       "adds_symbols": [],
@@ -794,41 +602,6 @@
       "module": "larrak2.promote.staged",
       "path": "src/larrak2/promote/staged.py",
       "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.realworld",
-      "path": "src/larrak2/realworld/__init__.py",
-      "target_module": "larrak_engines.realworld"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.realworld.constraints",
-      "path": "src/larrak2/realworld/constraints.py",
-      "target_module": "larrak_engines.realworld.constraints"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.realworld.life_damage",
-      "path": "src/larrak2/realworld/life_damage.py",
-      "target_module": "larrak_engines.realworld.life_damage"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.realworld.surrogates",
-      "path": "src/larrak2/realworld/surrogates.py",
-      "target_module": "larrak_engines.realworld.surrogates"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.simulation_validation",
-      "path": "src/larrak2/simulation_validation/__init__.py",
-      "target_module": "larrak_simulation.simulation_validation"
     },
     {
       "adds_symbols": [],
@@ -1133,13 +906,6 @@
     },
     {
       "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.surrogate.quality_contract",
-      "path": "src/larrak2/surrogate/quality_contract.py",
-      "target_module": "larrak_runtime.surrogate.quality_contract"
-    },
-    {
-      "adds_symbols": [],
       "kind": "real_module",
       "module": "larrak2.surrogate.stack",
       "path": "src/larrak2/surrogate/stack/__init__.py",
@@ -1172,70 +938,7 @@
       "module": "larrak2.surrogate.stack.train",
       "path": "src/larrak2/surrogate/stack/train.py",
       "target_module": null
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.thermo",
-      "path": "src/larrak2/thermo/__init__.py",
-      "target_module": "larrak_engines.thermo"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.thermo.constants",
-      "path": "src/larrak2/thermo/constants.py",
-      "target_module": "larrak_engines.thermo.constants"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.thermo.symbolic_artifact",
-      "path": "src/larrak2/thermo/symbolic_artifact.py",
-      "target_module": "larrak_engines.thermo.symbolic_artifact"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.training",
-      "path": "src/larrak2/training/__init__.py",
-      "target_module": "larrak_simulation.training"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.training.basic",
-      "path": "src/larrak2/training/basic.py",
-      "target_module": "larrak_simulation.training.basic"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.training.hifi_schema",
-      "path": "src/larrak2/training/hifi_schema.py",
-      "target_module": "larrak_simulation.training.hifi_schema"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.training.hifi_train",
-      "path": "src/larrak2/training/hifi_train.py",
-      "target_module": "larrak_simulation.training.hifi_train"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_alias",
-      "module": "larrak2.training.overnight_campaign",
-      "path": "src/larrak2/training/overnight_campaign.py",
-      "target_module": "larrak_simulation.training.overnight_campaign"
-    },
-    {
-      "adds_symbols": [],
-      "kind": "shim_star",
-      "module": "larrak2.training.workflows",
-      "path": "src/larrak2/training/workflows.py",
-      "target_module": "larrak_simulation.training.workflows"
     }
   ],
-  "repo_root": "/Users/maxholden/GitHub/Larrick_multi"
+  "repo_root": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi"
 }

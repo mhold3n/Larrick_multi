@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 import numpy as np
-from larrak_engines.realworld.surrogates import (
+from larrak_simulation.engine_physics.realworld import (
     RealWorldSurrogateParams,
     evaluate_realworld_surrogates,
 )

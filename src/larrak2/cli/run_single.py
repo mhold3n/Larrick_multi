@@ -33,7 +33,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    from larrak_engines.evaluator import evaluate_candidate
+    from larrak_simulation.evaluation import evaluate_candidate
     from larrak_runtime.core.encoding import mid_bounds_candidate, random_candidate
     from larrak_runtime.core.types import EvalContext
 

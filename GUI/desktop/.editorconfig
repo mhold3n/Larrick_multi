@@ -1,0 +1,15 @@
+root = false
+
+[*.{kt,kts}]
+ktlint_code_style = intellij_idea
+ktlint_standard_no-wildcard-imports = enabled
+ktlint_standard_max-line-length = 140
+
+[src/test/**.kt]
+ktlint_standard_no-wildcard-imports = disabled
+ktlint_standard_max-line-length = disabled
+ktlint_standard_no-empty-file = disabled
+ktlint_standard_import-ordering = disabled
+
+[**/*.kts]
+ktlint_standard_max-line-length = disabled

@@ -1,0 +1,7 @@
+{
+  "stepDeg": 2.0,
+  "samples": [
+    { "thetaDeg": 0.0, "xMm": 0.0, "vMmPerOmega": 0.0, "aMmPerOmega2": 0.0 }
+  ]
+}
+

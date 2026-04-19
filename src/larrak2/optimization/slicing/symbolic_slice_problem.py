@@ -7,18 +7,17 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
-from larrak_engines.thermo.symbolic_bridge import apply_thermo_symbolic_overlay
 from larrak_runtime.core.encoding import N_TOTAL, bounds
-from larrak_runtime.core.evaluator import evaluate_candidate
 from larrak_runtime.core.types import EvalContext
-
-from ...core.artifact_paths import DEFAULT_THERMO_SYMBOLIC_ARTIFACT
-from ...surrogate.stack import (
-    StackSurrogateArtifact,
+from larrak_simulation.engine_physics.thermo.symbolic_bridge import apply_thermo_symbolic_overlay
+from larrak_simulation.evaluation import evaluate_candidate
+from larrak_simulation.surrogate.stack import StackSurrogateArtifact, load_stack_artifact
+from larrak_simulation.surrogate.stack.symbolic import (
     assemble_symbolic_feature_vector,
-    load_stack_artifact,
     symbolic_objectives_constraints,
 )
+
+from ...core.artifact_paths import DEFAULT_THERMO_SYMBOLIC_ARTIFACT
 from ..solvers.ipopt import IPOPTOptions, IPOPTSolver
 
 

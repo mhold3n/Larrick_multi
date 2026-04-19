@@ -1,0 +1,382 @@
+package com.campro.v5.ui
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.dp
+import org.junit.Rule
+import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class EnhancedResizableComponentsTest {
+
+    @get:Rule
+    val composeTestRule = createComposeRule()
+
+    @Test
+    fun testResizableContainer_initialSize() {
+        var currentWidth by mutableStateOf(400.dp)
+        var currentHeight by mutableStateOf(300.dp)
+
+        composeTestRule.setContent {
+            ResizableContainer(
+                modifier = Modifier.testTag("resizable_container"),
+                title = "Test Container",
+                initialWidth = currentWidth,
+                initialHeight = currentHeight,
+                onSizeChanged = { width, height ->
+                    currentWidth = width
+                    currentHeight = height
+                }
+            ) {
+                Text(
+                    text = "Test Content",
+                    modifier = Modifier.testTag("test_content")
+                )
+            }
+        }
+
+        // Verify container is rendered
+        composeTestRule.onNodeWithTag("resizable_container").assertExists()
+        composeTestRule.onNodeWithTag("test_content").assertExists()
+        
+        // Verify title is displayed
+        composeTestRule.onNodeWithText("Test Container").assertExists()
+    }
+
+    @Test
+    fun testResizableContainer_resizeHandles() {
+        composeTestRule.setContent {
+            ResizableContainer(
+                modifier = Modifier.testTag("resizable_container"),
+                title = "Test Container",
+                enabledDirections = setOf(
+                    ResizeDirection.BOTTOM,
+                    ResizeDirection.RIGHT,
+                    ResizeDirection.BOTTOM_RIGHT
+                )
+            ) {
+                Text("Test Content")
+            }
+        }
+
+        // Verify container exists
+        composeTestRule.onNodeWithTag("resizable_container").assertExists()
+        
+        // Note: In a real test environment, we would verify resize handles are present
+        // and test drag gestures, but this requires more complex UI testing setup
+    }
+
+    @Test
+    fun testEnhancedScrollableContent_verticalScrolling() {
+        composeTestRule.setContent {
+            EnhancedScrollableContent(
+                modifier = Modifier.testTag("scrollable_content"),
+                enableVerticalScroll = true,
+                enableHorizontalScroll = false
+            ) {
+                repeat(50) { index ->
+                    Text(
+                        text = "Item $index",
+                        modifier = Modifier.testTag("item_$index")
+                    )
+                }
+            }
+        }
+
+        // Verify scrollable content exists
+        composeTestRule.onNodeWithTag("scrollable_content").assertExists()
+        
+        // Verify first item is visible
+        composeTestRule.onNodeWithTag("item_0").assertExists()
+        
+        // Note: Actual scrolling tests would require more complex gesture simulation
+    }
+
+    @Test
+    fun testHorizontalSplitPane_initialRatio() {
+        var leftContentVisible = false
+        var rightContentVisible = false
+
+        composeTestRule.setContent {
+            HorizontalSplitPane(
+                modifier = Modifier.testTag("split_pane"),
+                splitRatio = 0.6f,
+                leftContent = {
+                    Text(
+                        text = "Left Content",
+                        modifier = Modifier.testTag("left_content")
+                    )
+                    leftContentVisible = true
+                },
+                rightContent = {
+                    Text(
+                        text = "Right Content",
+                        modifier = Modifier.testTag("right_content")
+                    )
+                    rightContentVisible = true
+                }
+            )
+        }
+
+        // Verify split pane exists
+        composeTestRule.onNodeWithTag("split_pane").assertExists()
+        
+        // Verify both content areas are rendered
+        composeTestRule.onNodeWithTag("left_content").assertExists()
+        composeTestRule.onNodeWithTag("right_content").assertExists()
+        
+        // Verify content is visible
+        assertTrue(leftContentVisible, "Left content should be visible")
+        assertTrue(rightContentVisible, "Right content should be visible")
+    }
+
+    @Test
+    fun testVerticalSplitPane_initialRatio() {
+        composeTestRule.setContent {
+            VerticalSplitPane(
+                modifier = Modifier.testTag("vertical_split_pane"),
+                splitRatio = 0.5f,
+                topContent = {
+                    Text(
+                        text = "Top Content",
+                        modifier = Modifier.testTag("top_content")
+                    )
+                },
+                bottomContent = {
+                    Text(
+                        text = "Bottom Content",
+                        modifier = Modifier.testTag("bottom_content")
+                    )
+                }
+            )
+        }
+
+        // Verify split pane exists
+        composeTestRule.onNodeWithTag("vertical_split_pane").assertExists()
+        
+        // Verify both content areas are rendered
+        composeTestRule.onNodeWithTag("top_content").assertExists()
+        composeTestRule.onNodeWithTag("bottom_content").assertExists()
+    }
+
+    @Test
+    fun testResizeDirection_enum() {
+        // Test all resize directions are available
+        val directions = ResizeDirection.values()
+        
+        assertEquals(8, directions.size, "Should have 8 resize directions")
+        
+        assertTrue(directions.contains(ResizeDirection.BOTTOM))
+        assertTrue(directions.contains(ResizeDirection.RIGHT))
+        assertTrue(directions.contains(ResizeDirection.BOTTOM_RIGHT))
+        assertTrue(directions.contains(ResizeDirection.LEFT))
+        assertTrue(directions.contains(ResizeDirection.TOP))
+        assertTrue(directions.contains(ResizeDirection.TOP_LEFT))
+        assertTrue(directions.contains(ResizeDirection.TOP_RIGHT))
+        assertTrue(directions.contains(ResizeDirection.BOTTOM_LEFT))
+    }
+
+    @Test
+    fun testResizableContainer_sizeConstraints() {
+        var finalWidth = 0.dp
+        var finalHeight = 0.dp
+
+        composeTestRule.setContent {
+            ResizableContainer(
+                modifier = Modifier.testTag("constrained_container"),
+                initialWidth = 500.dp,
+                initialHeight = 400.dp,
+                minWidth = 200.dp,
+                minHeight = 150.dp,
+                maxWidth = 800.dp,
+                maxHeight = 600.dp,
+                onSizeChanged = { width, height ->
+                    finalWidth = width
+                    finalHeight = height
+                }
+            ) {
+                Text("Constrained Content")
+            }
+        }
+
+        // Verify container respects initial size
+        composeTestRule.onNodeWithTag("constrained_container").assertExists()
+        
+        // Note: In a real test, we would simulate resize operations and verify
+        // that the container respects min/max constraints
+    }
+
+    @Test
+    fun testEnhancedScrollableContent_scrollIndicators() {
+        composeTestRule.setContent {
+            EnhancedScrollableContent(
+                modifier = Modifier.testTag("scrollable_with_indicators"),
+                showScrollIndicators = true,
+                enableVerticalScroll = true
+            ) {
+                // Add enough content to make scrolling necessary
+                repeat(100) { index ->
+                    Text(
+                        text = "Long content item $index that should cause scrolling",
+                        modifier = Modifier.testTag("scroll_item_$index")
+                    )
+                }
+            }
+        }
+
+        // Verify scrollable content exists
+        composeTestRule.onNodeWithTag("scrollable_with_indicators").assertExists()
+        
+        // Verify first item is visible
+        composeTestRule.onNodeWithTag("scroll_item_0").assertExists()
+        
+        // Note: Testing scroll indicators visibility would require more complex setup
+    }
+
+    @Test
+    fun testResizableContainer_titleDisplay() {
+        val testTitle = "My Custom Container"
+
+        composeTestRule.setContent {
+            ResizableContainer(
+                modifier = Modifier.testTag("titled_container"),
+                title = testTitle
+            ) {
+                Text("Content with title")
+            }
+        }
+
+        // Verify container exists
+        composeTestRule.onNodeWithTag("titled_container").assertExists()
+        
+        // Verify title is displayed
+        composeTestRule.onNodeWithText(testTitle).assertExists()
+    }
+
+    @Test
+    fun testResizableContainer_noTitle() {
+        composeTestRule.setContent {
+            ResizableContainer(
+                modifier = Modifier.testTag("untitled_container"),
+                title = "" // Empty title
+            ) {
+                Text("Content without title")
+            }
+        }
+
+        // Verify container exists
+        composeTestRule.onNodeWithTag("untitled_container").assertExists()
+        
+        // Verify content is displayed
+        composeTestRule.onNodeWithText("Content without title").assertExists()
+    }
+}
+
+/**
+ * Integration tests for the complete enhanced resizable system
+ */
+class EnhancedResizableIntegrationTest {
+
+    @get:Rule
+    val composeTestRule = createComposeRule()
+
+    @Test
+    fun testCompleteResizableLayout_integration() {
+        var parametersChanged = false
+        val testParameters = mapOf("test" to "value")
+
+        composeTestRule.setContent {
+            // Simulate a complete layout with multiple resizable containers
+            Box(modifier = Modifier.fillMaxSize()) {
+                HorizontalSplitPane(
+                    modifier = Modifier.testTag("main_split"),
+                    leftContent = {
+                        ResizableContainer(
+                            modifier = Modifier.testTag("left_container"),
+                            title = "Left Panel",
+                            enabledDirections = setOf(ResizeDirection.RIGHT)
+                        ) {
+                            Text("Left panel content")
+                        }
+                    },
+                    rightContent = {
+                        VerticalSplitPane(
+                            modifier = Modifier.testTag("right_split"),
+                            topContent = {
+                                ResizableContainer(
+                                    modifier = Modifier.testTag("top_right_container"),
+                                    title = "Top Right",
+                                    enabledDirections = setOf(ResizeDirection.BOTTOM)
+                                ) {
+                                    Text("Top right content")
+                                }
+                            },
+                            bottomContent = {
+                                ResizableContainer(
+                                    modifier = Modifier.testTag("bottom_right_container"),
+                                    title = "Bottom Right",
+                                    enabledDirections = setOf(ResizeDirection.TOP)
+                                ) {
+                                    EnhancedScrollableContent {
+                                        repeat(20) { index ->
+                                            Text("Scrollable item $index")
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    }
+                )
+            }
+        }
+
+        // Verify all components are rendered
+        composeTestRule.onNodeWithTag("main_split").assertExists()
+        composeTestRule.onNodeWithTag("left_container").assertExists()
+        composeTestRule.onNodeWithTag("right_split").assertExists()
+        composeTestRule.onNodeWithTag("top_right_container").assertExists()
+        composeTestRule.onNodeWithTag("bottom_right_container").assertExists()
+
+        // Verify titles are displayed
+        composeTestRule.onNodeWithText("Left Panel").assertExists()
+        composeTestRule.onNodeWithText("Top Right").assertExists()
+        composeTestRule.onNodeWithText("Bottom Right").assertExists()
+
+        // Verify content is displayed
+        composeTestRule.onNodeWithText("Left panel content").assertExists()
+        composeTestRule.onNodeWithText("Top right content").assertExists()
+        composeTestRule.onNodeWithText("Scrollable item 0").assertExists()
+    }
+
+    @Test
+    fun testResponsiveLayout_adaptation() {
+        // This test would verify that the layout adapts to different screen sizes
+        // In a real implementation, we would test with different window sizes
+        
+        composeTestRule.setContent {
+            // Mock layout manager for testing
+            val mockLayoutManager = object : com.campro.v5.layout.LayoutManager {
+                override fun shouldUseSingleColumn(): Boolean = true
+                override fun updateWindowSize(width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {}
+            }
+
+            ResponsiveLayout(
+                testingMode = true,
+                animationStarted = false,
+                allParameters = mapOf(),
+                layoutManager = mockLayoutManager,
+                onParametersChanged = {}
+            )
+        }
+
+        // Verify the responsive layout renders
+        // Note: More specific assertions would depend on the actual layout implementation
+    }
+}

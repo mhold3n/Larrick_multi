@@ -1,0 +1,50 @@
+{
+  "id": "dev_template",
+  "name": "Development Layout",
+  "description": "Optimized for development with larger parameter panel",
+  "template": "DEVELOPMENT",
+  "createdAt": "2025-08-06T18:02:13.8231757",
+  "modifiedAt": "2025-08-06T18:02:13.8261813",
+  "panels": [
+    {
+      "id": "parameter_panel",
+      "title": "Parameters",
+      "state": "DOCKED",
+      "x": 0.0,
+      "y": 0.0,
+      "width": 600.0,
+      "height": 500.0,
+      "minWidth": 400.0,
+      "minHeight": 300.0,
+      "maxWidth": 800.0,
+      "maxHeight": 700.0,
+      "dockZone": "LEFT",
+      "isMinimized": false,
+      "zIndex": 0.0
+    },
+    {
+      "id": "animation_panel",
+      "title": "Animation",
+      "state": "DOCKED",
+      "x": 620.0,
+      "y": 0.0,
+      "width": 400.0,
+      "height": 300.0,
+      "minWidth": 300.0,
+      "minHeight": 200.0,
+      "maxWidth": 600.0,
+      "maxHeight": 500.0,
+      "dockZone": "RIGHT",
+      "isMinimized": false,
+      "zIndex": 0.0
+    }
+  ],
+  "tabGroups": [],
+  "containerBounds": {
+    "left": 0.0,
+    "top": 0.0,
+    "right": 1200.0,
+    "bottom": 800.0
+  },
+  "version": "1.0"
+}

@@ -22,7 +22,7 @@ To keep this workflow portable, Cursor-specific elements call shared scripts in
 
 ```bash
 mkdir -p ~/.cursor/plugins/local
-ln -s /Users/maxholden/GitHub/Larrick_multi/.cursor/plugins/larrick-worktree-workflow ~/.cursor/plugins/local/larrick-worktree-workflow
+ln -s "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/.cursor/plugins/larrick-worktree-workflow" ~/.cursor/plugins/local/larrick-worktree-workflow
 ```
 
 2. Reload Cursor window.

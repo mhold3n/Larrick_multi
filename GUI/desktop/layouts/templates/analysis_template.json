@@ -1,0 +1,66 @@
+{
+  "id": "analysis_template",
+  "name": "Analysis Layout",
+  "description": "Optimized for data analysis with larger plot and data panels",
+  "template": "ANALYSIS",
+  "createdAt": "2025-08-06T18:02:13.82718",
+  "modifiedAt": "2025-08-06T18:02:13.82718",
+  "panels": [
+    {
+      "id": "parameter_panel",
+      "title": "Parameters",
+      "state": "DOCKED",
+      "x": 0.0,
+      "y": 0.0,
+      "width": 300.0,
+      "height": 400.0,
+      "minWidth": 250.0,
+      "minHeight": 300.0,
+      "maxWidth": 500.0,
+      "maxHeight": 600.0,
+      "dockZone": "LEFT",
+      "isMinimized": false,
+      "zIndex": 0.0
+    },
+    {
+      "id": "plot_panel",
+      "title": "Plots",
+      "state": "DOCKED",
+      "x": 320.0,
+      "y": 0.0,
+      "width": 600.0,
+      "height": 400.0,
+      "minWidth": 400.0,
+      "minHeight": 300.0,
+      "maxWidth": 800.0,
+      "maxHeight": 600.0,
+      "dockZone": "CENTER",
+      "isMinimized": false,
+      "zIndex": 0.0
+    },
+    {
+      "id": "data_panel",
+      "title": "Data Display",
+      "state": "DOCKED",
+      "x": 320.0,
+      "y": 420.0,
+      "width": 600.0,
+      "height": 300.0,
+      "minWidth": 400.0,
+      "minHeight": 200.0,
+      "maxWidth": 800.0,
+      "maxHeight": 500.0,
+      "dockZone": "BOTTOM",
+      "isMinimized": false,
+      "zIndex": 0.0
+    }
+  ],
+  "tabGroups": [],
+  "containerBounds": {
+    "left": 0.0,
+    "top": 0.0,
+    "right": 1200.0,
+    "bottom": 800.0
+  },
+  "version": "1.0"
+}

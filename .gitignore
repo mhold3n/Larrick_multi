@@ -56,3 +56,7 @@ dist/
 build/
 .env
 mechanisms/
+
+# C# helper (`tools/picogk_manufact`): build output embeds machine-specific sourcelink paths
+tools/picogk_manufact/obj/
+tools/picogk_manufact/bin/

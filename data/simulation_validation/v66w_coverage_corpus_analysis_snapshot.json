@@ -1,7 +1,7 @@
 {
   "authority_miss_sample": {
     "failure_class": "same_sign_overshoot",
-    "path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66w_chem323_run/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+    "path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66w_chem323_run/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
     "reject_variable": "CH2(S)",
     "stage_name": "ignition_entry"
   },
@@ -30,47 +30,47 @@
   "qdot_miss_targets": [
     {
       "min_transformed_distance_to_corpus": 0.0,
-      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66c_chem323_ignition_entry_seedable_qdot_capture/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66c_chem323_ignition_entry_seedable_qdot_capture/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "stage_name": "ignition_entry"
     },
     {
       "min_transformed_distance_to_corpus": 0.2000253360407444,
-      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66j_chem323_ignition_entry_seeded_cy3c5h8o_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66j_chem323_ignition_entry_seeded_cy3c5h8o_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "stage_name": "ignition_entry"
     },
     {
       "min_transformed_distance_to_corpus": 0.0030621862861484076,
-      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66l_chem323_ignition_entry_seeded_ch2oh_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66l_chem323_ignition_entry_seeded_ch2oh_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "stage_name": "ignition_entry"
     }
   ],
   "species_miss_targets": [
     {
       "min_transformed_distance_to_corpus": 0.0,
-      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66h_chem323_ignition_entry_seeded_h2o2_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66h_chem323_ignition_entry_seeded_h2o2_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "reject_variable": "C5H82OOH4-5_diag",
       "stage_name": "ignition_entry"
     },
     {
       "min_transformed_distance_to_corpus": 0.015782050548465872,
-      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66i_chem323_ignition_entry_seeded_c5h82ooh45_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66i_chem323_ignition_entry_seeded_c5h82ooh45_diag_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "reject_variable": "CY3C5H8O_diag",
       "stage_name": "ignition_entry"
     },
     {
       "min_transformed_distance_to_corpus": 0.0,
-      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66k_chem323_ignition_entry_frontier_rebalanced_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66k_chem323_ignition_entry_frontier_rebalanced_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "reject_variable": "CH2OH",
       "stage_name": "ignition_entry"
     },
     {
       "min_transformed_distance_to_corpus": 0.0,
-      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66p_chem323_ignition_entry_qdot_quad_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
+      "miss_artifact_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/outputs/diagnostics/engine_restart_benchmark_live_parallel_v66p_chem323_ignition_entry_qdot_quad_sanity/chem323_lookup_strict/runtimeChemistryAuthorityMiss.json",
       "reject_variable": "OH",
       "stage_name": "ignition_entry"
     }
   ],
-  "table_config_path": "/Users/maxholden/GitHub/Larrick_multi/data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_entry.json",
+  "table_config_path": "/Users/maxholden/GitHub/Larrick Engine Suite/Larrick_multi/data/simulation_validation/openfoam_runtime_chemistry_table_chem323_ignition_entry.json",
   "transformed_state_variables": [
     "Pressure",
     "OH",

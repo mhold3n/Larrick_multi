@@ -24,7 +24,7 @@ import pytest
 # does not fail before fixtures run.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 try:
-    import larrak_runtime.thermo.timing_profile as _tp
+    import larrak_simulation.engine_physics.thermo.timing_profile as _tp
 
     _profile = _REPO_ROOT / "data" / "thermo" / "valve_timing_profile_v1.json"
     if _profile.exists():
@@ -35,7 +35,7 @@ try:
         if hasattr(_tp.thermo_timing_bounds, "cache_clear"):
             _tp.thermo_timing_bounds.cache_clear()  # type: ignore[attr-defined]
 
-    import larrak_runtime.thermo.chemistry_profile as _cp
+    import larrak_simulation.engine_physics.thermo.chemistry_profile as _cp
 
     _chem = _REPO_ROOT / "data" / "thermo" / "hybrid_chemistry_profile_v1.json"
     if _chem.exists():

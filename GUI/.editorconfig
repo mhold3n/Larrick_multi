@@ -1,0 +1,19 @@
+root = true
+
+[*.{kt,kts}]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+max_line_length = 140
+
+# Allow PascalCase for @Composable and @Preview functions (Compose UI style)
+ktlint_function_naming_ignore_when_annotated_with = Composable,Preview
+
+# Prefer explicit imports; prevent IDE from collapsing to star imports
+ij_kotlin_name_count_to_use_star_import = 2147483647
+
+# Temporary workaround left from earlier sessions (safe even if engine ignores it)
+# Remove once the codebase fully conforms and engine version is upgraded
+ktlint_standard_argument-list-wrapping = disabled
